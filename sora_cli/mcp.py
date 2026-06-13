@@ -118,6 +118,7 @@ def cmd_start(args) -> int:
     """Start MCP server."""
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info, print_success
+    from sora_cli.setup import print_header
 
     print_info(f"Starting MCP server on port {args.port} ({args.transport})")
     try:
@@ -136,6 +137,7 @@ def cmd_ws_start(args) -> int:
     """Start WebSocket MCP server."""
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info, print_success
+    from sora_cli.setup import print_header
 
     print_info(f"Starting WebSocket MCP server on {args.host}:{args.port}")
     try:
@@ -155,11 +157,12 @@ def cmd_status(args) -> int:
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info, print_success
     from sora_cli.config import load_config
+    from sora_cli.setup import print_header
 
     config = load_config()
     servers = cfg_get(config, "mcp", "servers", default={})
 
-    print_header("MCP Servers", Colors)
+    print_header("MCP Servers")
     if servers:
         for name, info in servers.items():
             status = color("●", Colors.GREEN) if info.get("enabled") else color("○", Colors.RED)
@@ -168,7 +171,7 @@ def cmd_status(args) -> int:
         print_info("No MCP servers configured")
 
     print()
-    print_header("Detected MCP Processes", Colors)
+    print_header("Detected MCP Processes")
     detected = detect_mcp_servers()
     if detected:
         for s in detected:
@@ -186,6 +189,7 @@ def cmd_list(args) -> int:
     """List available MCP servers from catalog."""
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info
+    from sora_cli.setup import print_header
 
     # Built-in catalog
     catalog = [
@@ -200,7 +204,7 @@ def cmd_list(args) -> int:
         {"name": "everything", "description": "Test server with all features", "package": "@modelcontextprotocol/server-everything"},
     ]
 
-    print_header("MCP Server Catalog", Colors)
+    print_header("MCP Server Catalog")
     for s in catalog:
         print(f"  {color(s['name'], Colors.CYAN)}: {s['description']}")
         print(f"    Package: {s['package']}")
@@ -213,7 +217,7 @@ def cmd_list(args) -> int:
 
 def cmd_add(args) -> int:
     """Add an MCP server."""
-    from sora_cli.cli_output import print_success
+    from sora_cli.cli_output import print_success, print_error
     from sora_cli.colors import Colors, color
 
     manager = MCPManager()
