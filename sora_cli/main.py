@@ -745,15 +745,10 @@ def _handle_tui(args) -> int:
     # Launch TUI
     print("Launching S0RA TUI...")
     try:
-        # Use os.exec to replace current process
-        os.execv(_sys.executable, [_sys.executable, "-m", "uv", "run", "--project", str(tui_path), "node", str(cli_js)])
-    except Exception as e:
-        # Fallback: use subprocess
-        try:
-            subprocess.run(["node", str(cli_js)], cwd=tui_path)
-        except Exception as e2:
-            print(f"Failed to launch TUI: {e2}", file=sys.stderr)
-            return 1
+        subprocess.run(["node", str(cli_js)], cwd=tui_path)
+    except Exception as e2:
+        print(f"Failed to launch TUI: {e2}", file=sys.stderr)
+        return 1
     return 0
 
 

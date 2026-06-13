@@ -1,162 +1,277 @@
 # S0RA Agent
 
-**S0RA Agent** is a standalone CLI application for voice-first AI interaction, built around:
-- **Gemini Live** — Google's multimodal live streaming API
-- **Vapi.ai** — Managed conversational AI platform
-- **MCP** — Model Context Protocol for external tool integration
+> **Voice-First AI Assistant** — Standalone CLI for Gemini Live, Vapi, and MCP voice bridges. Mirrors Hermes CLI architecture.
 
-S0RA mirrors the **Hermes Agent** CLI architecture (`sora`, `sora setup`, `sora chat`, etc.) while being purpose-built for voice bridges. It also works as a **Hermes plugin** so you can use Sora's voice bridges from within Hermes.
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Active-brightgreen.svg)]()
+
+S0RA Agent is a standalone command-line application built around **Gemini Live**, **Vapi.ai**, and **MCP** (Model Context Protocol) functionality. It mirrors the Hermes Agent CLI architecture while being purpose-built for real-time voice interactions.
 
 ## Features
 
-- 🎙️ **Gemini Live Voice Bridge** — Real-time voice streaming with Google's Gemini models
-- 🤖 **Vapi.ai Voice Bridge** — Managed conversational AI with dashboard, phone, and web support
-- 🔌 **MCP Integration** — Connect to filesystem, GitHub, databases, browser automation, and more
-- 🧠 **Honcho Memory** — Persistent cross-session memory
-- 🎨 **Hermes-compatible CLI** — `sora`, `sora setup`, `sora chat`, `sora voice`, `sora mcp`, `sora status`, etc.
-- 🔌 **Hermes Plugin** — Use Sora's tools from within Hermes Agent
+### 🎤 Voice Bridges
+- **Gemini Live** — Direct streaming to Google's Multimodal Live API with native audio
+- **Vapi.ai** — Managed conversational AI platform with WebSocket transport
+- **ElevenLabs** — High-quality conversational AI voices (planned)
+- **Edge TTS** — Free Microsoft neural voices for testing
+
+### 🔌 MCP Integration
+- Built-in MCP server with stdio, SSE, and streamable-http transports
+- Auto-detection of running MCP servers on device
+- Catalog of 11 common MCP servers (filesystem, GitHub, databases, browser, Slack, Notion, Google Drive, memory, Brave Search, fetch)
+
+### 🧙 Interactive Setup Wizard
+- 7-section guided configuration (Model, Discord, Voice, MCP, Memory, Tools, Wake Word)
+- **OpenClaw migration** — Detects and imports settings from ~/.openclaw
+- **OpenWakeWord** — Optional "Hey Sora" wake word detection (fully local)
+- Animated spinners and ASCII art throughout
+- ASCII art logo and colored terminal output
+
+### 🎨 Terminal UI (TUI)
+- Ink/React-based TUI with keyboard navigation
+- Voice bridge control panel
+- Provider management
+- System status dashboard
+- Benchmark runner
+- Doctor diagnostics
+- Setup wizard
+
+### 📊 Web Dashboard
+- Live voice demo preview
+- Provider toggle panel
+- System status monitor
+- Install guide with copy-paste commands
+- Full documentation
+
+### 🏥 Doctor & Benchmarks
+- Comprehensive system health checks
+- Performance benchmarks (CLI startup, config load, plugin discovery, MCP start, voice status, doctor check)
+- JSON output for CI/CD integration
+
+### 🔄 Git-based Updates
+- `sora update` — Pull latest changes and reinstall dependencies
+- `sora update --check-only` — Check for updates without applying
+- Mirrors Hermes update mechanism
 
 ## Installation
 
-### Standalone (recommended)
-
 ```bash
-# From source
-git clone https://github.com/capslockb/sora-agent
-cd sora-agent
-pipx install -e .
+# Using pipx (recommended)
+pipx install git+https://github.com/capslockb/sora-agent
 
 # Or with uv
-uv pip install -e .
+uv pip install git+https://github.com/capslockb/sora-agent
+
+# Or with pip
+pip install git+https://github.com/capslockb/sora-agent
 ```
 
-### As Hermes Plugin
-
+Then run the interactive setup wizard:
 ```bash
-# From within Hermes
-hermes plugins install capslockb/sora-agent
-
-# Or manually
-mkdir -p ~/.hermes/plugins/sora-hermes
-# Copy plugin files
-hermes plugins enable sora-hermes
+sora setup
 ```
 
 ## Quick Start
 
 ```bash
-# 1. Run setup wizard
+# 1. Run setup wizard (interactive)
 sora setup
 
-# 2. Start a voice bridge
+# 2. Start a voice bridge (Gemini Live)
 sora voice live --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
 
-# Or Vapi
+# 3. Or use Vapi.ai
 sora voice vapi --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
 
-# 3. Start MCP server
-sora mcp start
+# 4. Launch the TUI
+sora tui
 
-# 4. Check status
+# 5. Check system status
 sora status
+
+# 6. Run doctor diagnostics
+sora doctor
+
+# 7. Run performance benchmarks
+sora benchmark
 ```
 
-## Architecture
+## Commands
 
-```
-sora-agent/
-├── sora_cli/           # Main CLI package
-│   ├── main.py         # Entry point (sora command)
-│   ├── setup.py        # Interactive setup wizard
-│   ├── voice.py        # Voice bridge commands
-│   ├── mcp.py          # MCP server commands
-│   ├── config.py       # Configuration management
-│   ├── cli.py          # Interactive chat REPL
-│   └── ...             # Other subcommands
-├── plugins/
-│   └── sora-hermes/    # Hermes plugin
-├── pyproject.toml      # Package config
-└── README.md
+| Command | Description |
+|---------|-------------|
+| `sora` / `sora chat` | Start interactive chat session |
+| `sora setup` | Run interactive setup wizard |
+| `sora voice live` | Start Gemini Live voice bridge |
+| `sora voice vapi` | Start Vapi.ai voice bridge |
+| `sora voice status` | Show voice bridge status |
+| `sora voice leave` | Stop voice bridge |
+| `sora voice providers` | Manage voice providers (TTS/STT/LLM Voice) |
+| `sora mcp start` | Start MCP server |
+| `sora mcp status` | Show MCP server status |
+| `sora mcp list` | List available MCP servers |
+| `sora mcp catalog` | Browse MCP server catalog |
+| `sora status` | Show system health dashboard |
+| `sora doctor` | Run diagnostics |
+| `sora benchmark` | Run performance benchmarks |
+| `sora config` | Configuration management |
+| `sora plugins` | Plugin management |
+| `sora skills` | Skill management |
+| `sora cron` | Cron job management |
+| `sora logs` | View logs |
+| `sora tui` | Launch Terminal UI (Ink/React) |
+| `sora update` | Update to latest version |
+| `sora version` | Show version |
+| `sora acp` | Run as ACP server for editor integration |
+
+## Voice Providers
+
+```bash
+# List available providers
+sora voice providers list
+
+# Enable a provider
+sora voice providers enable gemini-live
+sora voice providers enable vapi
+sora voice providers enable elevenlabs
+sora voice providers enable edge-tts
+
+# Disable a provider
+sora voice providers disable vapi
 ```
 
 ## Configuration
 
-S0RA stores config in `~/.sora/`:
-- `config.yaml` — Settings (model, voice, MCP, etc.)
-- `.env` — API keys and secrets
-- `plugins/` — User-installed plugins
-- `skills/` — User skills
-- `logs/` — Log files
-- `sessions/` — Chat sessions
+Configuration is stored in `~/.sora/config.yaml` and secrets in `~/.sora/.env`.
 
-## Voice Bridges
-
-### Gemini Live
-Direct streaming to Google's Generative Language API.
-- Low latency (~200-400ms)
-- Supports video frames (1fps)
-- Custom system prompt (S0RA personality)
-- Honcho memory integration
-
-### Vapi.ai
-Managed conversational AI platform.
-- Dashboard for assistant management
-- Phone number integration
-- Web embed support
-- Multi-provider voice/TTS
-
-## MCP Servers
-
-Configure MCP servers in `sora setup` or `~/.sora/config.yaml`:
-
-```yaml
-mcp:
-  enabled: true
-  servers:
-    filesystem:
-      command: npx
-      args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user"]
-    github:
-      command: npx
-      args: ["-y", "@modelcontextprotocol/server-github"]
-      env:
-        GITHUB_TOKEN: "${GITHUB_TOKEN}"
+### Profiles
+Supports multiple isolated profiles like Hermes:
+```bash
+sora --profile myprofile setup
+sora --profile myprofile chat
 ```
 
-## Hermes Plugin Usage
+Profiles are stored in `~/.sora-profiles/` or `~/.sora-<name>/`.
 
-Once enabled in Hermes, these tools are available:
+## Hermes Plugin
+
+S0RA also works as a Hermes plugin. Install:
+
+```bash
+# Copy plugin to Hermes
+cp -r plugins/sora_hermes ~/.hermes/plugins/
+
+# Enable in Hermes
+hermes plugins enable sora-hermes
+```
+
+This registers these tools in Hermes:
 - `sora_voice_live` — Start Gemini Live bridge
 - `sora_voice_vapi` — Start Vapi bridge
 - `sora_voice_leave` — Stop voice bridge
 - `sora_voice_status` — Check bridge status
 - `sora_mcp_start` — Start MCP server
-- `sora_mcp_status` — Check MCP status
+- `sora_mcp_status` — Get MCP server status
 
-And slash commands in Discord:
-- `/sora-voice-live` — Start Gemini Live (use discord-voice plugin instead)
-- `/sora-voice-vapi` — Start Vapi (use discord-vapi plugin instead)
+And Discord slash commands:
+- `/sora-voice-live`
+- `/sora-voice-vapi`
+
+## Architecture
+
+S0RA mirrors Hermes CLI architecture:
+
+```
+sora-agent/
+├── sora_bootstrap.py       # UTF-8 stdio setup (Windows)
+├── sora_constants.py       # Profile-aware paths
+├── sora_logging.py         # Centralized logging
+├── sora_cli/               # CLI commands
+│   ├── main.py             # Entry point & parser
+│   ├── setup.py            # Interactive setup wizard
+│   ├── voice.py            # Voice bridge management
+│   ├── mcp.py              # MCP server management
+│   ├── status.py           # System status dashboard
+│   ├── doctor.py           # Diagnostics
+│   ├── benchmark.py        # Performance benchmarks
+│   ├── config.py           # Config management
+│   ├── plugins.py          # Plugin management
+│   ├── skills.py           # Skill management
+│   ├── cron.py             # Cron jobs
+│   ├── tui.py              # TUI launcher
+│   └── skin_engine.py      # Theme/skin system
+├── plugins/
+│   └── sora_hermes/        # Hermes plugin
+├── ui-tui/                 # Ink/React TUI
+├── website/                # React web dashboard
+├── agent/                  # Agent core (optional)
+└── tests/                  # Test suite
+```
 
 ## Requirements
 
 - Python 3.11+
-- Node.js + npm (for MCP servers)
-- Discord bot with voice permissions
-- API keys: GEMINI_API_KEY, VAPI_API_KEY, DISCORD_BOT_TOKEN
+- Node.js 20+ (for TUI and website)
+- Git
+- Discord Bot Token (for voice bridges)
+- Gemini API Key (for Gemini Live)
+- Vapi API Key (optional, for Vapi bridge)
+
+## Optional Dependencies
+
+```bash
+# Voice bridges
+pip install "sora-agent[gemini-live,vapi]"
+
+# Web search backends
+pip install "sora-agent[exa,firecrawl,parallel-web]"
+
+# Image generation
+pip install "sora-agent[fal]"
+
+# TTS/STT
+pip install "sora-agent[edge-tts,elevenlabs,minimax-tts,openai-tts,faster-whisper]"
+
+# MCP
+pip install "sora-agent[mcp]"
+
+# Web dashboard
+pip install "sora-agent[web]"
+
+# All optional
+pip install "sora-agent[all]"
+```
 
 ## Development
 
 ```bash
-# Install dev dependencies
+# Clone repo
+git clone https://github.com/capslockb/sora-agent
+cd sora-agent
+
+# Install in development mode
 uv pip install -e ".[dev]"
 
 # Run tests
-pytest tests/
+pytest
 
-# Type check
-ty check
+# Build TUI
+cd ui-tui && npx esbuild src/cli.tsx --bundle --platform=node --outfile=dist/cli.js --external:ink --external:react --format=esm
+
+# Build website
+cd website && npm run build
+
+# Run linting
+ruff check .
 ```
 
 ## License
 
-MIT — See LICENSE file.
+MIT License — see [LICENSE](LICENSE) for details.
+
+## Related Projects
+
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent) — The agent that grows with you
+- [OpenClaw](https://github.com/openclaw/openclaw) — Personal AI assistant (migratable)
+- [Discord Voice Plugin](https://github.com/capslockb/hermes-plugins/tree/main/discord-voice) — Original Gemini Live bridge

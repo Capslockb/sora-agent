@@ -95,6 +95,37 @@ from sora_cli.cli_output import (
 )
 from sora_cli.secret_prompt import masked_secret_prompt
 
+# Animation helpers
+_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+def _animate_spinner(message: str, duration: float = 2.0) -> None:
+    """Show an animated spinner for the given duration."""
+    import sys
+    import time
+    if not is_interactive_stdin():
+        print_info(message)
+        return
+    
+    start = time.time()
+    i = 0
+    while time.time() - start < duration:
+        frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
+        sys.stdout.write(f"\r{color(frame, Colors.CYAN)} {message}")
+        sys.stdout.flush()
+        time.sleep(0.1)
+        i += 1
+    sys.stdout.write(f"\r{color('✓', Colors.GREEN)} {message}\n")
+    sys.stdout.flush()
+
+
+SORA_LOGO = color("""
+    ███████╗██╗  ██╗██╗  ██╗
+    ██╔════╝██║  ██║██║  ██║
+    ███████╗███████║███████║
+    ╚════██║██╔══██║██╔══██║
+    ███████║██║  ██║██║  ██║
+    ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
+""", Colors.CYAN, Colors.BOLD)
 
 def print_header(title: str):
     """Print a section header."""
@@ -103,6 +134,7 @@ def print_header(title: str):
 
 
 def is_interactive_stdin() -> bool:
+    import sys
     stdin = getattr(sys, "stdin", None)
     if stdin is None:
         return False
@@ -581,6 +613,19 @@ def wizard_mcp(config: Dict[str, Any]) -> Dict[str, Any]:
     else:
         print_info("No MCP servers configured yet")
 
+    # Auto-detect running MCP servers on device
+    print()
+    _animate_spinner("Scanning for running MCP servers...", 1.5)
+    detected = _detect_mcp_servers()
+    if detected:
+        print_success(f"✓ Found running MCP servers: {', '.join(detected.keys())}")
+        for name, info in detected.items():
+            print_info(f"  • {name}: {info['description']} (port {info.get('port', '?')})")
+            if name not in servers and prompt_yes_no(f"  Add {name} to Sora config?", default=True):
+                servers[name] = info
+    else:
+        print_info("No running MCP servers detected")
+
     print()
 
     # Common MCP servers to suggest
@@ -897,7 +942,26 @@ def main(args) -> int:
     # Load existing config
     config = load_config()
 
+    # Check for OpenClaw migration
+    openclaw_path = Path.home() / ".openclaw"
+    if openclaw_path.exists() and not cfg_get(config, "migrated_from_openclaw", default=False):
+        print()
+        print(SORA_LOGO)
+        print(color("═══ S0RA Agent Setup ═══", Colors.CYAN, Colors.BOLD))
+        print(color("OpenClaw installation detected!", Colors.YELLOW, Colors.BOLD))
+        print()
+        print_info("Found OpenClaw at ~/.openclaw")
+        print_info("Sora can migrate your settings, memories, skills, and API keys.")
+        print()
+        if prompt_yes_no("Migrate from OpenClaw now?", default=True):
+            _animate_spinner("Migrating from OpenClaw...", 2.0)
+            _migrate_from_openclaw(config)
+            config["migrated_from_openclaw"] = True
+        else:
+            print_info("Skipping OpenClaw migration. You can run it later with 'sora setup'.")
+    
     print()
+    print(SORA_LOGO)
     print(color("═══ S0RA Agent Setup ═══", Colors.CYAN, Colors.BOLD))
     print(color("Welcome! Let's configure your Sora voice agent.", Colors.CYAN))
     print()
@@ -909,6 +973,9 @@ def main(args) -> int:
     config = wizard_mcp(config)
     config = wizard_memory(config)
     config = wizard_tools(config)
+    
+    # OpenWakeWord setup
+    config = wizard_wake_word(config)
 
     # Save
     save_config(config)
@@ -916,6 +983,182 @@ def main(args) -> int:
     _print_setup_summary(config)
 
     return 0
+
+
+def _migrate_from_openclaw(config: Dict[str, Any]) -> None:
+    """Migrate settings from OpenClaw."""
+    import json
+    import shutil
+    
+    openclaw_path = Path.home() / ".openclaw"
+    
+    # Migrate config
+    openclaw_config = openclaw_path / "config.yaml"
+    if openclaw_config.exists():
+        try:
+            import yaml
+            with open(openclaw_config, encoding="utf-8") as f:
+                oc_config = yaml.safe_load(f) or {}
+            
+            # Migrate model settings
+            if "model" in oc_config:
+                config["model"] = oc_config["model"]
+                print_success("✓ Migrated model configuration")
+            
+            # Migrate Discord settings
+            if "discord" in oc_config:
+                config.setdefault("voice", {})["discord"] = oc_config["discord"]
+                print_success("✓ Migrated Discord configuration")
+            
+            # Migrate MCP settings
+            if "mcp" in oc_config:
+                config["mcp"] = oc_config["mcp"]
+                print_success("✓ Migrated MCP configuration")
+                
+        except Exception as e:
+            print_warning(f"Failed to migrate config: {e}")
+    
+    # Migrate .env (secrets)
+    openclaw_env = openclaw_path / ".env"
+    if openclaw_env.exists():
+        try:
+            # Copy .env to sora
+            target_env = Path.home() / ".sora" / ".env"
+            shutil.copy2(openclaw_env, target_env)
+            print_success("✓ Migrated API keys and secrets")
+        except Exception as e:
+            print_warning(f"Failed to migrate secrets: {e}")
+    
+    # Migrate skills
+    openclaw_skills = openclaw_path / "skills"
+    if openclaw_skills.exists():
+        sora_skills = Path.home() / ".sora" / "skills"
+        try:
+            if not sora_skills.exists():
+                sora_skills.mkdir(parents=True)
+            for skill_dir in openclaw_skills.iterdir():
+                if skill_dir.is_dir():
+                    dest = sora_skills / skill_dir.name
+                    if dest.exists():
+                        shutil.rmtree(dest)
+                    shutil.copytree(skill_dir, dest)
+            print_success("✓ Migrated skills")
+        except Exception as e:
+            print_warning(f"Failed to migrate skills: {e}")
+
+
+def wizard_wake_word(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Setup OpenWakeWord for 'Hey Sora' wake word detection."""
+    print_header("Wake Word Detection (OpenWakeWord)")
+    print_info("OpenWakeWord enables hands-free 'Hey Sora' activation.")
+    print_info("This runs locally on your device — no cloud required.")
+    print()
+    
+    wake_enabled = cfg_get(config, "voice", "wake_word", "enabled", default=False)
+    wake_model = cfg_get(config, "voice", "wake_word", "model", default="hey_sora")
+    
+    print_info(f"Wake Word: {'Enabled' if wake_enabled else 'Disabled'}")
+    if wake_enabled:
+        print_info(f"  Model: {wake_model}")
+    
+    print()
+    if prompt_yes_no("Enable 'Hey Sora' wake word detection?", default=False):
+        _animate_spinner("Installing OpenWakeWord...", 3.0)
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["pip", "install", "openwakeword", "onnxruntime"],
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode == 0:
+                config.setdefault("voice", {}).setdefault("wake_word", {})["enabled"] = True
+                config["voice"]["wake_word"]["model"] = prompt(
+                    "Wake word model", default="hey_sora"
+                )
+                print_success("✓ OpenWakeWord installed and enabled")
+            else:
+                print_error(f"Installation failed: {result.stderr}")
+        except Exception as e:
+            print_error(f"Failed to install: {e}")
+    else:
+        config.setdefault("voice", {}).setdefault("wake_word", {})["enabled"] = False
+    
+    return config
+
+
+def _detect_mcp_servers() -> Dict[str, Any]:
+    """Detect running MCP servers on the local device."""
+    import socket
+    import subprocess
+    import json
+    
+    detected = {}
+    
+    # Common MCP server ports and their identifiers
+    MCP_PORTS = {
+        3000: ("mcp-filesystem", "Filesystem MCP Server", "stdio/sse"),
+        3001: ("mcp-github", "GitHub MCP Server", "stdio/sse"),
+        3002: ("mcp-postgres", "PostgreSQL MCP Server", "stdio/sse"),
+        3003: ("mcp-sqlite", "SQLite MCP Server", "stdio/sse"),
+        3004: ("mcp-browser", "Playwright Browser MCP Server", "stdio/sse"),
+        3005: ("mcp-slack", "Slack MCP Server", "stdio/sse"),
+        3006: ("mcp-notion", "Notion MCP Server", "stdio/sse"),
+        3007: ("mcp-gdrive", "Google Drive MCP Server", "stdio/sse"),
+        3008: ("mcp-memory", "Memory/Knowledge Graph MCP Server", "stdio/sse"),
+        3009: ("mcp-brave", "Brave Search MCP Server", "stdio/sse"),
+        3010: ("mcp-fetch", "Fetch/HTTP MCP Server", "stdio/sse"),
+    }
+    
+    # Check common ports
+    for port, (name, desc, transport) in MCP_PORTS.items():
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            result = sock.connect_ex(("127.0.0.1", port))
+            sock.close()
+            if result == 0:
+                detected[name] = {
+                    "description": desc,
+                    "port": port,
+                    "transport": transport,
+                    "auto_detected": True,
+                }
+        except Exception:
+            pass
+    
+    # Also check for stdio-based MCP servers by looking at running processes
+    try:
+        # Check for mcp processes
+        result = subprocess.run(
+            ["pgrep", "-f", "mcp.*server"],
+            capture_output=True, text=True, timeout=2
+        )
+        if result.stdout.strip():
+            pids = result.stdout.strip().split("\n")
+            for pid in pids:
+                try:
+                    # Get command line to identify the server
+                    cmd_result = subprocess.run(
+                        ["ps", "-p", pid, "-o", "args="],
+                        capture_output=True, text=True, timeout=1
+                    )
+                    cmd = cmd_result.stdout.strip()
+                    if "filesystem" in cmd and "mcp-filesystem" not in detected:
+                        detected["mcp-filesystem"] = {"description": "Filesystem MCP Server", "port": "stdio", "transport": "stdio", "auto_detected": True}
+                    elif "github" in cmd and "mcp-github" not in detected:
+                        detected["mcp-github"] = {"description": "GitHub MCP Server", "port": "stdio", "transport": "stdio", "auto_detected": True}
+                    elif "postgres" in cmd and "mcp-postgres" not in detected:
+                        detected["mcp-postgres"] = {"description": "PostgreSQL MCP Server", "port": "stdio", "transport": "stdio", "auto_detected": True}
+                    elif "sqlite" in cmd and "mcp-sqlite" not in detected:
+                        detected["mcp-sqlite"] = {"description": "SQLite MCP Server", "port": "stdio", "transport": "stdio", "auto_detected": True}
+                    elif "playwright" in cmd and "mcp-browser" not in detected:
+                        detected["mcp-browser"] = {"description": "Playwright Browser MCP Server", "port": "stdio", "transport": "stdio", "auto_detected": True}
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    
+    return detected
 
 
 if __name__ == "__main__":
