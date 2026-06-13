@@ -744,6 +744,16 @@ def _handle_tui(args) -> int:
     if args.build:
         # Build the TUI
         print("Building S0RA TUI...")
+        # Install npm dependencies first
+        print("Installing npm dependencies...")
+        result = subprocess.run(
+            ["npm", "install"],
+            cwd=tui_path,
+            capture_output=False,
+        )
+        if result.returncode != 0:
+            print("npm install failed", file=sys.stderr)
+            return 1
         result = subprocess.run(
             ["npx", "esbuild", "src/cli.tsx", "--bundle", "--platform=node", "--outfile=dist/cli.js", "--external:ink", "--external:react", "--format=esm"],
             cwd=tui_path,
