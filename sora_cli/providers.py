@@ -142,6 +142,7 @@ def list_providers(args) -> int:
     """List all available providers."""
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info, print_success
+    from sora_cli.setup import print_header
 
     config = load_config()
     current = {
@@ -150,7 +151,7 @@ def list_providers(args) -> int:
         "stt": cfg_get(config, "voice", "stt", "provider", default="faster-whisper"),
     }
 
-    print_header("Available Voice Providers", Colors)
+    print_header("Available Voice Providers")
     print()
 
     for cat_key, cat_name in CATEGORIES.items():
@@ -179,6 +180,7 @@ def enable_provider(args) -> int:
     """Enable a provider for a category."""
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info, print_success, print_error
+    from sora_cli.setup import print_header
 
     provider_id = args.provider
     if provider_id not in PROVIDERS:
@@ -193,7 +195,6 @@ def enable_provider(args) -> int:
     cfg_set(config, "voice", category, "provider", provider_id)
     save_config(config)
 
-    # Check env vars
     missing = [v for v in prov["env_vars"] if not get_env_value(v)]
     if missing:
         print_warning(f"Provider enabled but missing env vars: {', '.join(missing)}")
@@ -209,15 +210,12 @@ def disable_provider(args) -> int:
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info, print_success
 
-    # This just resets to default - providers aren't "disabled" per se
-    # but we can clear the config
     category = args.category
     if category not in CATEGORIES:
         print_error(f"Invalid category: {category}. Use: {', '.join(CATEGORIES.keys())}")
         return 1
 
     config = load_config()
-    # Reset to category default
     defaults = {"llm_voice": "gemini-live", "tts": "edge-tts", "stt": "faster-whisper"}
     cfg_set(config, "voice", category, "provider", defaults.get(category))
     save_config(config)
@@ -230,6 +228,7 @@ def configure_provider(args) -> int:
     """Configure a provider's settings."""
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info, print_success, print_error
+    from sora_cli.setup import print_header, prompt, prompt_yes_no
 
     provider_id = args.provider
     if provider_id not in PROVIDERS:
@@ -239,7 +238,7 @@ def configure_provider(args) -> int:
     prov = PROVIDERS[provider_id]
     config = load_config()
 
-    print_header(f"Configure {prov['name']}", Colors)
+    print_header(f"Configure {prov['name']}")
     print()
 
     # Check/env vars
@@ -263,7 +262,6 @@ def configure_provider(args) -> int:
 
         new_val = prompt(f"{config_key} [{current}]")
         if new_val:
-            # Navigate nested dict
             d = config
             for p in parts[:-1]:
                 d = d.setdefault(p, {})
@@ -280,6 +278,7 @@ def status_provider(args) -> int:
     from sora_cli.colors import Colors, color
     from sora_cli.cli_output import print_info, print_success
     from sora_cli.config import load_config
+    from sora_cli.setup import print_header
 
     config = load_config()
     current = {
@@ -288,7 +287,7 @@ def status_provider(args) -> int:
         "stt": cfg_get(config, "voice", "stt", "provider", default="faster-whisper"),
     }
 
-    print_header("Current Provider Status", Colors)
+    print_header("Current Provider Status")
     print()
 
     for cat_key, cat_name in CATEGORIES.items():
@@ -296,13 +295,11 @@ def status_provider(args) -> int:
         prov = PROVIDERS.get(prov_name, {})
         print(f"  {cat_name}: {color(prov.get('name', prov_name), Colors.CYAN)} ({prov_name})")
 
-        # Show config
         for config_key in prov.get("config_keys", []):
             val = cfg_get(config, *config_key.split("."), default="")
             if val:
                 print(f"    {config_key}: {val}")
 
-        # Show env status
         for env_var in prov.get("env_vars", []):
             val = get_env_value(env_var)
             status = color("✓", Colors.GREEN) if val else color("✗", Colors.RED)
@@ -315,6 +312,7 @@ def status_provider(args) -> int:
 # Import helpers from setup.py
 from sora_cli.setup import (
     print_header, prompt, prompt_yes_no, Colors, color,
+    print_info, print_success, print_error, print_warning,
 )
 
 
@@ -352,7 +350,6 @@ def main(args) -> int:
     cmd = getattr(args, "providers_command", None)
 
     if cmd is None:
-        # Show help
         print("Provider Management")
         print()
         print("Usage: sora providers <subcommand> [options]")
