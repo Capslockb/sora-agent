@@ -163,7 +163,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
 }
 
-
 _config_version = 1
 
 
@@ -245,6 +244,27 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
         else:
             result[key] = value
     return result
+
+
+def cfg_get(config: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+    """Get a nested config value using dot-separated keys."""
+    value = config
+    for key in keys:
+        if isinstance(value, dict):
+            value = value.get(key)
+        else:
+            return default
+    return value if value is not None else default
+
+
+def cfg_set(config: Dict[str, Any], *keys: str, value: Any) -> None:
+    """Set a nested config value using dot-separated keys."""
+    obj = config
+    for key in keys[:-1]:
+        if key not in obj or not isinstance(obj[key], dict):
+            obj[key] = {}
+        obj = obj[key]
+    obj[keys[-1]] = value
 
 
 # Environment variable handling
@@ -335,14 +355,3 @@ def remove_env_value(key: str) -> None:
             f.write(f"{k}={v}\n")
 
     os.environ.pop(key, None)
-
-
-def cfg_get(config: Dict[str, Any], *keys: str, default: Any = None) -> Any:
-    """Get a nested config value using dot-separated keys."""
-    value = config
-    for key in keys:
-        if isinstance(value, dict):
-            value = value.get(key)
-        else:
-            return default
-    return value if value is not None else default
