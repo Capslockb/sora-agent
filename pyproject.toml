@@ -128,6 +128,7 @@ plugins = [
 ]
 "sora_voip" = ["*.py", "*.yaml", "*.yml", "*.service", "*.example", "config.example.yaml", "voip.env.example"]
 optional_mcps = ["**/manifest.yaml"]
+website = ["**/*"]
 
 [tool.setuptools.packages.find]
 include = [
