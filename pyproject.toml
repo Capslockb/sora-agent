@@ -8,7 +8,7 @@ name = "sora-agent"
 version = "0.1.0"
 description = "S0RA Agent — Standalone CLI for Gemini Live, Vapi, and MCP voice bridges. Mirrors Hermes CLI architecture."
 readme = "README.md"
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.11"
 authors = [{name = "Capslockb"}]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -104,35 +104,21 @@ dev = [
 
 [project.scripts]
 sora = "sora_cli.main:main"
-sora-agent = "run_agent:main"
 sora-acp = "acp_adapter.entry:main"
 
 [tool.setuptools]
 py-modules = [
-    "run_agent",
-    "model_tools",
-    "toolsets",
-    "batch_runner",
     "sora_bootstrap",
     "sora_constants",
-    "sora_state",
     "sora_logging",
-    "utils",
-    "mcp_serve",
 ]
 
 [tool.setuptools.data-files]
 locales = ["locales/*.yaml"]
-"optional-mcps/linear" = ["optional-mcps/linear/manifest.yaml"]
-"optional-mcps/n8n" = ["optional-mcps/n8n/manifest.yaml"]
 
 [tool.setuptools.package-data]
-sora_cli = ["web_dist/**/*", "tui_dist/**/*", "scripts/install.sh", "scripts/install.ps1"]
-gateway = ["assets/**/*"]
+sora_cli = []
 plugins = [
-    "*/dashboard/manifest.json",
-    "*/dashboard/dist/*",
-    "*/dashboard/dist/**/*",
     "**/plugin.yaml",
     "**/plugin.yml",
     "**/README.md",
