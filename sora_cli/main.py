@@ -569,6 +569,30 @@ dashboard_dev_parser.add_argument("--port", type=int, default=3000, help="Dev se
 
 
 # ---- skills ----
+# ---- providers (top-level) ----
+providers_top_parser = _add_subcommand("providers", "Manage voice providers (TTS/STT/LLM Voice)")
+providers_top_sub = providers_top_parser.add_subparsers(dest="providers_command", metavar="<subcommand>")
+
+providers_top_list_parser = providers_top_sub.add_parser("list", help="List available providers", add_help=False)
+providers_top_list_parser.add_argument("-h", "--help", action="help")
+
+providers_top_enable_parser = providers_top_sub.add_parser("enable", help="Enable a provider", add_help=False)
+providers_top_enable_parser.add_argument("-h", "--help", action="help")
+providers_top_enable_parser.add_argument("provider", help="Provider name (gemini-live, vapi, elevenlabs, edge-tts, openai-tts, whisper)")
+
+providers_top_disable_parser = providers_top_sub.add_parser("disable", help="Disable a provider", add_help=False)
+providers_top_disable_parser.add_argument("-h", "--help", action="help")
+providers_top_disable_parser.add_argument("category", choices=["llm_voice", "tts", "stt"], help="Category to reset")
+
+providers_top_config_parser = providers_top_sub.add_parser("config", help="Configure a provider", add_help=False)
+providers_top_config_parser.add_argument("-h", "--help", action="help")
+providers_top_config_parser.add_argument("provider", help="Provider name")
+
+providers_top_status_parser = providers_top_sub.add_parser("status", help="Show current provider status", add_help=False)
+providers_top_status_parser.add_argument("-h", "--help", action="help")
+
+
+# ---- skills ----
 skills_parser = _add_subcommand("skills", "Skill management")
 skills_sub = skills_parser.add_subparsers(dest="skills_command", metavar="<subcommand>")
 
