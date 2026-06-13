@@ -118,6 +118,7 @@ locales = ["locales/*.yaml"]
 
 [tool.setuptools.package-data]
 sora_cli = []
+ui_tui = ["src/**/*", "package.json", "tsconfig.json", "dist/**/*"]
 plugins = [
     "**/plugin.yaml",
     "**/plugin.yml",
@@ -135,6 +136,7 @@ include = [
     "acp_adapter",
     "plugins", "plugins.*",
     "providers", "providers.*",
+    "ui_tui", "ui_tui.*",
 ]
 
 [tool.pytest.ini_options]

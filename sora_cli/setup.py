@@ -733,7 +733,7 @@ def wizard_tools(config: Dict[str, Any]) -> Dict[str, Any]:
     print_info(f"Current: {tts_provider} ({tts_voice})")
     print()
 
-    choices = [f"{'✓ ' if get_env_value({'edge': '', 'elevenlabs': 'ELEVENLABS_API_KEY', 'openai': 'OPENAI_API_KEY', 'minimax': 'MINIMAX_API_KEY', 'mistral': 'MISTRAL_API_KEY', 'gemini': 'GEMINI_API_KEY'}.get(k, '')) else '  '}{desc} ({key})" for key, desc, _ in tts_choices]
+    choices = [f"{'✓ ' if get_env_value({'edge': '', 'elevenlabs': 'ELEVENLABS_API_KEY', 'openai': 'OPENAI_API_KEY', 'minimax': 'MINIMAX_API_KEY', 'mistral': 'MISTRAL_API_KEY', 'gemini': 'GEMINI_API_KEY'}.get(key, '')) else '  '}{desc} ({key})" for key, desc, _ in tts_choices]
     default_idx = next((i for i, (k, _, _) in enumerate(tts_choices) if k == tts_provider), 0)
     idx = prompt_choice("Select TTS provider", choices, default=default_idx)
     selected_tts = tts_choices[idx][0]

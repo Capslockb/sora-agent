@@ -721,8 +721,21 @@ def _handle_tui(args) -> int:
     """Launch the TUI (Terminal UI)."""
     import subprocess
     import sys as _sys
+    import importlib.resources
+    import importlib.util
     
-    tui_path = PROJECT_ROOT / "ui-tui"
+    # Try to find the TUI in the installed package
+    tui_path = None
+    
+    # Check if ui_tui package exists
+    spec = importlib.util.find_spec("ui_tui")
+    if spec and spec.origin:
+        tui_path = Path(spec.origin).parent
+    
+    # Fallback to PROJECT_ROOT for development
+    if tui_path is None or not tui_path.exists():
+        tui_path = PROJECT_ROOT / "ui-tui"
+    
     if args.build:
         # Build the TUI
         print("Building S0RA TUI...")
