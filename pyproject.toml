@@ -141,6 +141,7 @@ include = [
     "plugins", "plugins.*",
     "providers", "providers.*",
     "ui_tui", "ui_tui.*",
+    "website", "website.*",
 ]
 
 [tool.pytest.ini_options]
