@@ -1,52 +1,27 @@
 """
-S0RA ACP (Agent Client Protocol) Adapter Entry Point.
-
-This module allows S0RA to run as an ACP stdio server for editor integration.
+ACP Adapter — Run Sora as an ACP server for editor integration.
 """
+from __future__ import annotations
 
 import asyncio
-import logging
 import sys
-from typing import Optional
+from pathlib import Path
 
-logger = logging.getLogger(__name__)
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+sys.path.insert(0, str(PROJECT_ROOT))
 
+from sora_cli.config import load_sora_dotenv
 
-async def run_acp_server(port: int = 0) -> None:
-    """Run the ACP server."""
-    if port == 0:
-        # stdio mode
-        logger.info("Starting S0RA ACP server (stdio mode)")
-        # TODO: Implement ACP stdio server
-        print("S0RA ACP server started (stdio mode)", file=sys.stderr)
-        # Keep running
-        await asyncio.Event().wait()
-    else:
-        # TCP mode
-        logger.info(f"Starting S0RA ACP server on port {port}")
-        # TODO: Implement ACP TCP server
-        print(f"S0RA ACP server started on port {port}", file=sys.stderr)
-        await asyncio.Event().wait()
+load_sora_dotenv(project_env=PROJECT_ROOT / ".env")
 
 
-def main(args=None) -> int:
-    """Main entry point for sora-acp command."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(prog="sora-acp", description="Run S0RA as ACP server")
-    parser.add_argument("--port", type=int, default=0, help="Port for ACP server (0 = stdio)")
-    parsed = parser.parse_args(args)
-    
-    try:
-        asyncio.run(run_acp_server(parsed.port))
-        return 0
-    except KeyboardInterrupt:
-        print("\nACP server stopped", file=sys.stderr)
-        return 130
-    except Exception as e:
-        logger.error(f"ACP server error: {e}")
-        return 1
+async def main() -> int:
+    """Run ACP server."""
+    print("S0RA ACP Server")
+    print("Not yet implemented - will use stdio for editor integration")
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(asyncio.run(main()))

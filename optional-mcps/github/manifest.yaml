@@ -1,0 +1,75 @@
+name: github
+version: 1.0.0
+description: GitHub MCP server for repository and issue management
+author: GitHub
+license: MIT
+repository: https://github.com/github/github-mcp-server
+homepage: https://github.com
+
+server:
+  command: npx
+  args:
+    - -y
+    - "@github/mcp-server"
+  env:
+    GITHUB_TOKEN: "${GITHUB_TOKEN}"
+  transport: stdio
+
+capabilities:
+  tools: true
+  resources: true
+  prompts: true
+
+tools:
+  - name: create_repository
+    description: Create a new repository
+  - name: get_repository
+    description: Get repository details
+  - name: list_repositories
+    description: List repositories
+  - name: create_issue
+    description: Create an issue
+  - name: get_issue
+    description: Get issue details
+  - name: list_issues
+    description: List issues
+  - name: create_pull_request
+    description: Create a pull request
+  - name: get_pull_request
+    description: Get pull request details
+  - name: list_pull_requests
+    description: List pull requests
+  - name: merge_pull_request
+    description: Merge a pull request
+  - name: add_repository_collaborator
+    description: Add collaborator
+  - name: create_branch
+    description: Create a branch
+
+resources:
+  - uri: "github://repos/{owner}/{repo}"
+    name: Repository
+    description: GitHub repository
+  - uri: "github://issues/{owner}/{repo}/{number}"
+    name: Issue
+    description: GitHub issue
+  - uri: "github://pulls/{owner}/{repo}/{number}"
+    name: Pull Request
+    description: GitHub pull request
+
+required_env:
+  - GITHUB_TOKEN
+
+config_schema:
+  type: object
+  properties:
+    github_token:
+      type: string
+      description: GitHub personal access token
+    default_owner:
+      type: string
+      description: Default repository owner
+    api_url:
+      type: string
+      default: "https://api.github.com"
+      description: GitHub API base URL

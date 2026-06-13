@@ -8,7 +8,7 @@ name = "sora-agent"
 version = "0.1.0"
 description = "S0RA Agent — Standalone CLI for Gemini Live, Vapi, and MCP voice bridges. Mirrors Hermes CLI architecture."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 authors = [{name = "Capslockb"}]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -41,7 +41,7 @@ dependencies = [
     "numpy==2.4.3",
     "websockets==13.1",
     "discord.py[voice]==2.7.1",
-    "aiohttp==3.13.4",
+    "aiohttp>=3.9.0,<4",
 ]
 
 [project.optional-dependencies]
@@ -99,12 +99,14 @@ dev = [
     "starlette==1.0.1",
     "ty==0.0.21",
     "ruff==0.15.10",
-    "setuptools==82.0.1",
+    "setuptools>=77.0,<83",
 ]
 
 [project.scripts]
 sora = "sora_cli.main:main"
 sora-acp = "acp_adapter.entry:main"
+sora-voip = "plugins.sora_voip.cli:main"
+sora-api = "sora_api:main"
 
 [tool.setuptools]
 py-modules = [
@@ -118,12 +120,14 @@ locales = ["locales/*.yaml"]
 
 [tool.setuptools.package-data]
 sora_cli = []
-"ui-tui" = ["src/**/*", "package.json", "tsconfig.json", "dist/**/*"]
+"ui_tui" = ["src/**/*", "package.json", "tsconfig.json", "dist/**/*"]
 plugins = [
     "**/plugin.yaml",
     "**/plugin.yml",
     "**/README.md",
 ]
+"sora_voip" = ["*.py", "*.yaml", "*.yml", "*.service", "*.example", "config.example.yaml", "voip.env.example"]
+optional_mcps = ["**/manifest.yaml"]
 
 [tool.setuptools.packages.find]
 include = [
@@ -136,7 +140,7 @@ include = [
     "acp_adapter",
     "plugins", "plugins.*",
     "providers", "providers.*",
-    "ui-tui", "ui-tui.*",
+    "ui_tui", "ui_tui.*",
 ]
 
 [tool.pytest.ini_options]

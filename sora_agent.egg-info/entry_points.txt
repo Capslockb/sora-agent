@@ -1,4 +1,5 @@
 [console_scripts]
 sora = sora_cli.main:main
 sora-acp = acp_adapter.entry:main
-sora-agent = run_agent:main
+sora-api = sora_api:main
+sora-voip = plugins.sora_voip.cli:main

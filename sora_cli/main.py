@@ -170,6 +170,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
+import asyncio
 
 # Subcommand builders — imported lazily in build_parser()
 # from sora_cli.subcommands.* import build_*_parser
@@ -433,7 +434,6 @@ providers_config_parser = providers_sub.add_parser("config", help="Configure a p
 providers_config_parser.add_argument("-h", "--help", action="help")
 providers_config_parser.add_argument("provider", help="Provider name")
 
-
 # ---- mcp ----
 mcp_parser = _add_subcommand("mcp", "MCP server management")
 mcp_sub = mcp_parser.add_subparsers(dest="mcp_command", metavar="<subcommand>")
@@ -455,11 +455,28 @@ mcp_list_parser.add_argument("-h", "--help", action="help")
 mcp_catalog_parser = mcp_sub.add_parser("catalog", help="Browse MCP server catalog", add_help=False)
 mcp_catalog_parser.add_argument("-h", "--help", action="help")
 
+mcp_ws_parser = mcp_sub.add_parser("ws", help="WebSocket MCP management", add_help=False)
+mcp_ws_sub = mcp_ws_parser.add_subparsers(dest="mcp_ws_command", metavar="<subcommand>")
+
+mcp_ws_start_parser = mcp_ws_sub.add_parser("start", help="Start WebSocket MCP server", add_help=False)
+mcp_ws_start_parser.add_argument("-h", "--help", action="help")
+mcp_ws_start_parser.add_argument("--port", type=int, default=3001, help="WebSocket port")
+mcp_ws_start_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
+
+mcp_ws_stop_parser = mcp_ws_sub.add_parser("stop", help="Stop WebSocket MCP server", add_help=False)
+mcp_ws_stop_parser.add_argument("-h", "--help", action="help")
+
+mcp_ws_status_parser = mcp_ws_sub.add_parser("status", help="Show WebSocket MCP status", add_help=False)
+mcp_ws_status_parser.add_argument("-h", "--help", action="help")
+
+mcp_ws_list_parser = mcp_ws_sub.add_parser("list", help="List connected WebSocket clients", add_help=False)
+mcp_ws_list_parser.add_argument("-h", "--help", action="help")
+
+
 
 # ---- status ----
 status_parser = _add_subcommand("status", "Show status of all components")
 status_parser.add_argument("--json", action="store_true", help="Output as JSON")
-
 
 # ---- cron ----
 cron_parser = _add_subcommand("cron", "Manage scheduled tasks")
@@ -533,6 +550,23 @@ for sub_name, sub_help in [
     sub = plugins_sub.add_parser(sub_name, help=sub_help, add_help=False)
     sub.add_argument("-h", "--help", action="help")
 
+# ---- dashboard ----
+dashboard_parser = _add_subcommand("dashboard", "Launch web dashboard")
+dashboard_sub = dashboard_parser.add_subparsers(dest="dashboard_command", metavar="<subcommand>")
+
+dashboard_start_parser = dashboard_sub.add_parser("start", help="Start dashboard server", add_help=False)
+dashboard_start_parser.add_argument("-h", "--help", action="help")
+dashboard_start_parser.add_argument("--port", type=int, default=3000, help="Dashboard port")
+dashboard_start_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
+dashboard_start_parser.add_argument("--api-port", type=int, default=8080, help="API server port")
+
+dashboard_build_parser = dashboard_sub.add_parser("build", help="Build dashboard for production", add_help=False)
+dashboard_build_parser.add_argument("-h", "--help", action="help")
+
+dashboard_dev_parser = dashboard_sub.add_parser("dev", help="Start dashboard in dev mode", add_help=False)
+dashboard_dev_parser.add_argument("-h", "--help", action="help")
+dashboard_dev_parser.add_argument("--port", type=int, default=3000, help="Dev server port")
+
 
 # ---- skills ----
 skills_parser = _add_subcommand("skills", "Skill management")
@@ -559,6 +593,38 @@ version_parser = _add_subcommand("version", "Show version", ["v", "-V", "--versi
 update_parser = _add_subcommand("update", "Update SORA Agent to latest version")
 update_parser.add_argument("--force", action="store_true", help="Force update even if up to date")
 update_parser.add_argument("--check-only", action="store_true", help="Only check for updates")
+
+
+# ---- voip ----
+voip_parser = _add_subcommand("voip", "VOIP bridge management (Asterisk + Dograh + Gemini Live)")
+voip_sub = voip_parser.add_subparsers(dest="voip_command", metavar="<subcommand>")
+
+voip_start_parser = voip_sub.add_parser("start", help="Start VOIP bridge", add_help=False)
+voip_start_parser.add_argument("-h", "--help", action="help")
+voip_start_parser.add_argument("--config", "-c", help="Config file path")
+voip_start_parser.add_argument("--dograh-ws", help="Dograh WebSocket URL")
+voip_start_parser.add_argument("--gemini-model", help="Gemini model")
+voip_start_parser.add_argument("--detach", action="store_true", help="Run in background")
+
+voip_stop_parser = voip_sub.add_parser("stop", help="Stop VOIP bridge", add_help=False)
+voip_stop_parser.add_argument("-h", "--help", action="help")
+
+voip_status_parser = voip_sub.add_parser("status", help="Show VOIP bridge status", add_help=False)
+voip_status_parser.add_argument("-h", "--help", action="help")
+voip_status_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+voip_calls_parser = voip_sub.add_parser("calls", help="List active VOIP calls", add_help=False)
+voip_calls_parser.add_argument("-h", "--help", action="help")
+voip_calls_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+voip_hangup_parser = voip_sub.add_parser("hangup", help="Hang up a VOIP call", add_help=False)
+voip_hangup_parser.add_argument("-h", "--help", action="help")
+voip_hangup_parser.add_argument("call_id", help="Call ID to hang up")
+
+voip_control_parser = voip_sub.add_parser("control", help="Control a VOIP call (mute/unmute)", add_help=False)
+voip_control_parser.add_argument("-h", "--help", action="help")
+voip_control_parser.add_argument("call_id", help="Call ID")
+voip_control_parser.add_argument("action", choices=["mute", "unmute"], help="Action to perform")
 
 
 # ---- uninstall ----
@@ -620,6 +686,9 @@ def main() -> int:
         "uninstall": _handle_uninstall,
         "acp": _handle_acp,
         "tui": _handle_tui,
+        "voip": _handle_voip,
+        "providers": _handle_providers,
+        "dashboard": _handle_dashboard,
     }
 
     handler = handler_map.get(args.command)
@@ -642,9 +711,19 @@ def main() -> int:
 
 # ---- Subcommand handlers (lazy import to keep startup fast) ----
 
+def _handle_voip(args) -> int:
+    from sora_cli.voip import main as voip_main
+    return voip_main(args)
+
+
 def _handle_chat(args) -> int:
     from sora_cli.cli import main as cli_main
     return cli_main(args)
+
+
+def _handle_providers(args) -> int:
+    from sora_cli.providers import main as providers_main
+    return providers_main(args)
 
 
 def _handle_setup(args) -> int:
@@ -778,6 +857,86 @@ def _handle_tui(args) -> int:
         print(f"Failed to launch TUI: {e2}", file=sys.stderr)
         return 1
     return 0
+
+
+def _handle_dashboard(args) -> int:
+    """Handle dashboard commands."""
+    subcommand = getattr(args, "dashboard_command", None)
+
+    if subcommand is None:
+        print("Sora Web Dashboard")
+        print()
+        print("Usage: sora dashboard <subcommand> [options]")
+        print()
+        print("Subcommands:")
+        print("  start    Start dashboard server (production)")
+        print("  dev      Start dashboard in development mode")
+        print("  build    Build dashboard for production")
+        print()
+        return 0
+
+    if subcommand == "build":
+        import subprocess
+        tui_path = PROJECT_ROOT / "website"
+        print("Building dashboard...")
+        result = subprocess.run(["npm", "install"], cwd=tui_path, capture_output=False)
+        if result.returncode != 0:
+            print("npm install failed", file=sys.stderr)
+            return 1
+        result = subprocess.run(["npm", "run", "build"], cwd=tui_path, capture_output=False)
+        if result.returncode != 0:
+            print("Build failed", file=sys.stderr)
+            return 1
+        print("Build complete!")
+        return 0
+
+    elif subcommand == "dev":
+        import subprocess
+        tui_path = PROJECT_ROOT / "website"
+        port = args.port
+        print(f"Starting dashboard dev server on port {port}...")
+        try:
+            subprocess.run(["npm", "run", "dev", "--", "--port", str(port)], cwd=tui_path)
+        except KeyboardInterrupt:
+            pass
+        return 0
+
+    elif subcommand == "start":
+        import subprocess
+        import threading
+        import time
+        import uvicorn
+        from sora_api import app
+
+        # Start API server in background
+        api_config = uvicorn.Config(app, host=args.host, port=args.api_port, log_level="warning")
+        api_server = uvicorn.Server(api_config)
+
+        def run_api():
+            asyncio.run(api_server.serve())
+
+        api_thread = threading.Thread(target=run_api, daemon=True)
+        api_thread.start()
+
+        # Wait a moment for API to start
+        time.sleep(1)
+
+        # Start dashboard preview server
+        tui_path = PROJECT_ROOT / "website"
+        dist_path = tui_path / "dist"
+        if not dist_path.exists():
+            print("Dashboard not built. Run 'sora dashboard build' first.")
+            return 1
+
+        print(f"Starting dashboard on http://{args.host}:{args.port}")
+        print(f"API server on http://{args.host}:{args.api_port}")
+        try:
+            subprocess.run(["npx", "serve", "-s", "dist", "-l", str(args.port)], cwd=tui_path)
+        except KeyboardInterrupt:
+            pass
+        return 0
+
+    return 1
 
 
 if __name__ == "__main__":

@@ -1,0 +1,77 @@
+name: linear
+version: 1.0.0
+description: Linear MCP server for issue and project management
+author: Linear
+license: MIT
+repository: https://github.com/linear/linear-mcp
+homepage: https://linear.app
+
+# MCP server configuration
+server:
+  command: npx
+  args:
+    - -y
+    - "@linear/mcp-server"
+  env:
+    LINEAR_API_KEY: "${LINEAR_API_KEY}"
+  transport: stdio
+
+# Capabilities
+capabilities:
+  tools: true
+  resources: true
+  prompts: true
+
+# Tools provided
+tools:
+  - name: create_issue
+    description: Create a Linear issue
+  - name: get_issue
+    description: Get issue details
+  - name: update_issue
+    description: Update an issue
+  - name: list_issues
+    description: List issues with filters
+  - name: create_project
+    description: Create a Linear project
+  - name: get_project
+    description: Get project details
+  - name: list_projects
+    description: List projects
+  - name: create_team
+    description: Create a team
+  - name: get_user
+    description: Get user details
+  - name: search_issues
+    description: Search issues
+
+# Resources
+resources:
+  - uri: "linear://issues/{issue_id}"
+    name: Issue
+    description: Linear issue details
+  - uri: "linear://projects/{project_id}"
+    name: Project
+    description: Linear project details
+  - uri: "linear://teams/{team_id}"
+    name: Team
+    description: Linear team details
+
+# Required environment variables
+required_env:
+  - LINEAR_API_KEY
+
+# Optional configuration
+config_schema:
+  type: object
+  properties:
+    linear_api_key:
+      type: string
+      description: Linear API key (from https://linear.app/settings/api)
+    default_team:
+      type: string
+      description: Default team for operations
+    api_url:
+      type: string
+      default: "https://api.linear.app/graphql"
+      description: Linear GraphQL API endpoint

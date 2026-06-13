@@ -1,0 +1,27 @@
+[Unit]
+Description=Sora VOIP Bridge (Asterisk + Dograh + Gemini Live)
+After=network.target asterisk.service
+Wants=asterisk.service
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/sora-agent
+EnvironmentFile=-/home/%i/.config/sora/voip.env
+# Or use config file:
+# ExecStart=/home/%i/.local/bin/sora-voip-bridge --config /home/%i/.config/sora/voip.yaml
+ExecStart=/home/%i/.local/bin/sora-voip-bridge
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/%i/.config/sora /home/%i/.local/share/sora
+
+[Install]
+WantedBy=default.target
