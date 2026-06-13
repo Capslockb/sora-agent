@@ -23,16 +23,6 @@ except ImportError:
     pass
 
 
-async def _get_bridge_or_error() -> tuple:
-    """Get bridge instance or return error response."""
-    try:
-        from sora_voip.__init__ import _get_bridge
-        bridge = await _get_bridge()
-        return bridge, None
-    except Exception as e:
-        return None, str(e)
-
-
 def _print_json(data: dict) -> None:
     """Print data as JSON."""
     print(json.dumps(data, indent=2, default=str))
@@ -47,51 +37,92 @@ def cmd_start(args: argparse.Namespace) -> int:
         os.environ["SORA_GEMINI_MODEL"] = args.gemini_model
 
     try:
-        from sora_voip.__init__ import sora_voip_start
+        from plugins.sora_voip.bridge import VoipBridge, VoipConfig
 
-        # Create a mock context for the tool
-        class MockContext:
-            pass
+        config = VoipConfig(
+            ari_url=os.getenv("SORA_ARI_URL", "http://localhost:8088/ari"),
+            ari_user=os.getenv("SORA_ARI_USER", "sora"),
+            ari_password=os.getenv("SORA_ARI_PASSWORD", ""),
+            app_name=os.getenv("SORA_ARI_APP", "sora"),
+            external_media_host=os.getenv("SORA_EXTERNAL_MEDIA_HOST", "0.0.0.0"),
+            external_media_port=int(os.getenv("SORA_EXTERNAL_MEDIA_PORT", "5000")),
+            dograh_ws_url=os.getenv("SORA_DOGRAH_WS_URL", ""),
+            dograh_api_key=os.getenv("SORA_DOGRAH_API_KEY", ""),
+            gemini_model=os.getenv("SORA_GEMINI_MODEL", "gemini-2.0-flash-exp"),
+            gemini_voice=os.getenv("SORA_GEMINI_VOICE", "Puck"),
+            gemini_temperature=float(os.getenv("SORA_GEMINI_TEMPERATURE", "0.7")),
+            http_host=os.getenv("SORA_HTTP_HOST", "0.0.0.0"),
+            http_port=int(os.getenv("SORA_HTTP_PORT", "18944")),
+        )
 
-        result = asyncio.run(sora_voip_start(MockContext(),
-            dograh_ws_url=args.dograh_ws or "",
-            gemini_model=args.gemini_model or ""))
+        if not config.dograh_ws_url:
+            print("Error: SORA_DOGRAH_WS_URL is required (set in ~/.config/sora/voip.env or --dograh-ws)")
+            return 1
 
-        if result.get("status") == "started":
+        bridge = VoipConfig(config)
+        # Start the bridge in async
+        async def run_bridge():
+            bridge = VoipBridge(config)
+            await bridge.start()
             print(f"VOIP bridge started")
-            print(f"  HTTP API: {result.get('http_api')}")
-            print(f"  Health:   {result.get('health_endpoint')}")
-            return 0
-        elif result.get("status") == "already_running":
-            print("VOIP bridge already running")
+            print(f"  HTTP API: http://{config.http_host}:{config.http_port}")
+            print(f"  Health:   http://{config.http_host}:{config.http_port}/health")
+
+            if args.detach:
+                # Run in background
+                print("Running in background...")
+                while True:
+                    await asyncio.sleep(3600)
+            else:
+                try:
+                    while bridge._running:
+                        await asyncio.sleep(1)
+                except KeyboardInterrupt:
+                    print("\nShutting down...")
+                await bridge.stop()
+
+        if args.detach:
+            # Run in background using a detached process
+            import subprocess
+            result = subprocess.Popen([
+                sys.executable, "-m", "plugins.sora_voip.cli",
+                "--dograh-ws", config.dograh_ws_url,
+                "--gemini-model", config.gemini_model,
+            ], start_new_session=True)
+            print(f"VOIP bridge started in background (PID: {result.pid})")
             return 0
         else:
-            print(f"Error: {result.get('error', 'Unknown error')}")
-            return 1
+            asyncio.run(run_bridge())
+            return 0
+
     except Exception as e:
         print(f"Error starting VOIP bridge: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
     """Stop the VOIP bridge."""
     try:
-        from sora_voip.__init__ import sora_voip_stop
+        import aiohttp
+        # Get bridge URL from env
+        http_host = os.getenv("SORA_HTTP_HOST", "0.0.0.0")
+        http_port = int(os.getenv("SORA_HTTP_PORT", "18944"))
+        url = f"http://{http_host}:{http_port}/control"
 
-        class MockContext:
-            pass
+        async def stop_bridge():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json={"action": "shutdown"}, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        print(data.get("status", "stopped"))
+                    else:
+                        print(f"Error: {resp.status}")
 
-        result = asyncio.run(sora_voip_stop(MockContext()))
-
-        if result.get("status") == "stopped":
-            print("VOIP bridge stopped")
-            return 0
-        elif result.get("status") == "not_running":
-            print("VOIP bridge not running")
-            return 0
-        else:
-            print(f"Error: {result.get('error', 'Unknown error')}")
-            return 1
+        asyncio.run(stop_bridge())
+        print("VOIP bridge stopped")
+        return 0
     except Exception as e:
         print(f"Error stopping VOIP bridge: {e}")
         return 1
@@ -100,24 +131,32 @@ def cmd_stop(args: argparse.Namespace) -> int:
 def cmd_status(args: argparse.Namespace) -> int:
     """Show VOIP bridge status."""
     try:
-        from sora_voip.__init__ import sora_voip_status
+        import aiohttp
+        http_host = os.getenv("SORA_HTTP_HOST", "0.0.0.0")
+        http_port = int(os.getenv("SORA_HTTP_PORT", "18944"))
+        url = f"http://{http_host}:{http_port}/health"
 
-        class MockContext:
-            pass
+        async def get_status():
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    else:
+                        return {"status": "error", "http_status": resp.status}
 
-        result = asyncio.run(sora_voip_status(MockContext()))
+        result = asyncio.run(get_status())
 
         if args.json:
             _print_json(result)
         else:
-            status = result.get("status", "unknown")
-            if status == "healthy" or status == "running":
-                print(f"Status: {status}")
+            status_val = result.get("status", "unknown")
+            if status_val in ("healthy", "running"):
+                print(f"Status: {status_val}")
                 print(f"  Active calls: {result.get('active_calls', 0)}")
                 print(f"  ARI connected: {result.get('ari_connected', False)}")
                 print(f"  Uptime: {result.get('timestamp', 'unknown')}")
             else:
-                print(f"Status: {status}")
+                print(f"Status: {status_val}")
                 if "error" in result:
                     print(f"  Error: {result['error']}")
         return 0
@@ -132,12 +171,20 @@ def cmd_status(args: argparse.Namespace) -> int:
 def cmd_calls(args: argparse.Namespace) -> int:
     """List active VOIP calls."""
     try:
-        from sora_voip.__init__ import sora_voip_calls
+        import aiohttp
+        http_host = os.getenv("SORA_HTTP_HOST", "0.0.0.0")
+        http_port = int(os.getenv("SORA_HTTP_PORT", "18944"))
+        url = f"http://{http_host}:{http_port}/calls"
 
-        class MockContext:
-            pass
+        async def get_calls():
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    else:
+                        return {"status": "error", "http_status": resp.status}
 
-        result = asyncio.run(sora_voip_calls(MockContext()))
+        result = asyncio.run(get_calls())
 
         if args.json:
             _print_json(result)
@@ -167,12 +214,20 @@ def cmd_calls(args: argparse.Namespace) -> int:
 def cmd_hangup(args: argparse.Namespace) -> int:
     """Hang up a VOIP call."""
     try:
-        from sora_voip.__init__ import sora_voip_hangup
+        import aiohttp
+        http_host = os.getenv("SORA_HTTP_HOST", "0.0.0.0")
+        http_port = int(os.getenv("SORA_HTTP_PORT", "18944"))
+        url = f"http://{http_host}:{http_port}/calls/{args.call_id}/hangup"
 
-        class MockContext:
-            pass
+        async def do_hangup():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    else:
+                        return {"status": "error", "http_status": resp.status}
 
-        result = asyncio.run(sora_voip_hangup(MockContext(), call_id=args.call_id))
+        result = asyncio.run(do_hangup())
 
         if result.get("status") == "hangup initiated":
             print(f"Hangup initiated for call {args.call_id}")
@@ -188,12 +243,20 @@ def cmd_hangup(args: argparse.Namespace) -> int:
 def cmd_control(args: argparse.Namespace) -> int:
     """Control a VOIP call (mute/unmute)."""
     try:
-        from sora_voip.__init__ import sora_voip_control
+        import aiohttp
+        http_host = os.getenv("SORA_HTTP_HOST", "0.0.0.0")
+        http_port = int(os.getenv("SORA_HTTP_PORT", "18944"))
+        url = f"http://{http_host}:{http_port}/control"
 
-        class MockContext:
-            pass
+        async def do_control():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json={"action": args.action, "call_id": args.call_id}, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    else:
+                        return {"status": "error", "http_status": resp.status}
 
-        result = asyncio.run(sora_voip_control(MockContext(), call_id=args.call_id, action=args.action))
+        result = asyncio.run(do_control())
 
         if result.get("status") in ("muted", "unmuted"):
             print(f"Call {args.call_id} {result['status']}")
@@ -211,11 +274,10 @@ def main(args: argparse.Namespace) -> int:
     subcommand = getattr(args, "voip_command", None)
 
     if subcommand is None:
-        # No subcommand - show help
         print("Sora VOIP Bridge Management")
-        print("")
+        print()
         print("Usage: sora voip <subcommand> [options]")
-        print("")
+        print()
         print("Subcommands:")
         print("  start     Start VOIP bridge")
         print("  stop      Stop VOIP bridge")
@@ -223,7 +285,7 @@ def main(args: argparse.Namespace) -> int:
         print("  calls     List active calls")
         print("  hangup    Hang up a call")
         print("  control   Mute/unmute a call")
-        print("")
+        print()
         print("Run 'sora voip <subcommand> --help' for more info")
         return 0
 
