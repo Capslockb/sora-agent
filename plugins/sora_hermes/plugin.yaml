@@ -1,0 +1,47 @@
+name: sora-hermes
+version: 0.1.0
+description: "S0RA Agent integration for Hermes — Voice bridges (Gemini Live, Vapi) and MCP"
+author: Capslockb
+license: MIT
+homepage: https://github.com/capslockb/sora-agent
+category: voice
+tags:
+  - voice
+  - gemini-live
+  - vapi
+  - mcp
+  - discord
+requires:
+  hermes: ">=0.16.0"
+  python: ">=3.11"
+  env:
+    - GEMINI_API_KEY
+    - GOOGLE_API_KEY
+    - VAPI_API_KEY
+    - DISCORD_BOT_TOKEN
+    - DISCORD_APPLICATION_ID
+tools:
+  - sora_voice_live
+  - sora_voice_vapi
+  - sora_voice_leave
+  - sora_voice_status
+  - sora_mcp_start
+  - sora_mcp_status
+commands:
+  - sora-voice-live
+  - sora-voice-vapi
+config_schema:
+  voice:
+    gemini_live:
+      enabled: true
+      model: "gemini-3.1-flash-live-preview"
+      voice: "Kore"
+    vapi:
+      enabled: true
+      assistant_id: ""
+    discord:
+      guild_id: ""
+      default_user_id: ""
+  mcp:
+    enabled: true
+    servers: {}

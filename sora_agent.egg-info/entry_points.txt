@@ -1,0 +1,4 @@
+[console_scripts]
+sora = sora_cli.main:main
+sora-acp = acp_adapter.entry:main
+sora-agent = run_agent:main

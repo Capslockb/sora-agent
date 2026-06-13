@@ -1,0 +1,266 @@
+Metadata-Version: 2.4
+Name: sora-agent
+Version: 0.1.0
+Summary: S0RA Agent — Standalone CLI for Gemini Live, Vapi, and MCP voice bridges. Mirrors Hermes CLI architecture.
+Author: Capslockb
+License-Expression: MIT
+Requires-Python: <3.14,>=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: openai==2.24.0
+Requires-Dist: python-dotenv==1.2.2
+Requires-Dist: fire==0.7.1
+Requires-Dist: httpx[socks]==0.28.1
+Requires-Dist: rich==14.3.3
+Requires-Dist: tenacity==9.1.4
+Requires-Dist: pyyaml==6.0.3
+Requires-Dist: ruamel.yaml==0.18.17
+Requires-Dist: requests==2.33.0
+Requires-Dist: jinja2==3.1.6
+Requires-Dist: pydantic==2.13.4
+Requires-Dist: prompt_toolkit==3.0.52
+Requires-Dist: croniter==6.0.0
+Requires-Dist: packaging==26.0
+Requires-Dist: Markdown==3.10.2
+Requires-Dist: PyJWT[crypto]==2.13.0
+Requires-Dist: urllib3<3,>=2.7.0
+Requires-Dist: tzdata==2025.3; sys_platform == "win32"
+Requires-Dist: psutil==7.2.2
+Requires-Dist: pathspec==1.1.1
+Requires-Dist: fastapi<1,>=0.104.0
+Requires-Dist: uvicorn[standard]<1,>=0.24.0
+Requires-Dist: ptyprocess<1,>=0.7.0; sys_platform != "win32"
+Requires-Dist: pywinpty<3,>=2.0.0; sys_platform == "win32"
+Requires-Dist: Pillow==12.2.0
+Requires-Dist: numpy==2.4.3
+Requires-Dist: websockets==13.1
+Requires-Dist: discord.py[voice]==2.7.1
+Requires-Dist: aiohttp==3.13.4
+Provides-Extra: gemini-live
+Requires-Dist: google-generativeai<1,>=0.8.0; extra == "gemini-live"
+Requires-Dist: google-ai-generativelanguage==0.6.15; extra == "gemini-live"
+Provides-Extra: vapi
+Requires-Dist: vapi-ai==0.1.0; extra == "vapi"
+Provides-Extra: exa
+Requires-Dist: exa-py==2.10.2; extra == "exa"
+Provides-Extra: firecrawl
+Requires-Dist: firecrawl-py==4.17.0; extra == "firecrawl"
+Provides-Extra: parallel-web
+Requires-Dist: parallel-web==0.4.2; extra == "parallel-web"
+Provides-Extra: fal
+Requires-Dist: fal-client==0.13.1; extra == "fal"
+Provides-Extra: edge-tts
+Requires-Dist: edge-tts==7.2.7; extra == "edge-tts"
+Provides-Extra: elevenlabs
+Requires-Dist: elevenlabs==1.59.0; extra == "elevenlabs"
+Provides-Extra: minimax-tts
+Requires-Dist: minimax-tts==0.1.0; extra == "minimax-tts"
+Provides-Extra: mistral-tts
+Requires-Dist: mistralai==2.4.8; extra == "mistral-tts"
+Provides-Extra: gemini-tts
+Requires-Dist: google-generativeai<1,>=0.8.0; extra == "gemini-tts"
+Provides-Extra: faster-whisper
+Requires-Dist: faster-whisper==1.2.1; extra == "faster-whisper"
+Requires-Dist: sounddevice==0.5.5; extra == "faster-whisper"
+Provides-Extra: telegram
+Requires-Dist: python-telegram-bot[webhooks]==22.6; extra == "telegram"
+Provides-Extra: discord
+Requires-Dist: discord.py[voice]==2.7.1; extra == "discord"
+Requires-Dist: aiohttp==3.13.4; extra == "discord"
+Requires-Dist: brotlicffi==1.2.0.1; extra == "discord"
+Provides-Extra: slack
+Requires-Dist: slack-bolt==1.27.0; extra == "slack"
+Requires-Dist: slack-sdk==3.40.1; extra == "slack"
+Requires-Dist: aiohttp==3.13.4; extra == "slack"
+Provides-Extra: matrix
+Requires-Dist: mautrix[encryption]==0.21.0; extra == "matrix"
+Requires-Dist: aiosqlite==0.22.1; extra == "matrix"
+Requires-Dist: asyncpg==0.31.0; extra == "matrix"
+Requires-Dist: aiohttp-socks==0.11.0; extra == "matrix"
+Provides-Extra: honcho
+Requires-Dist: honcho-ai==2.0.1; extra == "honcho"
+Provides-Extra: mcp
+Requires-Dist: mcp==1.26.0; extra == "mcp"
+Requires-Dist: starlette==1.0.1; extra == "mcp"
+Provides-Extra: web
+Requires-Dist: fastapi==0.133.1; extra == "web"
+Requires-Dist: uvicorn[standard]==0.41.0; extra == "web"
+Requires-Dist: starlette==1.0.1; extra == "web"
+Provides-Extra: cli
+Requires-Dist: simple-term-menu==1.6.6; extra == "cli"
+Provides-Extra: voice
+Requires-Dist: faster-whisper==1.2.1; extra == "voice"
+Requires-Dist: sounddevice==0.5.5; extra == "voice"
+Requires-Dist: numpy==2.4.3; extra == "voice"
+Provides-Extra: dev
+Requires-Dist: debugpy==1.8.20; extra == "dev"
+Requires-Dist: pytest==9.0.2; extra == "dev"
+Requires-Dist: pytest-asyncio==1.3.0; extra == "dev"
+Requires-Dist: pytest-timeout==2.4.0; extra == "dev"
+Requires-Dist: mcp==1.26.0; extra == "dev"
+Requires-Dist: starlette==1.0.1; extra == "dev"
+Requires-Dist: ty==0.0.21; extra == "dev"
+Requires-Dist: ruff==0.15.10; extra == "dev"
+Requires-Dist: setuptools==82.0.1; extra == "dev"
+
+# S0RA Agent
+
+**S0RA Agent** is a standalone CLI application for voice-first AI interaction, built around:
+- **Gemini Live** — Google's multimodal live streaming API
+- **Vapi.ai** — Managed conversational AI platform
+- **MCP** — Model Context Protocol for external tool integration
+
+S0RA mirrors the **Hermes Agent** CLI architecture (`sora`, `sora setup`, `sora chat`, etc.) while being purpose-built for voice bridges. It also works as a **Hermes plugin** so you can use Sora's voice bridges from within Hermes.
+
+## Features
+
+- 🎙️ **Gemini Live Voice Bridge** — Real-time voice streaming with Google's Gemini models
+- 🤖 **Vapi.ai Voice Bridge** — Managed conversational AI with dashboard, phone, and web support
+- 🔌 **MCP Integration** — Connect to filesystem, GitHub, databases, browser automation, and more
+- 🧠 **Honcho Memory** — Persistent cross-session memory
+- 🎨 **Hermes-compatible CLI** — `sora`, `sora setup`, `sora chat`, `sora voice`, `sora mcp`, `sora status`, etc.
+- 🔌 **Hermes Plugin** — Use Sora's tools from within Hermes Agent
+
+## Installation
+
+### Standalone (recommended)
+
+```bash
+# From source
+git clone https://github.com/capslockb/sora-agent
+cd sora-agent
+pipx install -e .
+
+# Or with uv
+uv pip install -e .
+```
+
+### As Hermes Plugin
+
+```bash
+# From within Hermes
+hermes plugins install capslockb/sora-agent
+
+# Or manually
+mkdir -p ~/.hermes/plugins/sora-hermes
+# Copy plugin files
+hermes plugins enable sora-hermes
+```
+
+## Quick Start
+
+```bash
+# 1. Run setup wizard
+sora setup
+
+# 2. Start a voice bridge
+sora voice live --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
+
+# Or Vapi
+sora voice vapi --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
+
+# 3. Start MCP server
+sora mcp start
+
+# 4. Check status
+sora status
+```
+
+## Architecture
+
+```
+sora-agent/
+├── sora_cli/           # Main CLI package
+│   ├── main.py         # Entry point (sora command)
+│   ├── setup.py        # Interactive setup wizard
+│   ├── voice.py        # Voice bridge commands
+│   ├── mcp.py          # MCP server commands
+│   ├── config.py       # Configuration management
+│   ├── cli.py          # Interactive chat REPL
+│   └── ...             # Other subcommands
+├── plugins/
+│   └── sora-hermes/    # Hermes plugin
+├── pyproject.toml      # Package config
+└── README.md
+```
+
+## Configuration
+
+S0RA stores config in `~/.sora/`:
+- `config.yaml` — Settings (model, voice, MCP, etc.)
+- `.env` — API keys and secrets
+- `plugins/` — User-installed plugins
+- `skills/` — User skills
+- `logs/` — Log files
+- `sessions/` — Chat sessions
+
+## Voice Bridges
+
+### Gemini Live
+Direct streaming to Google's Generative Language API.
+- Low latency (~200-400ms)
+- Supports video frames (1fps)
+- Custom system prompt (S0RA personality)
+- Honcho memory integration
+
+### Vapi.ai
+Managed conversational AI platform.
+- Dashboard for assistant management
+- Phone number integration
+- Web embed support
+- Multi-provider voice/TTS
+
+## MCP Servers
+
+Configure MCP servers in `sora setup` or `~/.sora/config.yaml`:
+
+```yaml
+mcp:
+  enabled: true
+  servers:
+    filesystem:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user"]
+    github:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_TOKEN: "${GITHUB_TOKEN}"
+```
+
+## Hermes Plugin Usage
+
+Once enabled in Hermes, these tools are available:
+- `sora_voice_live` — Start Gemini Live bridge
+- `sora_voice_vapi` — Start Vapi bridge
+- `sora_voice_leave` — Stop voice bridge
+- `sora_voice_status` — Check bridge status
+- `sora_mcp_start` — Start MCP server
+- `sora_mcp_status` — Check MCP status
+
+And slash commands in Discord:
+- `/sora-voice-live` — Start Gemini Live (use discord-voice plugin instead)
+- `/sora-voice-vapi` — Start Vapi (use discord-vapi plugin instead)
+
+## Requirements
+
+- Python 3.11+
+- Node.js + npm (for MCP servers)
+- Discord bot with voice permissions
+- API keys: GEMINI_API_KEY, VAPI_API_KEY, DISCORD_BOT_TOKEN
+
+## Development
+
+```bash
+# Install dev dependencies
+uv pip install -e ".[dev]"
+
+# Run tests
+pytest tests/
+
+# Type check
+ty check
+```
+
+## License
+
+MIT — See LICENSE file.

@@ -1,0 +1,23 @@
+{
+  "name": "sora-tui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "ink src/App.tsx",
+    "build": "tsc && esbuild src/App.ts --bundle --platform=node --outfile=dist/cli.js --external:ink --external:react"
+  },
+  "dependencies": {
+    "ink": "^4.4.1",
+    "ink-gradient": "^2.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^5.0.0",
+    "react": "^18.2.0",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "esbuild": "^0.19.0",
+    "typescript": "^5.3.0"
+  }
+}
