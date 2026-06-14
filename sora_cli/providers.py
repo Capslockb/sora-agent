@@ -52,6 +52,38 @@ PROVIDERS = {
         "config_keys": ["voice.elevenlabs.agent_id", "voice.elevenlabs.voice_id", "voice.elevenlabs.channel_id"],
         "features": ["realtime", "high_quality", "multilingual"],
     },
+    "openai-realtime": {
+        "category": "llm_voice",
+        "name": "OpenAI Realtime API (WebRTC)",
+        "description": "OpenAI's WebRTC-based realtime voice API with function calling",
+        "env_vars": ["OPENAI_API_KEY"],
+        "config_keys": ["voice.openai_realtime.model", "voice.openai_realtime.voice", "voice.openai_realtime.instructions"],
+        "features": ["realtime", "webrtc", "function_calling", "tool_use", "multilingual"],
+    },
+    "xai-grok": {
+        "category": "llm_voice",
+        "name": "xAI Grok Realtime",
+        "description": "xAI's realtime voice API powered by Grok models",
+        "env_vars": ["XAI_API_KEY"],
+        "config_keys": ["voice.xai.model", "voice.xai.voice", "voice.xai.instructions"],
+        "features": ["realtime", "function_calling"],
+    },
+    "ultravox": {
+        "category": "llm_voice",
+        "name": "Ultravox",
+        "description": "Ultravox realtime voice AI with managed STT/LLM/TTS pipeline",
+        "env_vars": ["ULTRAVOX_API_KEY"],
+        "config_keys": ["voice.ultravox.model", "voice.ultravox.voice", "voice.ultravox.system_prompt"],
+        "features": ["realtime", "managed_pipeline", "low_latency"],
+    },
+    "retell": {
+        "category": "llm_voice",
+        "name": "Retell AI",
+        "description": "Retell voice agent platform for telephony and web calls",
+        "env_vars": ["RETELL_API_KEY", "RETELL_AGENT_ID"],
+        "config_keys": ["voice.retell.agent_id", "voice.retell.voice_id"],
+        "features": ["telephony", "web_calls", "voice_cloning", "multilingual"],
+    },
 
     # TTS Providers
     "edge-tts": {

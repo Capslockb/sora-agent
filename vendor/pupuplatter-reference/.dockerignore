@@ -1,0 +1,54 @@
+# Dependency directories
+node_modules
+
+# Build output and generated reports
+dist
+build
+coverage
+.nyc_output
+playwright-report
+test-results
+logs
+
+# Environment files with secrets
+.env
+.env.*
+
+# Version control and repo automation
+.git
+.gitignore
+.github
+.husky
+.spec_system
+.claude
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Test files are not needed for production image builds
+tests
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Documentation and local examples are not needed by Vite or Express runtime
+docs
+EXAMPLE
+*.md
+
+# Development tools
+.eslintcache
+.prettier*
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
