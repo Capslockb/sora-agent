@@ -53,6 +53,9 @@ export default defineConfig(() => ({
       },
     },
   },
+  define: {
+    'import.meta.env.VITE_API_BASE_URL': JSON.stringify('/sora-api'),
+  },
   plugins: [react()],
   resolve: {
     alias: {
