@@ -1,338 +1,1394 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Activity, Bot, BrainCircuit, Cable, Mic2, PhoneCall, Radio, RefreshCw } from 'lucide-react';
-import { VoiceVisualizer } from '@/components/voice/VoiceVisualizer';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Settings, AlertCircle, X } from 'lucide-react';
+import { HeroSection } from '@/components/HeroSection';
 import { VoiceButton } from '@/components/voice/VoiceButton';
+import { VoiceStatus } from '@/components/voice/VoiceStatus';
+import { VoiceVisualizer } from '@/components/voice/VoiceVisualizer';
+import { VoiceWidget } from '@/components/voice/VoiceWidget';
 import { BackgroundEffects } from '@/components/BackgroundEffects';
-import { cn } from '@/lib/utils';
+import { ConfigurationDialog } from '@/components/settings';
+import { ProviderTabs } from '@/components/tabs';
+import {
+  ElevenLabsConversationPanel,
+  XAIConversationPanel,
+  OpenAIConversationPanel,
+  UltravoxConversationPanel,
+  VapiConversationPanel,
+  RetellConversationPanel,
+  GeminiConversationPanel,
+} from '@/components/conversation';
+import {
+  XAIProvider,
+  XAIVoiceButton,
+  XAIVoiceSelector,
+  XAIVoiceStatus,
+  XAIVoiceVisualizer,
+  OpenAIProvider,
+  OpenAIVoiceButton,
+  OpenAIVoiceSelector,
+  OpenAIVoiceStatus,
+  OpenAIVoiceVisualizer,
+  OpenAITranslationProvider,
+  UltravoxProvider,
+  UltravoxVoiceButton,
+  UltravoxVoiceStatus,
+  VapiProvider,
+  VapiButton,
+  VapiVoiceStatus,
+  RetellProvider,
+  RetellButton,
+  RetellVoiceStatus,
+  GeminiProvider,
+  GeminiButton,
+  GeminiVoiceStatus,
+  GeminiVoiceSelector,
+} from '@/components/providers';
+import { useVoice } from '@/contexts/VoiceContext';
+import { useProvider } from '@/contexts/ProviderContext';
+import { toast } from '@/hooks/use-toast';
+import { useOpenAIVoice } from '@/hooks/useOpenAIVoice';
+import { useXAIVoice } from '@/hooks/useXAIVoice';
+import { hasConfiguredValue, isPlaceholderConfigValue } from '@/lib/configPlaceholders';
+import { trackError } from '@/lib/errorTracking';
+import type { ProviderType } from '@/types';
+import type { OpenAITranslationSessionEndReason } from '@/types/openai-translation';
 
-// ── S0RA backend types ──
+const DEBUG = import.meta.env.DEV;
 
-type StatusPayload = {
-  voice?: { status: string; type: string; model: string; activeCalls: number; llmProvider: string; ttsProvider: string; sttProvider: string };
-  mcp?: { status: string; transport: string; port: number; clients: number };
-  voip?: { status: string; ari: boolean; port: number; calls: number };
-  system?: { status: string; platform: string; python: string };
-};
-
-type VisualizerPayload = {
-  status: string;
-  timestamp: string;
-  pipeline: Array<{ id: string; label: string; state: string; detail: string }>;
-  providers: Array<{ id: string; label: string; category: string; configured: boolean; active: boolean }>;
-  audio: { inputLevel: number; outputLevel: number; sampleRate: number; inputChunks: number; outputChunks: number };
-  call: { active: boolean; provider: string; channel: string; guild: string };
-};
-
-type MicState = 'idle' | 'requesting' | 'connected' | 'speaking' | 'error';
-
-const FALLBACK_STATUS: StatusPayload = {
-  voice: { status: 'offline', type: 'none', model: '—', activeCalls: 0, llmProvider: 'none', ttsProvider: 'none', sttProvider: 'none' },
-  mcp: { status: 'unknown', transport: 'stdio', port: 3000, clients: 0 },
-  voip: { status: 'unknown', ari: false, port: 5000, calls: 0 },
-  system: { status: 'unknown', platform: 'unknown', python: 'unknown' },
-};
-
-// ── API helper ──
-
-function apiBase() {
-  const explicit = (import.meta as any).env?.VITE_SORA_API_BASE;
-  if (explicit) return explicit.replace(/\/$/, '');
-  if (location.port === '3000' || location.port === '5173' || location.port === '8082')
-    return `${location.protocol}//${location.hostname}:8080`;
-  return '';
+function debugLog(context: string, message: string, data?: unknown) {
+  if (DEBUG) {
+    console.log(`[Index:${context}]`, message, data ?? '');
+  }
 }
 
-// ── S0RA data hook ──
-
-function useSoraData() {
-  const [status, setStatus] = useState<StatusPayload>(FALLBACK_STATUS);
-  const [visualizer, setVisualizer] = useState<VisualizerPayload | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const base = apiBase();
-      const [sRes, vRes] = await Promise.all([
-        fetch(`${base}/api/status`),
-        fetch(`${base}/api/visualizer/state`),
-      ]);
-      if (!sRes.ok) throw new Error(`status ${sRes.status}`);
-      if (!vRes.ok) throw new Error(`visualizer ${vRes.status}`);
-      setStatus(await sRes.json());
-      setVisualizer(await vRes.json());
-      setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 2500);
-    return () => clearInterval(id);
-  }, [refresh]);
-
-  return { status, visualizer, error, loading, refresh };
-}
-
-// ── Browser microphone hook ──
-
-function useBrowserMic() {
-  const [micState, setMicState] = useState<MicState>('idle');
-  const [micError, setMicError] = useState('');
-  const [frequencyData, setFrequencyData] = useState<Uint8Array>(new Uint8Array(64));
-  const [volume, setVolume] = useState(0);
-  const streamRef = useRef<MediaStream | null>(null);
-  const ctxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const frameRef = useRef<number | null>(null);
-  const volHistoryRef = useRef<number[]>([]);
-
-  const cleanup = useCallback(() => {
-    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-    frameRef.current = null;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    analyserRef.current?.disconnect();
-    analyserRef.current = null;
-    ctxRef.current?.close().catch(() => {});
-    ctxRef.current = null;
-  }, []);
-
-  const start = useCallback(async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setMicState('error');
-      setMicError('getUserMedia not available');
-      return;
-    }
-    setMicState('requesting');
-    setMicError('');
-    try {
-      const stream = await Promise.race([
-        navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 16000 } }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Mic permission timed out')), 10000)),
-      ]);
-      streamRef.current = stream;
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      if (ctx.state === 'suspended') await ctx.resume();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 128;
-      analyser.smoothingTimeConstant = 0.8;
-      ctx.createMediaStreamSource(stream).connect(analyser);
-      ctxRef.current = ctx;
-      analyserRef.current = analyser;
-      setMicState('connected');
-
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const draw = () => {
-        analyser.getByteFrequencyData(data);
-        setFrequencyData(new Uint8Array(data));
-
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-        const rms = Math.sqrt(sum / data.length) / 255;
-        volHistoryRef.current.push(rms);
-        if (volHistoryRef.current.length > 10) volHistoryRef.current.shift();
-        const avgVol = volHistoryRef.current.reduce((a, b) => a + b, 0) / volHistoryRef.current.length;
-        setVolume(avgVol);
-        setMicState(avgVol > 0.04 ? 'speaking' : 'connected');
-
-        frameRef.current = requestAnimationFrame(draw);
-      };
-      draw();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setMicState(msg.includes('denied') || msg.includes('NotAllowed') ? 'error' : 'error');
-      setMicError(msg);
-    }
-  }, []);
-
-  const stop = useCallback(() => {
-    cleanup();
-    setMicState('idle');
-    setFrequencyData(new Uint8Array(64));
-    setVolume(0);
-  }, [cleanup]);
-
-  useEffect(() => () => cleanup(), [cleanup]);
-
-  return { micState, micError, frequencyData, volume, start, stop };
-}
-
-// ── Sub-components ──
-
-function Pipeline({ visualizer }: { visualizer: VisualizerPayload | null }) {
-  const pipeline = visualizer?.pipeline ?? [
-    { id: 'discord', label: 'Discord Voice', state: 'waiting', detail: 'No API data yet' },
-    { id: 'bridge', label: 'S0RA Bridge', state: 'waiting', detail: 'Awaiting backend' },
-    { id: 'provider', label: 'Voice Provider', state: 'waiting', detail: 'Gemini / Vapi / ElevenLabs' },
-    { id: 'speaker', label: 'Audio Return', state: 'waiting', detail: 'Playback pipeline' },
-  ];
+function EndConversationButton({ onClick }: { onClick: () => Promise<void> | void }) {
   return (
-    <section className="glass-enhanced rounded-2xl p-5">
-      <div className="flex items-center gap-2 text-zinc-200 font-semibold mb-4"><Cable size={18} /> Voice pipeline</div>
-      <div className="grid grid-cols-4 gap-2.5">
-        {pipeline.map((step, i) => (
-          <div key={step.id} className={cn(
-            'min-h-[120px] p-3.5 rounded-xl border flex flex-col gap-2',
-            step.state === 'configured' || step.state === 'active' || step.state === 'ready'
-              ? 'border-emerald-500/30 bg-emerald-500/5'
-              : 'border-white/8 bg-white/4'
-          )}>
-            <span className="w-7 h-7 grid place-items-center rounded-full bg-cyan-400/10 text-cyan-300 font-bold text-xs">{i + 1}</span>
-            <strong className="text-sm">{step.label}</strong>
-            <small className="text-zinc-500 leading-relaxed">{step.detail}</small>
-          </div>
-        ))}
-      </div>
-    </section>
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-6 py-3 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-all duration-200"
+    >
+      <X className="w-4 h-4" />
+      <span className="text-sm">End conversation</span>
+    </button>
   );
 }
 
-function ProviderGrid({ visualizer, status }: { visualizer: VisualizerPayload | null; status: StatusPayload }) {
-  const providers = visualizer?.providers ?? [
-    { id: 'gemini-live', label: 'Gemini Live', category: 'LLM Voice', configured: false, active: status.voice?.llmProvider === 'gemini-live' },
-    { id: 'vapi', label: 'Vapi', category: 'LLM Voice', configured: false, active: status.voice?.llmProvider === 'vapi' },
-    { id: 'elevenlabs', label: 'ElevenLabs', category: 'LLM Voice', configured: false, active: status.voice?.llmProvider === 'elevenlabs' },
-    { id: 'voip', label: 'VOIP / Asterisk', category: 'Telephony', configured: Boolean(status.voip?.ari), active: status.voice?.llmProvider === 'voip' },
-  ];
-  return (
-    <section className="glass-enhanced rounded-2xl p-5">
-      <div className="flex items-center gap-2 text-zinc-200 font-semibold mb-4"><BrainCircuit size={18} /> Providers</div>
-      <div className="flex flex-col gap-2.5">
-        {providers.map((p) => (
-          <div key={p.id} className={cn('flex items-center justify-between gap-3 p-3.5 rounded-xl border transition-colors',
-            p.active ? 'border-cyan-400/40 shadow-[inset_0_0_28px_hsla(187,100%,57%,0.08)]' : 'border-white/8 bg-white/4'
-          )}>
-            <div>
-              <strong className="text-sm">{p.label}</strong>
-              <small className="block text-zinc-500">{p.category}</small>
-            </div>
-            <span className={cn('text-xs px-2 py-1 rounded-full', p.configured ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/7 text-zinc-500')}>
-              {p.configured ? 'configured' : 'not set'}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+function OpenAIEndConversationButton() {
+  const { disconnect } = useOpenAIVoice();
+  return <EndConversationButton onClick={disconnect} />;
 }
 
-function Metric({ label, value, icon }: { label: string; value: string | number; icon: React.ReactNode }) {
-  return (
-    <div className="glass-enhanced rounded-2xl p-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-center">
-      <div className="row-span-2 w-10 h-10 grid place-items-center rounded-xl bg-cyan-400/8 text-cyan-300">{icon}</div>
-      <span className="text-zinc-500 text-xs">{label}</span>
-      <strong className="truncate">{value}</strong>
-    </div>
-  );
+function XAIEndConversationButton() {
+  const { disconnect } = useXAIVoice();
+  return <EndConversationButton onClick={disconnect} />;
 }
-
-// ── Main Page ──
 
 export const Index = () => {
-  const { status, visualizer, error: soraError, loading, refresh } = useSoraData();
-  const { micState, micError, frequencyData, volume, start: micStart, stop: micStop } = useBrowserMic();
+  const { error, clearError, isLoading, connect, disconnect, isConnected } = useVoice();
+  const { activeProvider } = useProvider();
+  const [showConfig, setShowConfig] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
+  const [xaiHasStarted, setXaiHasStarted] = useState(false);
+  const [openaiHasStarted, setOpenaiHasStarted] = useState(false);
+  const [ultravoxHasStarted, setUltravoxHasStarted] = useState(false);
+  const [vapiHasStarted, setVapiHasStarted] = useState(false);
+  const [retellHasStarted, setRetellHasStarted] = useState(false);
+  const [geminiHasStarted, setGeminiHasStarted] = useState(false);
+  const [openaiTranslationIsOffline, setOpenaiTranslationIsOffline] = useState(() => {
+    return typeof navigator !== 'undefined' ? !navigator.onLine : false;
+  });
 
-  const callActive = visualizer?.call.active || false;
-  const micActive = micState === 'connected' || micState === 'speaking';
-  const isSpeaking = micState === 'speaking';
+  // Refs to expose provider disconnect functions for clean provider switching
+  const geminiDisconnectRef = useRef<(() => Promise<void>) | null>(null);
+  const openaiTranslationStopRef = useRef<
+    ((reason?: OpenAITranslationSessionEndReason) => Promise<void>) | null
+  >(null);
 
+  // Handle provider change - disconnect active connection before switching
+  const handleProviderChange = useCallback(
+    async (newProvider: ProviderType) => {
+      if (newProvider === activeProvider) {
+        return;
+      }
+
+      debugLog('handleProviderChange', 'Switching provider', {
+        from: activeProvider,
+        to: newProvider,
+      });
+
+      // Disconnect ElevenLabs SDK if active
+      if (isConnected && activeProvider === 'elevenlabs-sdk') {
+        debugLog('handleProviderChange', 'Disconnecting ElevenLabs SDK before switch');
+        await disconnect();
+        setHasStarted(false);
+      }
+
+      // Disconnect xAI if active
+      if (xaiHasStarted && activeProvider === 'xai') {
+        debugLog('handleProviderChange', 'Disconnecting xAI before switch');
+        setXaiHasStarted(false);
+      }
+
+      // Disconnect OpenAI if active
+      if (openaiHasStarted && activeProvider === 'openai') {
+        debugLog('handleProviderChange', 'Disconnecting OpenAI before switch');
+        setOpenaiHasStarted(false);
+      }
+
+      // Stop OpenAI Translation if active
+      if (activeProvider === 'openai-translation') {
+        debugLog('handleProviderChange', 'Cleaning up OpenAI Translation before switch');
+        if (openaiTranslationStopRef.current) {
+          await openaiTranslationStopRef.current('provider-switch');
+        }
+      }
+
+      // Disconnect Ultravox if active
+      if (ultravoxHasStarted && activeProvider === 'ultravox') {
+        debugLog('handleProviderChange', 'Disconnecting Ultravox before switch');
+        setUltravoxHasStarted(false);
+      }
+
+      // Disconnect Vapi if active
+      if (vapiHasStarted && activeProvider === 'vapi') {
+        debugLog('handleProviderChange', 'Disconnecting Vapi before switch');
+        setVapiHasStarted(false);
+      }
+
+      // Disconnect Retell if active
+      if (retellHasStarted && activeProvider === 'retell') {
+        debugLog('handleProviderChange', 'Disconnecting Retell before switch');
+        setRetellHasStarted(false);
+      }
+
+      // Disconnect Gemini if active - must call actual disconnect to clean up AudioContext
+      if (geminiHasStarted && activeProvider === 'gemini') {
+        debugLog('handleProviderChange', 'Disconnecting Gemini before switch');
+        if (geminiDisconnectRef.current) {
+          await geminiDisconnectRef.current();
+        }
+        setGeminiHasStarted(false);
+      }
+
+      toast({
+        title: 'Provider Changed',
+        description: `Switched to ${newProvider}`,
+      });
+    },
+    [
+      activeProvider,
+      isConnected,
+      disconnect,
+      xaiHasStarted,
+      openaiHasStarted,
+      ultravoxHasStarted,
+      vapiHasStarted,
+      retellHasStarted,
+      geminiHasStarted,
+    ]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      return undefined;
+    }
+
+    const updateTranslationNetworkState = () => {
+      setOpenaiTranslationIsOffline(!navigator.onLine);
+    };
+
+    updateTranslationNetworkState();
+    window.addEventListener('online', updateTranslationNetworkState);
+    window.addEventListener('offline', updateTranslationNetworkState);
+
+    return () => {
+      window.removeEventListener('online', updateTranslationNetworkState);
+      window.removeEventListener('offline', updateTranslationNetworkState);
+    };
+  }, []);
+
+  // Handle xAI disconnect
+  const handleXAIDisconnect = useCallback(() => {
+    setXaiHasStarted(false);
+    toast({
+      title: 'Disconnected',
+      description: 'xAI voice conversation ended',
+    });
+  }, []);
+
+  // Handle xAI connect
+  const handleXAIConnect = useCallback(() => {
+    setXaiHasStarted(true);
+    toast({
+      title: 'Connected',
+      description: 'xAI voice conversation is now active',
+    });
+  }, []);
+
+  // Handle OpenAI disconnect
+  const handleOpenAIDisconnect = useCallback(() => {
+    setOpenaiHasStarted(false);
+    toast({
+      title: 'Disconnected',
+      description: 'OpenAI voice conversation ended',
+    });
+  }, []);
+
+  // Handle OpenAI connect
+  const handleOpenAIConnect = useCallback(() => {
+    setOpenaiHasStarted(true);
+    toast({
+      title: 'Connected',
+      description: 'OpenAI voice conversation is now active',
+    });
+  }, []);
+
+  // Handle Ultravox disconnect
+  const handleUltravoxDisconnect = useCallback(() => {
+    setUltravoxHasStarted(false);
+    toast({
+      title: 'Disconnected',
+      description: 'Ultravox voice conversation ended',
+    });
+  }, []);
+
+  // Handle Ultravox connect
+  const handleUltravoxConnect = useCallback(() => {
+    setUltravoxHasStarted(true);
+    toast({
+      title: 'Connected',
+      description: 'Ultravox voice conversation is now active',
+    });
+  }, []);
+
+  // Handle Vapi disconnect
+  const handleVapiDisconnect = useCallback(() => {
+    setVapiHasStarted(false);
+    toast({
+      title: 'Disconnected',
+      description: 'Vapi voice conversation ended',
+    });
+  }, []);
+
+  // Handle Vapi connect
+  const handleVapiConnect = useCallback(() => {
+    setVapiHasStarted(true);
+    toast({
+      title: 'Connected',
+      description: 'Vapi voice conversation is now active',
+    });
+  }, []);
+
+  // Handle Retell disconnect
+  const handleRetellDisconnect = useCallback(() => {
+    setRetellHasStarted(false);
+    toast({
+      title: 'Disconnected',
+      description: 'Retell voice conversation ended',
+    });
+  }, []);
+
+  // Handle Retell connect
+  const handleRetellConnect = useCallback(() => {
+    setRetellHasStarted(true);
+    toast({
+      title: 'Connected',
+      description: 'Retell voice conversation is now active',
+    });
+  }, []);
+
+  // Handle Gemini disconnect
+  const handleGeminiDisconnect = useCallback(() => {
+    setGeminiHasStarted(false);
+    toast({
+      title: 'Disconnected',
+      description: 'Gemini voice conversation ended',
+    });
+  }, []);
+
+  // Handle Gemini connect
+  const handleGeminiConnect = useCallback(() => {
+    setGeminiHasStarted(true);
+    toast({
+      title: 'Connected',
+      description: 'Gemini voice conversation is now active',
+    });
+  }, []);
+
+  // Check if the active ElevenLabs provider is configured
+  useEffect(() => {
+    const shouldPromptForElevenLabs =
+      activeProvider === 'elevenlabs' || activeProvider === 'elevenlabs-sdk';
+    const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID;
+    debugLog('mount', 'Checking configuration', {
+      activeProvider,
+      hasAgentId: !!agentId,
+      isPlaceholder: isPlaceholderConfigValue(agentId),
+      agentIdPreview: agentId ? agentId.substring(0, 8) + '...' : 'not set',
+    });
+
+    if (shouldPromptForElevenLabs && !hasConfiguredValue(agentId)) {
+      debugLog('mount', 'Agent ID not configured');
+    }
+  }, [activeProvider]);
+
+  // Handle connection success
+  const handleConnect = () => {
+    setHasStarted(true);
+    toast({
+      title: 'Connected',
+      description: 'Voice conversation is now active',
+    });
+  };
+
+  // Handle disconnection
+  const handleDisconnect = () => {
+    toast({
+      title: 'Disconnected',
+      description: 'Voice conversation ended',
+    });
+  };
+
+  // Handle configuration errors
+  const handleConfigError = () => {
+    toast({
+      title: 'Configuration Required',
+      description: 'Please set your ElevenLabs Agent ID',
+      variant: 'destructive',
+    });
+    setShowConfig(true);
+  };
+
+  // Handle HeroSection start conversation
+  const handleStartConversation = async () => {
+    debugLog('handleStartConversation', 'Starting conversation...', { isConfigured });
+
+    if (!isConfigured) {
+      debugLog('handleStartConversation', 'Not configured, showing config modal');
+      handleConfigError();
+      return;
+    }
+
+    try {
+      const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID;
+      debugLog('handleStartConversation', 'Connecting with agent', {
+        agentId: agentId?.substring(0, 8) + '...',
+      });
+
+      await connect(agentId);
+      debugLog('handleStartConversation', 'Connection successful');
+      handleConnect();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      debugLog('handleStartConversation', 'Connection failed', { error: err });
+      trackError('Index', 'Failed to start conversation', err);
+
+      toast({
+        title: 'Connection Failed',
+        description: errorMessage || 'Please check your configuration',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Handle end call
+  const handleEndCall = async () => {
+    await disconnect();
+    setHasStarted(false);
+    handleDisconnect();
+  };
+
+  // Check for missing configuration
+  const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID;
+  const isConfigured = hasConfiguredValue(agentId);
+
+  // Main render
   return (
     <div className="min-h-screen bg-[#09090b] relative overflow-hidden film-grain">
+      {/* Background Effects */}
       <BackgroundEffects />
 
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3">
+          {/* Logo / Brand */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-3"
+          >
+            {/* Logo mark */}
             <div className="relative w-8 h-8 flex items-center justify-center">
               <div className="absolute inset-0 rounded-lg bg-cyan-400/10 border border-cyan-400/20" />
-              <motion.div className="w-2 h-2 rounded-full bg-cyan-400" animate={{ scale: [1, 1.2, 1], opacity: [0.8, 1, 0.8] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
+              <motion.div
+                className="w-2 h-2 rounded-full bg-cyan-400"
+                animate={{
+                  scale: [1, 1.2, 1],
+                  opacity: [0.8, 1, 0.8],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
+              />
             </div>
-            <span className="font-display text-lg text-zinc-200 tracking-tight">S0RA<span className="text-cyan-400"> Voice</span></span>
+            <span className="font-display text-lg text-zinc-200 tracking-tight">
+              S0RA<span className="text-cyan-400"> Voice</span>
+            </span>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3">
-            <button onClick={refresh} disabled={loading} className="p-2 rounded-lg bg-zinc-900/50 border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 transition-colors">
-              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          {/* Right side */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-4"
+          >
+            {/* Config status */}
+            {!isConfigured && (
+              <div className="flex items-center gap-2 text-amber-400/70 text-sm">
+                <AlertCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Setup required</span>
+              </div>
+            )}
+
+            {/* Settings button */}
+            <button
+              onClick={() => setShowConfig(true)}
+              className="p-2 rounded-lg bg-zinc-900/50 border border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-all duration-200"
+              aria-label="Open settings"
+            >
+              <Settings className="w-5 h-5" />
             </button>
           </motion.div>
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="relative z-10 min-h-screen">
-        <div className="max-w-5xl mx-auto px-6 pt-32 pb-20">
-          {/* Hero */}
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center mb-16">
-            <span className="font-mono text-xs tracking-[0.3em] uppercase text-cyan-400/80">Voice Orchestration</span>
-            <h1 className="font-display text-5xl sm:text-6xl md:text-7xl leading-tight tracking-tight mt-4 mb-6">
-              <span className="text-gradient">Speak with S0RA</span>
-            </h1>
-            <p className="text-zinc-400 text-lg max-w-xl mx-auto leading-relaxed">
-              Live control surface for Hermes-facing voice bridges — Gemini Live, Vapi, ElevenLabs, VOIP.
-            </p>
+      {/* Provider Tabs - Below header */}
+      <div className="fixed top-20 left-0 right-0 z-40 px-6">
+        <div className="max-w-md mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.4 }}
+          >
+            <ProviderTabs onProviderChange={handleProviderChange} />
           </motion.div>
-
-          {/* Voice interaction zone */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="flex flex-col items-center gap-8 mb-16">
-            <VoiceButton
-              size="lg"
-              state={micActive ? micState : soraError ? 'error' : micState}
-              errorMessage={micActive ? undefined : soraError || undefined}
-              onToggle={micActive ? micStop : micStart}
-            />
-
-            {/* Status text */}
-            <div className="text-center">
-              <p className="text-zinc-500 text-sm font-mono">
-                {soraError ? `Backend: ${soraError}` : micError ? micError : micActive ? 'Microphone active — waveform live below' : 'Click the mic to preview your voice'}
-              </p>
-              {micActive && (
-                <div className="flex items-center justify-center gap-6 mt-3">
-                  <span className="text-xs text-zinc-500">Volume <strong className="text-cyan-300">{Math.round(volume * 100)}%</strong></span>
-                  <span className="text-xs text-zinc-500">Provider <strong className="text-purple-300">{status.voice?.llmProvider ?? 'none'}</strong></span>
-                </div>
-              )}
-            </div>
-
-            {/* Voice waveform */}
-            <div className="w-full max-w-2xl">
-              <VoiceVisualizer
-                frequencyData={frequencyData}
-                isActive={micActive || callActive}
-                isSpeaking={isSpeaking}
-                barCount={64}
-                responsive
-              />
-            </div>
-          </motion.div>
-
-          {/* Metrics row */}
-          <div className="grid grid-cols-4 gap-3 mb-6">
-            <Metric label="Voice" value={status.voice?.status ?? 'unknown'} icon={<Mic2 size={18} />} />
-            <Metric label="MCP" value={`${status.mcp?.transport ?? 'stdio'}:${status.mcp?.port ?? 0}`} icon={<Bot size={18} />} />
-            <Metric label="VOIP" value={status.voip?.status ?? 'unknown'} icon={<PhoneCall size={18} />} />
-            <Metric label="System" value={status.system?.python ?? 'unknown'} icon={<Activity size={18} />} />
-          </div>
-
-          {/* Pipeline + Providers */}
-          <div className="grid grid-cols-[1.15fr_0.85fr] gap-4">
-            <Pipeline visualizer={visualizer} />
-            <ProviderGrid visualizer={visualizer} status={status} />
-          </div>
-
-          {/* Footer */}
-          <div className="mt-6 flex items-center gap-2 text-zinc-600 text-xs">
-            <Radio size={12} /> API: {apiBase() || 'same-origin'} · {visualizer?.timestamp ?? 'not connected'}
-          </div>
         </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="relative z-10 min-h-screen pt-12">
+        <AnimatePresence mode="wait">
+          {/* ElevenLabs Widget Provider */}
+          {activeProvider === 'elevenlabs' && (
+            <motion.div
+              key="widget-elevenlabs"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="min-h-screen flex flex-col items-center justify-center px-6"
+            >
+              <div className="text-center mb-12">
+                <h1 className="font-display text-5xl sm:text-6xl text-zinc-100 mb-4">
+                  S0RA<span className="text-gradient-cyan"> Voice</span>
+                </h1>
+                <p className="text-zinc-400 text-lg max-w-md mx-auto">
+                  Click the orb below to start a conversation
+                </p>
+              </div>
+
+              {/* ElevenLabs Widget - positioned center */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+              >
+                <VoiceWidget className="relative z-20" />
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* ElevenLabs SDK Provider */}
+          {activeProvider === 'elevenlabs-sdk' && !hasStarted && (
+            <HeroSection
+              key="hero-elevenlabs-sdk"
+              onStartConversation={handleStartConversation}
+              isLoading={isLoading}
+              error={error}
+            />
+          )}
+
+          {activeProvider === 'elevenlabs-sdk' && hasStarted && (
+            <motion.div
+              key="interface-elevenlabs-sdk"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="min-h-screen flex flex-col"
+            >
+              <div className="flex-1 flex flex-col items-center justify-center px-6 py-24">
+                <div className="w-full max-w-lg space-y-12">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-center"
+                  >
+                    <h2 className="font-display text-3xl sm:text-4xl text-zinc-100 mb-2">
+                      Conversation Active
+                    </h2>
+                    <p className="text-zinc-500 text-sm">Speak naturally - AI is listening</p>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+                    className="flex justify-center py-8"
+                  >
+                    <VoiceButton size="lg" onDisconnect={handleEndCall} />
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    <VoiceVisualizer className="w-full" />
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <VoiceStatus />
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.55 }}
+                  >
+                    <ElevenLabsConversationPanel className="w-full h-64" />
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.6 }}
+                    className="flex justify-center pt-4"
+                  >
+                    <button
+                      onClick={handleEndCall}
+                      className="flex items-center gap-2 px-6 py-3 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-all duration-200"
+                    >
+                      <X className="w-4 h-4" />
+                      <span className="text-sm">End conversation</span>
+                    </button>
+                  </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* xAI Provider */}
+          {activeProvider === 'xai' && (
+            <XAIProvider onDisconnect={handleXAIDisconnect}>
+              {!xaiHasStarted ? (
+                <motion.div
+                  key="hero-xai"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col items-center justify-center px-6"
+                >
+                  <div className="text-center space-y-8">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <h1 className="font-display text-5xl sm:text-6xl text-zinc-100 mb-4">
+                        Talk to <span className="text-sky-400">Grok</span>
+                      </h1>
+                      <p className="text-zinc-400 text-lg max-w-md mx-auto">
+                        Experience voice conversations powered by xAI
+                      </p>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4, type: 'spring', stiffness: 200 }}
+                      className="w-full max-w-md mx-auto"
+                    >
+                      <XAIVoiceSelector />
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.45, type: 'spring', stiffness: 200 }}
+                      className="py-8"
+                    >
+                      <XAIVoiceButton size="lg" onConnect={handleXAIConnect} />
+                    </motion.div>
+
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                      className="text-zinc-500 text-sm"
+                    >
+                      Click to start your conversation with Grok
+                    </motion.p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="interface-xai"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col"
+                >
+                  <div className="flex-1 flex flex-col items-center justify-center px-6 py-24">
+                    <div className="w-full max-w-lg space-y-12">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-center"
+                      >
+                        <h2 className="font-display text-3xl sm:text-4xl text-zinc-100 mb-2">
+                          Grok is Listening
+                        </h2>
+                        <p className="text-zinc-500 text-sm">Speak naturally - xAI is processing</p>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 }}
+                      >
+                        <XAIVoiceSelector />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+                        className="flex justify-center py-8"
+                      >
+                        <XAIVoiceButton size="lg" onDisconnect={handleXAIDisconnect} />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                      >
+                        <XAIVoiceVisualizer className="w-full" />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <XAIVoiceStatus />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                      >
+                        <XAIConversationPanel className="w-full h-64" />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="flex justify-center pt-4"
+                      >
+                        <XAIEndConversationButton />
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </XAIProvider>
+          )}
+
+          {/* OpenAI Provider */}
+          {activeProvider === 'openai' && (
+            <OpenAIProvider onDisconnect={handleOpenAIDisconnect}>
+              {!openaiHasStarted ? (
+                <motion.div
+                  key="hero-openai"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col items-center justify-center px-6"
+                >
+                  <div className="text-center space-y-8">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <h1 className="font-display text-5xl sm:text-6xl text-zinc-100 mb-4">
+                        Talk to <span className="text-violet-400">GPT-4o</span>
+                      </h1>
+                      <p className="text-zinc-400 text-lg max-w-md mx-auto">
+                        Experience voice conversations powered by OpenAI
+                      </p>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4, type: 'spring', stiffness: 200 }}
+                      className="w-full max-w-md mx-auto"
+                    >
+                      <OpenAIVoiceSelector />
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.45, type: 'spring', stiffness: 200 }}
+                      className="py-8"
+                    >
+                      <OpenAIVoiceButton size="lg" onConnect={handleOpenAIConnect} />
+                    </motion.div>
+
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                      className="text-zinc-500 text-sm"
+                    >
+                      Click to start your conversation with GPT-4o
+                    </motion.p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="interface-openai"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col"
+                >
+                  <div className="flex-1 flex flex-col items-center justify-center px-6 py-24">
+                    <div className="w-full max-w-lg space-y-12">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-center"
+                      >
+                        <h2 className="font-display text-3xl sm:text-4xl text-zinc-100 mb-2">
+                          GPT-4o is Listening
+                        </h2>
+                        <p className="text-zinc-500 text-sm">
+                          Speak naturally - OpenAI is processing
+                        </p>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 }}
+                      >
+                        <OpenAIVoiceSelector />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+                        className="flex justify-center py-8"
+                      >
+                        <OpenAIVoiceButton size="lg" onDisconnect={handleOpenAIDisconnect} />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                      >
+                        <OpenAIVoiceVisualizer className="w-full" />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <OpenAIVoiceStatus />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                      >
+                        <OpenAIConversationPanel className="w-full h-64" />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="flex justify-center pt-4"
+                      >
+                        <OpenAIEndConversationButton />
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </OpenAIProvider>
+          )}
+
+          {/* OpenAI Translation Provider */}
+          {activeProvider === 'openai-translation' && (
+            <OpenAITranslationProvider
+              isOffline={openaiTranslationIsOffline}
+              stopRef={openaiTranslationStopRef}
+            />
+          )}
+
+          {/* Ultravox Provider */}
+          {activeProvider === 'ultravox' && (
+            <UltravoxProvider onDisconnect={handleUltravoxDisconnect}>
+              {!ultravoxHasStarted ? (
+                <motion.div
+                  key="hero-ultravox"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col items-center justify-center px-6"
+                >
+                  <div className="text-center space-y-8">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <h1 className="font-display text-5xl sm:text-6xl text-zinc-100 mb-4">
+                        Talk to <span className="text-teal-400">Ultravox</span>
+                      </h1>
+                      <p className="text-zinc-400 text-lg max-w-md mx-auto">
+                        Experience voice conversations powered by Ultravox AI
+                      </p>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4, type: 'spring', stiffness: 200 }}
+                      className="py-8"
+                    >
+                      <UltravoxVoiceButton size="lg" onConnect={handleUltravoxConnect} />
+                    </motion.div>
+
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                      className="text-zinc-500 text-sm"
+                    >
+                      Click to start your conversation with Ultravox
+                    </motion.p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="interface-ultravox"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col"
+                >
+                  <div className="flex-1 flex flex-col items-center justify-center px-6 py-24">
+                    <div className="w-full max-w-lg space-y-12">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-center"
+                      >
+                        <h2 className="font-display text-3xl sm:text-4xl text-zinc-100 mb-2">
+                          Ultravox is Listening
+                        </h2>
+                        <p className="text-zinc-500 text-sm">
+                          Speak naturally - Ultravox is processing
+                        </p>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+                        className="flex justify-center py-8"
+                      >
+                        <UltravoxVoiceButton size="lg" onDisconnect={handleUltravoxDisconnect} />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <UltravoxVoiceStatus />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                      >
+                        <UltravoxConversationPanel className="w-full h-64" />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="flex justify-center pt-4"
+                      >
+                        <button
+                          onClick={handleUltravoxDisconnect}
+                          className="flex items-center gap-2 px-6 py-3 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-all duration-200"
+                        >
+                          <X className="w-4 h-4" />
+                          <span className="text-sm">End conversation</span>
+                        </button>
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </UltravoxProvider>
+          )}
+
+          {/* Vapi Provider */}
+          {activeProvider === 'vapi' && (
+            <VapiProvider onDisconnect={handleVapiDisconnect}>
+              {!vapiHasStarted ? (
+                <motion.div
+                  key="hero-vapi"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col items-center justify-center px-6"
+                >
+                  <div className="text-center space-y-8">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <h1 className="font-display text-5xl sm:text-6xl text-zinc-100 mb-4">
+                        Talk to <span className="text-violet-400">Vapi</span>
+                      </h1>
+                      <p className="text-zinc-400 text-lg max-w-md mx-auto">
+                        Experience voice conversations powered by Vapi
+                      </p>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4, type: 'spring', stiffness: 200 }}
+                      className="py-8"
+                    >
+                      <VapiButton size="lg" onConnect={handleVapiConnect} />
+                    </motion.div>
+
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                      className="text-zinc-500 text-sm"
+                    >
+                      Click to start your conversation with Vapi
+                    </motion.p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="interface-vapi"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col"
+                >
+                  <div className="flex-1 flex flex-col items-center justify-center px-6 py-24">
+                    <div className="w-full max-w-lg space-y-12">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-center"
+                      >
+                        <h2 className="font-display text-3xl sm:text-4xl text-zinc-100 mb-2">
+                          Vapi is Listening
+                        </h2>
+                        <p className="text-zinc-500 text-sm">
+                          Speak naturally - Vapi is processing
+                        </p>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+                        className="flex justify-center py-8"
+                      >
+                        <VapiButton size="lg" onDisconnect={handleVapiDisconnect} />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <VapiVoiceStatus />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                      >
+                        <VapiConversationPanel className="w-full h-64" />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="flex justify-center pt-4"
+                      >
+                        <button
+                          onClick={handleVapiDisconnect}
+                          className="flex items-center gap-2 px-6 py-3 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-all duration-200"
+                        >
+                          <X className="w-4 h-4" />
+                          <span className="text-sm">End conversation</span>
+                        </button>
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </VapiProvider>
+          )}
+
+          {/* Retell Provider */}
+          {activeProvider === 'retell' && (
+            <RetellProvider onDisconnect={handleRetellDisconnect}>
+              {!retellHasStarted ? (
+                <motion.div
+                  key="hero-retell"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col items-center justify-center px-6"
+                >
+                  <div className="text-center space-y-8">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <h1 className="font-display text-5xl sm:text-6xl text-zinc-100 mb-4">
+                        Talk to <span className="text-teal-400">Retell</span>
+                      </h1>
+                      <p className="text-zinc-400 text-lg max-w-md mx-auto">
+                        Experience voice conversations powered by Retell AI
+                      </p>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4, type: 'spring', stiffness: 200 }}
+                      className="py-8"
+                    >
+                      <RetellButton size="lg" onConnect={handleRetellConnect} />
+                    </motion.div>
+
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                      className="text-zinc-500 text-sm"
+                    >
+                      Click to start your conversation with Retell
+                    </motion.p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="interface-retell"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col"
+                >
+                  <div className="flex-1 flex flex-col items-center justify-center px-6 py-24">
+                    <div className="w-full max-w-lg space-y-12">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-center"
+                      >
+                        <h2 className="font-display text-3xl sm:text-4xl text-zinc-100 mb-2">
+                          Retell is Listening
+                        </h2>
+                        <p className="text-zinc-500 text-sm">
+                          Speak naturally - Retell is processing
+                        </p>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+                        className="flex justify-center py-8"
+                      >
+                        <RetellButton size="lg" onDisconnect={handleRetellDisconnect} />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <RetellVoiceStatus />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                      >
+                        <RetellConversationPanel className="w-full h-64" />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="flex justify-center pt-4"
+                      >
+                        <button
+                          onClick={handleRetellDisconnect}
+                          className="flex items-center gap-2 px-6 py-3 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-all duration-200"
+                        >
+                          <X className="w-4 h-4" />
+                          <span className="text-sm">End conversation</span>
+                        </button>
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </RetellProvider>
+          )}
+
+          {/* Gemini Provider */}
+          {activeProvider === 'gemini' && (
+            <GeminiProvider
+              onDisconnect={handleGeminiDisconnect}
+              disconnectRef={geminiDisconnectRef}
+            >
+              {!geminiHasStarted ? (
+                <motion.div
+                  key="hero-gemini"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col items-center justify-center px-6"
+                >
+                  <div className="text-center space-y-8">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <h1 className="font-display text-5xl sm:text-6xl text-zinc-100 mb-4">
+                        Talk to <span className="text-emerald-400">Gemini</span>
+                      </h1>
+                      <p className="text-zinc-400 text-lg max-w-md mx-auto">
+                        Experience voice conversations powered by Google Gemini Live
+                      </p>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.3 }}
+                      className="max-w-xs mx-auto"
+                    >
+                      <GeminiVoiceSelector />
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4, type: 'spring', stiffness: 200 }}
+                      className="py-8"
+                    >
+                      <GeminiButton size="lg" onConnect={handleGeminiConnect} />
+                    </motion.div>
+
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                      className="text-zinc-500 text-sm"
+                    >
+                      Click to start your conversation with Gemini
+                    </motion.p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="interface-gemini"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="min-h-screen flex flex-col"
+                >
+                  <div className="flex-1 flex flex-col items-center justify-center px-6 py-24">
+                    <div className="w-full max-w-lg space-y-12">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-center"
+                      >
+                        <h2 className="font-display text-3xl sm:text-4xl text-zinc-100 mb-2">
+                          Gemini is Listening
+                        </h2>
+                        <p className="text-zinc-500 text-sm">
+                          Speak naturally - Gemini is processing
+                        </p>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+                        className="flex justify-center py-8"
+                      >
+                        <GeminiButton size="lg" onDisconnect={handleGeminiDisconnect} />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <GeminiVoiceStatus />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                      >
+                        <GeminiConversationPanel className="w-full h-64" />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="flex justify-center pt-4"
+                      >
+                        <button
+                          onClick={handleGeminiDisconnect}
+                          className="flex items-center gap-2 px-6 py-3 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-all duration-200"
+                        >
+                          <X className="w-4 h-4" />
+                          <span className="text-sm">End conversation</span>
+                        </button>
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </GeminiProvider>
+          )}
+        </AnimatePresence>
       </main>
+
+      {/* Configuration Dialog */}
+      <ConfigurationDialog
+        isOpen={showConfig}
+        onClose={() => setShowConfig(false)}
+        elevenLabsStatus={isConnected ? 'connected' : 'disconnected'}
+        openAIStatus={openaiHasStarted ? 'connected' : 'disconnected'}
+        xaiStatus={xaiHasStarted ? 'connected' : 'disconnected'}
+      />
+
+      {/* Error Toast */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, x: 20 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, y: 20, x: 20 }}
+            className="fixed bottom-6 right-6 z-50 max-w-sm"
+          >
+            <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 backdrop-blur-sm">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-red-300 font-medium text-sm">Connection Error</p>
+                  <p className="text-red-300/70 text-sm mt-1 break-words">{error}</p>
+                  <button
+                    onClick={clearError}
+                    className="text-red-400 hover:text-red-300 text-xs mt-2 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Footer accent line */}
+      <div className="fixed bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-zinc-800/50 to-transparent" />
     </div>
   );
 };
