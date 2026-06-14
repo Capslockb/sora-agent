@@ -1,642 +1,653 @@
 """
-Sora VOIP Bridge — Asterisk ARI + Dograh + Gemini Live
-
-Replaces Discord transport with Asterisk ARI externalMedia.
-Dograh handles Gemini Live WebSocket; we pipe RTP <-> Dograh WS.
+Sora VOIP Bridge Core
+=====================
+Orchestrates Asterisk ARI ↔ RTP ↔ Dograh/Gemini Live for phone calls.
 """
+
 from __future__ import annotations
 
 import asyncio
 import base64
 import json
 import logging
-import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Callable
 
 import aiohttp
-from aiohttp import web
 
-logger = logging.getLogger("sora_voip.bridge")
+from .ari_client import AriClient, AriEvent
+from .rtp_handler import RtpHandler, RtpStream
+from .dograh_client import DograhClient, DograhEvent
+
+log = logging.getLogger("sora.voip.bridge")
 
 
-@dataclass
-class VoipConfig:
-    """Configuration for VOIP bridge."""
-    # Asterisk ARI
-    ari_url: str
-    ari_user: str
-    ari_password: str
-    app_name: str = "sora"
-    external_media_host: str = "0.0.0.0"
-    external_media_port: int = 5000
-
-    # Dograh / Gemini
-    dograh_ws_url: str
-    dograh_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash-exp"
-    gemini_voice: str = "Puck"
-    gemini_temperature: float = 0.7
-
-    # HTTP API
-    http_host: str = "0.0.0.0"
-    http_port: int = 18944
-
+# ──────────────────────────────────────────────
+# Data structures
+# ──────────────────────────────────────────────
 
 @dataclass
-class CallState:
-    """Tracks a single active call."""
+class ActiveCall:
+    """Represents an active phone call bridged to Dograh/Gemini."""
     call_id: str
     channel_id: str
-    ari_app: str
-    dograh_ws: Optional[aiohttp.ClientWebSocketResponse] = None
-    external_media_port: int = 0
-    rtp_task: Optional[asyncio.Task] = None
-    dograh_task: Optional[asyncio.Task] = None
-    started_at: datetime = field(default_factory=datetime.utcnow)
-    audio_in_chunks: int = 0
-    audio_out_chunks: int = 0
-    playback_active: bool = False
+    caller_number: str
+    called_number: str
+    direction: str  # "inbound" | "outbound"
+    state: str  # "ringing" | "answered" | "bridged" | "ended"
+    started_at: datetime
+    answered_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    rtp_stream: Optional[RtpStream] = None
+    dograh_session_id: Optional[str] = None
+    recording_path: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class DograhSession:
-    """
-    Manages WebSocket connection to Dograh (which fronts Gemini Live).
-    Protocol matches Gemini Live API with Dograh auth wrapper.
-    """
-
-    def __init__(self, config: VoipConfig, call_state: CallState):
-        self.config = config
-        self.call_state = call_state
-        self.ws: Optional[aiohttp.ClientWebSocketResponse] = None
-        self._running = False
-        self._send_queue: asyncio.Queue[bytes] = asyncio.Queue()
-
-    async def connect(self) -> bool:
-        """Connect to Dograh WebSocket."""
-        headers = {}
-        if self.config.dograh_api_key:
-            headers["Authorization"] = f"Bearer {self.config.dograh_api_key}"
-
-        try:
-            session = aiohttp.ClientSession()
-            self.ws = await session.ws_connect(
-                self.config.dograh_ws_url,
-                headers=headers,
-                heartbeat=30,
-            )
-            self._running = True
-
-            # Send session initialization (Gemini Live format)
-            init_msg = {
-                "setup": {
-                    "model": f"models/{self.config.gemini_model}",
-                    "generation_config": {
-                        "response_modalities": ["AUDIO"],
-                        "speech_config": {
-                            "voice_config": {
-                                "prebuilt_voice_config": {
-                                    "voice_name": self.config.gemini_voice
-                                }
-                            }
-                        },
-                        "temperature": self.config.gemini_temperature,
-                    },
-                    "system_instruction": {
-                        "parts": [{"text": "You are Sora, a helpful voice assistant."}]
-                    },
-                }
-            }
-            await self.ws.send_json(init_msg)
-            logger.info(f"[{self.call_state.call_id}] Dograh session initialized")
-
-            # Start receive loop
-            self.call_state.dograh_task = asyncio.create_task(self._receive_loop())
-            self.call_state.dograh_ws = self.ws
-
-            # Start send loop
-            asyncio.create_task(self._send_loop())
-            return True
-
-        except Exception as e:
-            logger.error(f"[{self.call_state.call_id}] Dograh connect failed: {e}")
-            return False
-
-    async def _receive_loop(self):
-        """Receive audio from Dograh/Gemini, queue for RTP output."""
-        try:
-            async for msg in self.ws:
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    data = json.loads(msg.data)
-                    await self._handle_gemini_message(data)
-                elif msg.type == aiohttp.WSMsgType.BINARY:
-                    # Raw PCM audio from Gemini
-                    self.call_state.audio_out_chunks += 1
-                    await self._send_queue.put(msg.data)
-                elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSED):
-                    logger.info(f"[{self.call_state.call_id}] Dograh WS closed")
-                    break
-                elif msg.type == aiohttp.WSMsgType.ERROR:
-                    logger.error(f"[{self.call_state.call_id}] Dograh WS error: {self.ws.exception()}")
-                    break
-        except Exception as e:
-            logger.error(f"[{self.call_state.call_id}] Dograh receive error: {e}")
-        finally:
-            self._running = False
-
-    async def _handle_gemini_message(self, data: dict):
-        """Handle non-audio messages from Gemini (setup complete, turn complete, etc.)."""
-        if "setupComplete" in data:
-            logger.info(f"[{self.call_state.call_id}] Gemini setup complete")
-        elif "serverContent" in data:
-            content = data["serverContent"]
-            if "modelTurn" in content:
-                # Model turn started - could trigger playback start
-                self.call_state.playback_active = True
-            if "turnComplete" in content:
-                # Turn ended - could trigger pause
-                self.call_state.playback_active = False
-
-    async def _send_loop(self):
-        """Send queued audio to Dograh."""
-        while self._running and self.ws and not self.ws.closed:
-            try:
-                chunk = await asyncio.wait_for(self._send_queue.get(), timeout=0.1)
-                await self.ws.send_bytes(chunk)
-            except asyncio.TimeoutError:
-                continue
-            except Exception as e:
-                logger.error(f"[{self.call_state.call_id}] Dograh send error: {e}")
-                break
-
-    async def send_audio(self, pcm_data: bytes):
-        """Queue PCM audio to send to Dograh/Gemini."""
-        if self._running:
-            await self._send_queue.put(pcm_data)
-
-    async def close(self):
-        """Close Dograh connection."""
-        self._running = False
-        if self.ws and not self.ws.closed:
-            await self.ws.close()
+@dataclass
+class BridgeConfig:
+    """Runtime configuration for the bridge."""
+    asterisk_ari_url: str
+    asterisk_username: str
+    asterisk_password: str
+    asterisk_app_name: str
+    dograh_ws_url: str
+    dograh_api_key: str
+    gemini_model: str
+    sample_rate: int
+    rtp_port_range: str
+    auto_answer: bool
+    record_calls: bool
+    recording_dir: str
 
 
-class AriClient:
-    """
-    Minimal Asterisk ARI client for externalMedia handling.
-    Uses aiohttp for REST + WebSocket events.
-    """
-
-    def __init__(self, config: VoipConfig):
-        self.config = config
-        self.base_url = config.ari_url.rstrip("/")
-        self.auth = aiohttp.BasicAuth(config.ari_user, config.ari_password)
-        self.session: Optional[aiohttp.ClientSession] = None
-        self.ws: Optional[aiohttp.ClientWebSocketResponse] = None
-        self._event_handlers: dict[str, list] = {}
-        self._running = False
-        self._port_counter = config.external_media_port
-
-    async def connect(self) -> bool:
-        """Connect to ARI and start event stream."""
-        try:
-            self.session = aiohttp.ClientSession(auth=self.auth)
-
-            # Subscribe to application events
-            ws_url = f"{self.base_url.replace('http', 'ws')}/events?app={self.config.app_name}&subscribeAll=true"
-            self.ws = await self.session.ws_connect(ws_url, heartbeat=30)
-            self._running = True
-
-            # Start event loop
-            asyncio.create_task(self._event_loop())
-            logger.info(f"ARI connected to {self.base_url}")
-            return True
-
-        except Exception as e:
-            logger.error(f"ARI connect failed: {e}")
-            return False
-
-    async def _event_loop(self):
-        """Process ARI events."""
-        try:
-            async for msg in self.ws:
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    event = json.loads(msg.data)
-                    await self._dispatch_event(event)
-                elif msg.type == aiohttp.WSMsgType.ERROR:
-                    logger.error(f"ARI WS error: {self.ws.exception()}")
-                    break
-        except Exception as e:
-            logger.error(f"ARI event loop error: {e}")
-        finally:
-            self._running = False
-
-    def on(self, event_type: str, handler):
-        """Register event handler."""
-        self._event_handlers.setdefault(event_type, []).append(handler)
-
-    async def _dispatch_event(self, event: dict):
-        """Dispatch event to registered handlers."""
-        event_type = event.get("type", "")
-        for handler in self._event_handlers.get(event_type, []):
-            try:
-                await handler(event)
-            except Exception as e:
-                logger.error(f"Handler error for {event_type}: {e}")
-
-    def _next_port(self) -> int:
-        """Get next available RTP port (even numbers for RTP, odd for RTCP)."""
-        port = self._port_counter
-        self._port_counter += 2
-        return port
-
-    async def start_external_media(self, channel_id: str, call_state: CallState) -> bool:
-        """Start externalMedia on a channel to fork RTP to our port."""
-        port = self._next_port()
-        call_state.external_media_port = port
-
-        # externalMedia expects: host, port, format, transport
-        payload = {
-            "external_host": self.config.external_media_host,
-            "port": port,
-            "format": "slin16",  # 16-bit linear PCM, 8kHz
-            "transport": "udp",
-            "connection_type": "fork",  # fork = copy, not bridge
-            "direction": "both",  # send and receive
-        }
-
-        try:
-            url = f"{self.base_url}/channels/{channel_id}/externalMedia"
-            async with self.session.post(url, json=payload) as resp:
-                if resp.status == 200:
-                    logger.info(f"[{call_state.call_id}] externalMedia started on port {port}")
-                    return True
-                else:
-                    text = await resp.text()
-                    logger.error(f"externalMedia failed: {resp.status} {text}")
-                    return False
-        except Exception as e:
-            logger.error(f"externalMedia error: {e}")
-            return False
-
-    async def stop_external_media(self, channel_id: str):
-        """Stop externalMedia on a channel."""
-        try:
-            url = f"{self.base_url}/channels/{channel_id}/externalMedia"
-            await self.session.delete(url)
-        except Exception as e:
-            logger.error(f"Stop externalMedia error: {e}")
-
-    async def answer_channel(self, channel_id: str):
-        """Answer an incoming call."""
-        url = f"{self.base_url}/channels/{channel_id}/answer"
-        await self.session.post(url)
-
-    async def hangup_channel(self, channel_id: str):
-        """Hang up a channel."""
-        url = f"{self.base_url}/channels/{channel_id}/hangup"
-        await self.session.post(url)
-
-    async def close(self):
-        """Close ARI connection."""
-        self._running = False
-        if self.ws and not self.ws.closed:
-            await self.ws.close()
-        if self.session and not self.session.closed:
-            await self.session.close()
-
-
-class RtpHandler:
-    """
-    Handles raw RTP UDP sockets for externalMedia.
-    Receives from Asterisk (caller audio) -> sends to Dograh.
-    Receives from Dograh (Gemini audio) -> sends to Asterisk (callee audio).
-    """
-
-    def __init__(self, config: VoipConfig, call_state: CallState, dograh_session: DograhSession):
-        self.config = config
-        self.call_state = call_state
-        self.dograh = dograh_session
-        self.recv_sock: Optional[asyncio.DatagramTransport] = None
-        self.send_sock: Optional[asyncio.DatagramTransport] = None
-        self.remote_addr: Optional[tuple] = None
-        self._running = False
-
-    async def start(self):
-        """Start RTP listener on the externalMedia port."""
-        loop = asyncio.get_event_loop()
-
-        # Create UDP socket for receiving from Asterisk
-        self.recv_sock, _ = await loop.create_datagram_endpoint(
-            lambda: RtpProtocol(self),
-            local_addr=("0.0.0.0", self.call_state.external_media_port),
-        )
-        self._running = True
-        logger.info(f"[{self.call_state.call_id}] RTP listening on port {self.call_state.external_media_port}")
-
-    def on_rtp_received(self, data: bytes, addr: tuple):
-        """Called when RTP packet received from Asterisk."""
-        if not self._running:
-            return
-
-        self.remote_addr = addr
-        self.call_state.audio_in_chunks += 1
-
-        # Strip RTP header (12 bytes minimum) -> raw PCM
-        # Note: externalMedia with format=slin16 sends raw PCM without RTP header
-        # If you get RTP, parse: payload = data[12:]
-        pcm = data  # Assuming raw slin16 from externalMedia
-
-        # Send to Dograh/Gemini
-        asyncio.create_task(self.dograh.send_audio(pcm))
-
-    async def send_to_asterisk(self, pcm_data: bytes):
-        """Send PCM audio to Asterisk via externalMedia port."""
-        if self.remote_addr and self.send_sock:
-            # externalMedia expects raw slin16, no RTP header
-            self.send_sock.sendto(pcm_data, self.remote_addr)
-
-    async def stop(self):
-        """Stop RTP handling."""
-        self._running = False
-        if self.recv_sock:
-            self.recv_sock.close()
-        if self.send_sock:
-            self.send_sock.close()
-
-
-class RtpProtocol(asyncio.DatagramProtocol):
-    """asyncio UDP protocol for RTP."""
-
-    def __init__(self, handler: RtpHandler):
-        self.handler = handler
-        self.transport = None
-
-    def connection_made(self, transport):
-        self.transport = transport
-        self.handler.send_sock = transport
-
-    def datagram_received(self, data, addr):
-        self.handler.on_rtp_received(data, addr)
-
-    def error_received(self, exc):
-        logger.error(f"RTP error: {exc}")
-
+# ──────────────────────────────────────────────
+# Main Bridge Class
+# ──────────────────────────────────────────────
 
 class VoipBridge:
     """
-    Main bridge orchestrator.
-    Manages ARI connection, call lifecycle, Dograh sessions, RTP.
+    Main VOIP bridge orchestrating:
+    - Asterisk ARI for call control (SIP signaling)
+    - RTP media streams (audio)
+    - Dograh/Gemini Live for AI conversation
     """
 
-    def __init__(self, config: VoipConfig):
-        self.config = config
-        self.ari = AriClient(config)
-        self.calls: dict[str, CallState] = {}
-        self.app: Optional[web.Application] = None
-        self.runner: Optional[web.AppRunner] = None
+    def __init__(
+        self,
+        ari_client: AriClient,
+        rtp_handler: RtpHandler,
+        dograh_client: DograhClient,
+        config: Dict[str, Any],
+    ):
+        self.ari = ari_client
+        self.rtp = rtp_handler
+        self.dograh = dograh_client
+        self.config = BridgeConfig(**config)
+
+        self._calls: Dict[str, ActiveCall] = {}
         self._running = False
+        self._tasks: List[asyncio.Task] = []
+        self._event_handlers: Dict[str, List[Callable]] = {}
 
-        # Register ARI event handlers
-        self.ari.on("StasisStart", self._on_stasis_start)
-        self.ari.on("StasisEnd", self._on_stasis_end)
-        self.ari.on("ChannelTalkingStarted", self._on_talking_started)
-        self.ari.on("ChannelTalkingFinished", self._on_talking_finished)
+        # Bind event handlers
+        self.ari.on_event("StasisStart", self._on_stasis_start)
+        self.ari.on_event("StasisEnd", self._on_stasis_end)
+        self.ari.on_event("ChannelStateChange", self._on_channel_state_change)
+        self.ari.on_event("ChannelTalkingStarted", self._on_talking_started)
+        self.ari.on_event("ChannelTalkingFinished", self._on_talking_finished)
+        self.ari.on_event("ChannelDtmfReceived", self._on_dtmf)
 
-    async def start(self):
-        """Start the bridge."""
-        logger.info("Starting Sora VOIP bridge...")
+        self.dograh.on_event("session_started", self._on_dograh_session_started)
+        self.dograh.on_event("session_ended", self._on_dograh_session_ended)
+        self.dograh.on_event("audio_received", self._on_dograh_audio)
+        self.dograh.on_event("transcript", self._on_dograh_transcript)
+        self.dograh.on_event("error", self._on_dograh_error)
 
-        # Connect to ARI
-        if not await self.ari.connect():
-            raise RuntimeError("Failed to connect to Asterisk ARI")
+    # ──────────────────────────────────────────
+    # Lifecycle
+    # ──────────────────────────────────────────
 
-        # Start HTTP API
-        await self._start_http_api()
-
-        self._running = True
-        logger.info(f"VOIP bridge running. HTTP API on {self.config.http_host}:{self.config.http_port}")
-
-    async def _start_http_api(self):
-        """Start HTTP control/health API."""
-        self.app = web.Application()
-        self.app.router.add_get("/health", self._health_handler)
-        self.app.router.add_get("/calls", self._calls_handler)
-        self.app.router.add_post("/calls/{call_id}/hangup", self._hangup_handler)
-        self.app.router.add_post("/control", self._control_handler)
-
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        site = web.TCPSite(self.runner, self.config.http_host, self.config.http_port)
-        await site.start()
-
-    async def _health_handler(self, request):
-        return web.json_response({
-            "status": "healthy",
-            "bridge": "sora-voip",
-            "running": self._running,
-            "active_calls": len(self.calls),
-            "ari_connected": self.ari._running,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
-
-    async def _calls_handler(self, request):
-        calls_data = []
-        for call in self.calls.values():
-            calls_data.append({
-                "call_id": call.call_id,
-                "channel_id": call.channel_id,
-                "duration_seconds": (datetime.utcnow() - call.started_at).total_seconds(),
-                "audio_in_chunks": call.audio_in_chunks,
-                "audio_out_chunks": call.audio_out_chunks,
-                "playback_active": call.playback_active,
-                "external_media_port": call.external_media_port,
-            })
-        return web.json_response({"calls": calls_data})
-
-    async def _hangup_handler(self, request):
-        call_id = request.match_info["call_id"]
-        call = self.calls.get(call_id)
-        if call:
-            await self._cleanup_call(call)
-            return web.json_response({"status": "hangup initiated"})
-        return web.json_response({"error": "call not found"}, status=404)
-
-    async def _control_handler(self, request):
-        data = await request.json()
-        action = data.get("action")
-        call_id = data.get("call_id")
-
-        if action == "mute" and call_id:
-            call = self.calls.get(call_id)
-            if call:
-                call.playback_active = False
-                return web.json_response({"status": "muted"})
-        elif action == "unmute" and call_id:
-            call = self.calls.get(call_id)
-            if call:
-                call.playback_active = True
-                return web.json_response({"status": "unmuted"})
-
-        return web.json_response({"error": "invalid action"}, status=400)
-
-    async def _on_stasis_start(self, event: dict):
-        """New channel entered Stasis app (incoming call)."""
-        channel = event.get("channel", {})
-        channel_id = channel.get("id")
-        call_id = str(uuid.uuid4())[:8]
-
-        logger.info(f"[{call_id}] StasisStart: channel {channel_id}")
-
-        # Create call state
-        call = CallState(
-            call_id=call_id,
-            channel_id=channel_id,
-            ari_app=self.config.app_name,
-        )
-        self.calls[call_id] = call
-
-        # Answer the call
-        await self.ari.answer_channel(channel_id)
-
-        # Start externalMedia
-        if not await self.ari.start_external_media(channel_id, call):
-            await self._cleanup_call(call)
+    async def start(self) -> None:
+        """Start the bridge: connect ARI, Dograh, start RTP handler."""
+        if self._running:
             return
 
-        # Connect to Dograh
-        dograh = DograhSession(self.config, call)
-        if not await dograh.connect():
-            await self._cleanup_call(call)
-            return
+        log.info("Starting Sora VOIP bridge")
+
+        # Connect to Asterisk ARI
+        await self.ari.connect()
+        log.info("ARI connected")
+
+        # Register ARI application
+        await self.ari.register_app(self.config.asterisk_app_name)
+        log.info("ARI app registered", extra={"app": self.config.asterisk_app_name})
+
+        # Connect to Dograh/Gemini
+        await self.dograh.connect()
+        log.info("Dograh connected")
 
         # Start RTP handler
-        rtp = RtpHandler(self.config, call, dograh)
-        await rtp.start()
-        call.rtp_task = asyncio.current_task()  # Track for cleanup
+        await self.rtp.start()
+        log.info("RTP handler started")
 
-    async def _on_stasis_end(self, event: dict):
-        """Channel left Stasis app (call ended)."""
-        channel_id = event.get("channel", {}).get("id")
-        # Find call by channel_id
-        call = next((c for c in self.calls.values() if c.channel_id == channel_id), None)
-        if call:
-            logger.info(f"[{call.call_id}] StasisEnd")
-            await self._cleanup_call(call)
+        self._running = True
 
-    async def _on_talking_started(self, event: dict):
-        """Voice activity detected."""
-        channel_id = event.get("channel", {}).get("id")
-        call = next((c for c in self.calls.values() if c.channel_id == channel_id), None)
-        if call:
-            call.playback_active = True
+        # Start background tasks
+        self._tasks = [
+            asyncio.create_task(self._ari_event_loop()),
+            asyncio.create_task(self._dograh_event_loop()),
+            asyncio.create_task(self._call_monitor_loop()),
+        ]
 
-    async def _on_talking_finished(self, event: dict):
-        """Voice activity ended."""
-        channel_id = event.get("channel", {}).get("id")
-        call = next((c for c in self.calls.values() if c.channel_id == channel_id), None)
-        if call:
-            call.playback_active = False
+        log.info("Sora VOIP bridge started successfully")
 
-    async def _cleanup_call(self, call: CallState):
-        """Clean up call resources."""
-        logger.info(f"[{call.call_id}] Cleaning up call")
+    async def stop(self) -> None:
+        """Stop the bridge gracefully."""
+        if not self._running:
+            return
 
-        # Stop externalMedia
-        await self.ari.stop_external_media(call.channel_id)
-
-        # Close Dograh
-        if call.dograh_ws:
-            dograh = DograhSession(self.config, call)
-            dograh.ws = call.dograh_ws
-            await dograh.close()
-
-        # Cancel tasks
-        if call.rtp_task and not call.rtp_task.done():
-            call.rtp_task.cancel()
-        if call.dograh_task and not call.dograh_task.done():
-            call.dograh_task.cancel()
-
-        # Remove from active calls
-        self.calls.pop(call.call_id, None)
-
-    async def stop(self):
-        """Stop the bridge."""
-        logger.info("Stopping VOIP bridge...")
+        log.info("Stopping Sora VOIP bridge")
         self._running = False
 
-        # Hangup all calls
-        for call in list(self.calls.values()):
-            await self._cleanup_call(call)
+        # Hang up all active calls
+        for call in list(self._calls.values()):
+            await self.hangup(call.channel_id)
 
-        # Stop HTTP API
-        if self.runner:
-            await self.runner.cleanup()
+        # Cancel background tasks
+        for task in self._tasks:
+            task.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
 
-        # Close ARI
-        await self.ari.close()
+        # Disconnect clients
+        await self.dograh.disconnect()
+        await self.ari.disconnect()
+        await self.rtp.stop()
 
-        logger.info("VOIP bridge stopped")
+        self._calls.clear()
+        self._tasks.clear()
+        log.info("Sora VOIP bridge stopped")
 
-
-# --- CLI entry point ---
-
-async def main():
-    import argparse
-    from pathlib import Path
-
-    parser = argparse.ArgumentParser(description="Sora VOIP Bridge")
-    parser.add_argument("--config", type=Path, help="Config file (YAML)")
-    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
-    args = parser.parse_args()
-
-    logging.basicConfig(
-        level=args.log_level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
-
-    # Load config
-    if args.config:
-        import yaml
-        with open(args.config) as f:
-            cfg_dict = yaml.safe_load(f)
-        config = VoipConfig(**cfg_dict.get("voip", {}))
-    else:
-        # From environment
-        config = VoipConfig(
-            ari_url=os.getenv("SORA_ARI_URL", "http://localhost:8088/ari"),
-            ari_user=os.getenv("SORA_ARI_USER", "sora"),
-            ari_password=os.getenv("SORA_ARI_PASSWORD", ""),
-            app_name=os.getenv("SORA_ARI_APP", "sora"),
-            external_media_host=os.getenv("SORA_EXTERNAL_MEDIA_HOST", "0.0.0.0"),
-            external_media_port=int(os.getenv("SORA_EXTERNAL_MEDIA_PORT", "5000")),
-            dograh_ws_url=os.getenv("SORA_DOGRAH_WS_URL", ""),
-            dograh_api_key=os.getenv("SORA_DOGRAH_API_KEY", ""),
-            gemini_model=os.getenv("SORA_GEMINI_MODEL", "gemini-2.0-flash-exp"),
-            gemini_voice=os.getenv("SORA_GEMINI_VOICE", "Puck"),
-            gemini_temperature=float(os.getenv("SORA_GEMINI_TEMPERATURE", "0.7")),
-            http_host=os.getenv("SORA_HTTP_HOST", "0.0.0.0"),
-            http_port=int(os.getenv("SORA_HTTP_PORT", "18944")),
+    async def reload_config(self, config: Dict[str, Any]) -> None:
+        """Hot-reload configuration."""
+        self.config = BridgeConfig(**config)
+        # Reconfigure components
+        await self.rtp.reconfigure(port_range=self.config.rtp_port_range)
+        await self.dograh.reconfigure(
+            ws_url=self.config.dograh_ws_url,
+            api_key=self.config.dograh_api_key,
+            model=self.config.gemini_model,
         )
+        log.info("VOIP bridge config reloaded")
 
-    if not config.dograh_ws_url:
-        logger.error("DOGRAH_WS_URL is required (set SORA_DOGRAH_WS_URL)")
-        return 1
+    # ──────────────────────────────────────────
+    # Public API
+    # ──────────────────────────────────────────
 
-    bridge = VoipBridge(config)
-    try:
-        await bridge.start()
-        # Run forever
-        while bridge._running:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await bridge.stop()
-    return 0
+    async def sip_register(
+        self,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        domain: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Register SIP endpoint (via ARI endpoint registration)."""
+        # This would typically be done via Asterisk config (pjsip.conf)
+        # but we can trigger a reload or use AMI for dynamic registration
+        return {
+            "status": "ok",
+            "message": "SIP registration managed via Asterisk config (pjsip.conf). Use 'asterisk -rx \"pjsip show registrations\"' to verify.",
+            "note": "Dynamic SIP registration via ARI not directly supported; configure endpoints in pjsip.conf",
+        }
 
+    async def sip_unregister(self) -> Dict[str, Any]:
+        """Unregister SIP endpoint."""
+        return {"status": "ok", "message": "SIP unregistration managed via Asterisk config"}
 
-if __name__ == "__main__":
-    exit(asyncio.run(main()))
+    async def sip_status(self) -> Dict[str, Any]:
+        """Get SIP registration status (via ARI endpoint query)."""
+        try:
+            endpoints = await self.ari.get_endpoints()
+            return {
+                "status": "ok",
+                "endpoints": endpoints,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    async def ari_connect(self, app_name: Optional[str] = None) -> Dict[str, Any]:
+        """Connect/register ARI application."""
+        name = app_name or self.config.asterisk_app_name
+        await self.ari.register_app(name)
+        return {"status": "ok", "app": name}
+
+    async def ari_disconnect(self) -> Dict[str, Any]:
+        """Disconnect ARI application."""
+        await self.ari.unregister_app(self.config.asterisk_app_name)
+        return {"status": "ok"}
+
+    def ari_status(self) -> Dict[str, Any]:
+        """Get ARI connection status."""
+        return {
+            "status": "ok",
+            "connected": self.ari.is_connected(),
+            "app": self.config.asterisk_app_name,
+            "url": self.config.asterisk_ari_url,
+        }
+
+    async def ari_list_apps(self) -> Dict[str, Any]:
+        """List registered ARI applications."""
+        apps = await self.ari.list_apps()
+        return {"status": "ok", "apps": apps}
+
+    async def originate_call(
+        self,
+        number: str,
+        caller_id: Optional[str] = None,
+        auto_answer: Optional[bool] = None,
+        record: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Originate an outbound call and bridge to Dograh."""
+        call_id = str(uuid.uuid4())[:8]
+        channel_id = f"Sora/{call_id}"
+
+        # Prepare originate parameters
+        originate_params = {
+            "endpoint": f"PJSIP/{number}",
+            "app": self.config.asterisk_app_name,
+            "appArgs": f"outbound,{call_id}",
+            "callerId": caller_id or "Sora",
+            "timeout": 30,
+        }
+
+        if auto_answer is not None:
+            originate_params["autoAnswer"] = auto_answer
+        elif self.config.auto_answer:
+            originate_params["autoAnswer"] = True
+
+        try:
+            # Originate call via ARI
+            channel = await self.ari.originate(**originate_params)
+            if not channel:
+                return {"status": "error", "error": "Failed to originate call", "call_id": call_id}
+
+            actual_channel_id = channel.get("id")
+            log.info("Call originated", extra={"call_id": call_id, "channel": actual_channel_id})
+
+            # Create call record
+            call = ActiveCall(
+                call_id=call_id,
+                channel_id=actual_channel_id,
+                caller_number=caller_id or "Sora",
+                called_number=number,
+                direction="outbound",
+                state="ringing",
+                started_at=datetime.utcnow(),
+            )
+            self._calls[call_id] = call
+
+            # Start recording if requested
+            if record is True or (record is None and self.config.record_calls):
+                await self._start_recording(call)
+
+            return {
+                "status": "ok",
+                "call_id": call_id,
+                "channel_id": actual_channel_id,
+                "number": number,
+                "state": "ringing",
+            }
+
+        except Exception as e:
+            log.error("Originate failed", extra={"error": str(e)})
+            return {"error": str(e), "call_id": call_id}
+
+    async def hangup(self, channel_id: Optional[str] = None, all_calls: bool = False) -> Dict[str, Any]:
+        """Hang up call(s)."""
+        results = []
+
+        if all_calls:
+            for call in list(self._calls.values()):
+                results.append(await self._hangup_call(call))
+        elif channel_id:
+            call = self._find_call_by_channel(channel_id)
+            if call:
+                results.append(await self._hangup_call(call))
+            else:
+                return {"status": "error", "error": f"Channel not found: {channel_id}"}
+        else:
+            return {"status": "error", "error": "channel_id or all_calls required"}
+
+        return {"status": "ok", "results": results}
+
+    async def _hangup_call(self, call: ActiveCall) -> Dict[str, Any]:
+        """Hang up a single call and cleanup."""
+        try:
+            # Hang up via ARI
+            await self.ari.hangup(call.channel_id)
+
+            # Stop RTP stream
+            if call.rtp_stream:
+                await self.rtp.stop_stream(call.rtp_stream)
+                call.rtp_stream = None
+
+            # End Dograh session
+            if call.dograh_session_id:
+                await self.dograh.end_session(call.dograh_session_id)
+                call.dograh_session_id = None
+
+            # Stop recording
+            if call.recording_path:
+                await self._stop_recording(call)
+
+            call.state = "ended"
+            call.ended_at = datetime.utcnow()
+
+            # Remove from active calls
+            self._calls.pop(call.call_id, None)
+
+            log.info("Call ended", extra={"call_id": call.call_id, "duration": self._call_duration(call)})
+            return {"status": "ok", "call_id": call.call_id}
+
+        except Exception as e:
+            log.error("Hangup failed", extra={"call_id": call.call_id, "error": str(e)})
+            return {"status": "error", "error": str(e), "call_id": call.call_id}
+
+    def get_status(self, detailed: bool = False) -> Dict[str, Any]:
+        """Get bridge status."""
+        status = {
+            "running": self._running,
+            "ari": self.ari_status(),
+            "dograh": self.dograh.get_status(),
+            "rtp": self.rtp.get_status(),
+            "active_calls": len(self._calls),
+            "calls": [],
+        }
+
+        if detailed:
+            for call in self._calls.values():
+                status["calls"].append({
+                    "call_id": call.call_id,
+                    "channel_id": call.channel_id,
+                    "caller": call.caller_number,
+                    "called": call.called_number,
+                    "direction": call.direction,
+                    "state": call.state,
+                    "duration": self._call_duration(call).seconds if call.answered_at else 0,
+                    "recording": call.recording_path,
+                    "dograh_session": call.dograh_session_id,
+                })
+
+        return status
+
+    # ──────────────────────────────────────────
+    # ARI Event Handlers
+    # ──────────────────────────────────────────
+
+    async def _on_stasis_start(self, event: AriEvent) -> None:
+        """Channel entered Stasis app - inbound call or originate answered."""
+        channel = event.channel
+        channel_id = channel["id"]
+        args = event.args or []
+
+        # Parse app args: direction,call_id
+        direction = args[0] if args else "inbound"
+        call_id = args[1] if len(args) > 1 else str(uuid.uuid4())[:8]
+
+        # Check if we already track this call (outbound)
+        existing_call = self._find_call_by_channel(channel_id)
+        if existing_call:
+            existing_call.state = "answered"
+            existing_call.answered_at = datetime.utcnow()
+            await self._bridge_call(existing_call)
+            return
+
+        # New inbound call
+        caller = channel.get("caller", {}).get("number", "unknown")
+        called = channel.get("connected", {}).get("number", "unknown")
+
+        call = ActiveCall(
+            call_id=call_id,
+            channel_id=channel_id,
+            caller_number=caller,
+            called_number=called,
+            direction=direction,
+            state="answered",
+            started_at=datetime.utcnow(),
+            answered_at=datetime.utcnow(),
+        )
+        self._calls[call_id] = call
+
+        log.info("Call answered", extra={"call_id": call_id, "channel": channel_id, "direction": direction})
+
+        # Auto-answer if configured
+        if self.config.auto_answer and direction == "inbound":
+            await self.ari.answer(channel_id)
+
+        # Start recording if configured
+        if self.config.record_calls:
+            await self._start_recording(call)
+
+        # Bridge to Dograh
+        await self._bridge_call(call)
+
+    async def _on_stasis_end(self, event: AriEvent) -> None:
+        """Channel left Stasis app - call ended."""
+        channel_id = event.channel["id"]
+        call = self._find_call_by_channel(channel_id)
+        if call:
+            await self._hangup_call(call)
+
+    async def _on_channel_state_change(self, event: AriEvent) -> None:
+        """Channel state changed."""
+        channel = event.channel
+        state = channel.get("state")
+        channel_id = channel["id"]
+        call = self._find_call_by_channel(channel_id)
+        if call:
+            call.state = state.lower()
+            log.debug("Channel state change", extra={"call_id": call.call_id, "state": state})
+
+    async def _on_talking_started(self, event: AriEvent) -> None:
+        """Channel started talking - start sending audio to Dograh."""
+        channel_id = event.channel["id"]
+        call = self._find_call_by_channel(channel_id)
+        if call and call.rtp_stream:
+            call.rtp_stream.active = True
+            log.debug("Talking started", extra={"call_id": call.call_id})
+
+    async def _on_talking_finished(self, event: AriEvent) -> None:
+        """Channel stopped talking."""
+        channel_id = event.channel["id"]
+        call = self._find_call_by_channel(channel_id)
+        if call and call.rtp_stream:
+            call.rtp_stream.active = False
+            log.debug("Talking finished", extra={"call_id": call.call_id})
+
+    async def _on_dtmf(self, event: AriEvent) -> None:
+        """DTMF received - forward to Dograh as control signal."""
+        channel_id = event.channel["id"]
+        digit = event.digit
+        call = self._find_call_by_channel(channel_id)
+        if call and call.dograh_session_id:
+            await self.dograh.send_dtmf(call.dograh_session_id, digit)
+            log.debug("DTMF forwarded", extra={"call_id": call.call_id, "digit": digit})
+
+    # ──────────────────────────────────────────
+    # Dograh Event Handlers
+    # ──────────────────────────────────────────
+
+    async def _on_dograh_session_started(self, event: DograhEvent) -> None:
+        """Dograh session established."""
+        session_id = event.session_id
+        call_id = event.metadata.get("call_id")
+        call = self._calls.get(call_id)
+        if call:
+            call.dograh_session_id = session_id
+            log.info("Dograh session started", extra={"call_id": call_id, "session_id": session_id})
+
+    async def _on_dograh_session_ended(self, event: DograhEvent) -> None:
+        """Dograh session ended."""
+        session_id = event.session_id
+        call = self._find_call_by_dograh_session(session_id)
+        if call:
+            call.dograh_session_id = None
+            log.info("Dograh session ended", extra={"call_id": call.call_id})
+
+    async def _on_dograh_audio(self, event: DograhEvent) -> None:
+        """Audio received from Dograh/Gemini - play to caller via RTP."""
+        session_id = event.session_id
+        audio_data = event.audio_data  # base64 encoded PCM
+        call = self._find_call_by_dograh_session(session_id)
+        if call and call.rtp_stream:
+            # Decode base64 PCM and send via RTP
+            pcm = base64.b64decode(audio_data)
+            await self.rtp.send_audio(call.rtp_stream, pcm)
+
+    async def _on_dograh_transcript(self, event: DograhEvent) -> None:
+        """Transcript from Dograh/Gemini."""
+        session_id = event.session_id
+        transcript = event.transcript
+        call = self._find_call_by_dograh_session(session_id)
+        if call:
+            log.info("Transcript", extra={"call_id": call.call_id, "text": transcript})
+            self.emit("transcript", {"call_id": call.call_id, "text": transcript, "timestamp": datetime.utcnow().isoformat()})
+
+    async def _on_dograh_error(self, event: DograhEvent) -> None:
+        """Dograh error."""
+        log.error("Dograh error", extra={"error": event.error, "session_id": event.session_id})
+
+    # ──────────────────────────────────────────
+    # Call Bridging Logic
+    # ──────────────────────────────────────────
+
+    async def _bridge_call(self, call: ActiveCall) -> None:
+        """Bridge a call to Dograh/Gemini via RTP."""
+        try:
+            # Allocate RTP port
+            rtp_stream = await self.rtp.create_stream(
+                call_id=call.call_id,
+                sample_rate=self.config.sample_rate,
+            )
+            call.rtp_stream = rtp_stream
+
+            # Start RTP stream (will handle Asterisk externalMedia or snoopChannel)
+            await self.rtp.start_stream(rtp_stream, call.channel_id, self.ari)
+
+            # Start Dograh session
+            session_id = await self.dograh.start_session(
+                call_id=call.call_id,
+                caller_number=call.caller_number,
+                called_number=call.called_number,
+                direction=call.direction,
+                sample_rate=self.config.sample_rate,
+            )
+            call.dograh_session_id = session_id
+
+            call.state = "bridged"
+            log.info("Call bridged to Dograh", extra={"call_id": call.call_id, "session_id": session_id})
+
+        except Exception as e:
+            log.error("Bridge failed", extra={"call_id": call.call_id, "error": str(e)})
+            await self._hangup_call(call)
+
+    # ──────────────────────────────────────────
+    # Recording
+    # ──────────────────────────────────────────
+
+    async def _start_recording(self, call: ActiveCall) -> None:
+        """Start call recording via ARI."""
+        recording_dir = Path(self.config.recording_dir).expanduser()
+        recording_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"{call.call_id}_{call.caller_number}_{call.called_number}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.wav"
+        path = recording_dir / filename
+
+        try:
+            await self.ari.record(call.channel_id, str(path), format="wav", mix=True)
+            call.recording_path = str(path)
+            log.info("Recording started", extra={"call_id": call.call_id, "path": str(path)})
+        except Exception as e:
+            log.warning("Failed to start recording", extra={"call_id": call.call_id, "error": str(e)})
+
+    async def _stop_recording(self, call: ActiveCall) -> None:
+        """Stop call recording."""
+        if call.recording_path:
+            try:
+                await self.ari.stop_recording(call.channel_id, call.recording_path)
+                log.info("Recording stopped", extra={"call_id": call.call_id, "path": call.recording_path})
+            except Exception as e:
+                log.warning("Failed to stop recording", extra={"call_id": call.call_id, "error": str(e)})
+
+    # ──────────────────────────────────────────
+    # Background Loops
+    # ──────────────────────────────────────────
+
+    async def _ari_event_loop(self) -> None:
+        """Process ARI events."""
+        while self._running:
+            try:
+                await asyncio.sleep(0.1)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                log.error("ARI event loop error", extra={"error": str(e)})
+
+    async def _dograh_event_loop(self) -> None:
+        """Process Dograh events."""
+        while self._running:
+            try:
+                await asyncio.sleep(0.1)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                log.error("Dograh event loop error", extra={"error": str(e)})
+
+    async def _call_monitor_loop(self) -> None:
+        """Monitor active calls for timeouts, etc."""
+        while self._running:
+            try:
+                await asyncio.sleep(10)
+                # Check for stale calls, timeouts, etc.
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                log.error("Call monitor error", extra={"error": str(e)})
+
+    # ──────────────────────────────────────────
+    # Helpers
+    # ──────────────────────────────────────────
+
+    def _find_call_by_channel(self, channel_id: str) -> Optional[ActiveCall]:
+        for call in self._calls.values():
+            if call.channel_id == channel_id:
+                return call
+        return None
+
+    def _find_call_by_dograh_session(self, session_id: str) -> Optional[ActiveCall]:
+        for call in self._calls.values():
+            if call.dograh_session_id == session_id:
+                return call
+        return None
+
+    def _call_duration(self, call: ActiveCall) -> datetime:
+        end = call.ended_at or datetime.utcnow()
+        return end - call.started_at
+
+    # Event emitter for external consumers
+    def emit(self, event: str, data: Any) -> None:
+        for handler in self._event_handlers.get(event, []):
+            try:
+                handler(data)
+            except Exception as e:
+                log.error("Event handler error", extra={"event": event, "error": str(e)})
+
+    def on(self, event: str, handler: Callable) -> None:
+        self._event_handlers.setdefault(event, []).append(handler)
+
+    def off(self, event: str, handler: Callable) -> None:
+        if event in self._event_handlers:
+            self._event_handlers[event].remove(handler)

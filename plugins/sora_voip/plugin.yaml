@@ -1,78 +1,29 @@
 name: sora-voip
-version: 0.1.0
-description: Sora VOIP bridge for Asterisk + Dograh + Gemini Live
+version: "0.1.0"
+description: "Sora VOIP Bridge — Asterisk ARI + Dograh/Gemini Live for phone calls"
 author: Capslockb
+homepage: https://github.com/Capslockb/sora-agent
 license: MIT
-
-entry_point: sora_voip.__init__:register
-
-requires:
-  - aiohttp>=3.9.0
-  - pydantic>=2.0
-  - pydantic-settings>=2.0
-  - python-dotenv>=1.0
-
-optional:
-  - aiorchestration>=1.0  # for ARI client
-  - aiortc>=1.0           # for WebRTC/SDP if needed
-
+min_sora_version: "0.1.0"
+entry_point: __init__.py
+tools:
+  - sora_voice_sip
+  - sora_voice_ari
+  - sora_voice_call
+  - sora_voice_hangup
+  - sora_voice_status
+  - sora_voip_config
 config_schema:
-  voip:
-    type: object
-    properties:
-      asterisk:
-        type: object
-        properties:
-          ari_url:
-            type: string
-            description: "Asterisk ARI base URL (e.g., http://localhost:8088/ari)"
-          ari_user:
-            type: string
-            description: "ARI username"
-          ari_password:
-            type: string
-            description: "ARI password"
-          app_name:
-            type: string
-            default: "sora"
-            description: "ARI application name"
-          external_media_host:
-            type: string
-            default: "0.0.0.0"
-            description: "Host for externalMedia RTP"
-          external_media_port:
-            type: integer
-            default: 5000
-            description: "Base port for externalMedia RTP"
-      dograh:
-        type: object
-        properties:
-          ws_url:
-            type: string
-            description: "Dograh WebSocket URL (e.g., ws://dograh:8080/gemini)"
-          api_key:
-            type: string
-            description: "Dograh API key if required"
-      gemini:
-        type: object
-        properties:
-          model:
-            type: string
-            default: "gemini-2.0-flash-exp"
-          voice:
-            type: string
-            default: "Puck"
-          temperature:
-            type: number
-            default: 0.7
-      http_api:
-        type: object
-        properties:
-          host:
-            type: string
-            default: "0.0.0.0"
-          port:
-            type: integer
-            default: 18944
-            description: "HTTP control API port (different from discord-voice's 18943)"
-    required: ["asterisk", "dograh", "gemini", "http_api"]
+  asterisk_ari_url: "http://localhost:8088/ari"
+  asterisk_username: "sora"
+  asterisk_password: ""
+  asterisk_app_name: "sora-bridge"
+  dograh_ws_url: "wss://dograh.local/ws"
+  dograh_api_key: ""
+  gemini_model: "gemini-2.0-flash-exp"
+  sample_rate: 48000
+  channels: 1
+  rtp_port_range: "10000-20000"
+  auto_answer: true
+  record_calls: false
+  recording_dir: "~/.sora/recordings"

@@ -597,6 +597,99 @@ def wizard_voice_bridges(config: Dict[str, Any]) -> Dict[str, Any]:
     return config
 
 
+def wizard_voip(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Section 3b: VOIP / Asterisk + Dograh Integration."""
+    print_header("3b. VOIP Integration (Asterisk + Dograh)")
+    print_info("Connect Sora to your phone system via Asterisk ARI and Dograh/Gemini Live.")
+    print_info("This enables inbound/outbound phone calls with AI conversation.")
+    print()
+
+    voip_config = config.setdefault("voip", {})
+
+    # Asterisk ARI
+    print_subheader("Asterisk ARI Configuration")
+    ari_url = cfg_get(voip_config, "asterisk_ari_url", default="http://localhost:8088/ari")
+    ari_user = cfg_get(voip_config, "asterisk_username", default="sora")
+    ari_pass = cfg_get(voip_config, "asterisk_password", default="")
+
+    print_info(f"ARI URL: {ari_url}")
+    print_info(f"Username: {ari_user}")
+    print_info(f"Password: {'*' * len(ari_pass) if ari_pass else 'NOT SET'}")
+
+    if prompt_yes_no("Configure Asterisk ARI connection?", default=bool(ari_pass)):
+        url = prompt("ARI URL (e.g., http://asterisk:8088/ari)", default=ari_url)
+        if url:
+            voip_config["asterisk_ari_url"] = url
+
+        user = prompt("ARI Username", default=ari_user)
+        if user:
+            voip_config["asterisk_username"] = user
+
+        passwd = prompt("ARI Password", password=True)
+        if passwd:
+            voip_config["asterisk_password"] = passwd
+
+        app = prompt("ARI Application Name", default=cfg_get(voip_config, "asterisk_app_name", default="sora-bridge"))
+        if app:
+            voip_config["asterisk_app_name"] = app
+
+    # Dograh / Gemini Live
+    print()
+    print_subheader("Dograh / Gemini Live Configuration")
+    dograh_url = cfg_get(voip_config, "dograh_ws_url", default="wss://dograh.local/ws")
+    dograh_key = cfg_get(voip_config, "dograh_api_key", default="")
+    gemini_model = cfg_get(voip_config, "gemini_model", default="gemini-2.0-flash-exp")
+
+    print_info(f"Dograh WS URL: {dograh_url}")
+    print_info(f"Dograh API Key: {'*' * len(dograh_key) if dograh_key else 'NOT SET'}")
+    print_info(f"Gemini Model: {gemini_model}")
+
+    if prompt_yes_no("Configure Dograh connection?", default=bool(dograh_key)):
+        url = prompt("Dograh WebSocket URL (e.g., wss://dograh.local/ws)", default=dograh_url)
+        if url:
+            voip_config["dograh_ws_url"] = url
+
+        key = prompt("Dograh API Key", password=True)
+        if key:
+            voip_config["dograh_api_key"] = key
+
+        model = prompt("Gemini Model", default=gemini_model)
+        if model:
+            voip_config["gemini_model"] = model
+
+    # Audio / RTP settings
+    print()
+    print_subheader("Audio & RTP Settings")
+    sample_rate = cfg_get(voip_config, "sample_rate", default=48000)
+    rtp_range = cfg_get(voip_config, "rtp_port_range", default="10000-20000")
+    auto_answer = cfg_get(voip_config, "auto_answer", default=True)
+    record_calls = cfg_get(voip_config, "record_calls", default=False)
+
+    print_info(f"Sample Rate: {sample_rate} Hz")
+    print_info(f"RTP Port Range: {rtp_range}")
+    print_info(f"Auto Answer: {'Yes' if auto_answer else 'No'}")
+    print_info(f"Record Calls: {'Yes' if record_calls else 'No'}")
+
+    if prompt_yes_no("Adjust audio/RTP settings?", default=False):
+        rate = prompt_int("Sample Rate (8000/16000/48000)", default=sample_rate)
+        if rate:
+            voip_config["sample_rate"] = rate
+
+        rng = prompt("RTP Port Range (e.g., 10000-20000)", default=rtp_range)
+        if rng:
+            voip_config["rtp_port_range"] = rng
+
+        aa = prompt_yes_no("Auto-answer inbound calls?", default=auto_answer)
+        voip_config["auto_answer"] = aa
+
+        rc = prompt_yes_no("Record all calls by default?", default=record_calls)
+        voip_config["record_calls"] = rc
+
+    print()
+    print_success("✓ VOIP Integration configured")
+    return config
+
+
 def wizard_mcp(config: Dict[str, Any]) -> Dict[str, Any]:
     """Section 4: MCP (Model Context Protocol)."""
     print_header("4. MCP — Model Context Protocol")
@@ -970,6 +1063,7 @@ def main(args) -> int:
     config = wizard_model_provider(config)
     config = wizard_discord(config)
     config = wizard_voice_bridges(config)
+    config = wizard_voip(config)
     config = wizard_mcp(config)
     config = wizard_memory(config)
     config = wizard_tools(config)

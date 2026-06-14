@@ -43,6 +43,54 @@ def build_voice_parser(subparsers):
     leave_parser = voice_sub.add_parser("leave", help="Stop voice bridge")
     leave_parser.add_argument("--guild", help="Discord guild ID (omit to stop all)")
 
+    # VOIP subcommands
+    # voice sip
+    sip_parser = voice_sub.add_parser("sip", help="Manage SIP registration")
+    sip_sub = sip_parser.add_subparsers(dest="sip_action", metavar="<action>")
+    sip_register = sip_sub.add_parser("register", help="Register SIP endpoint")
+    sip_register.add_argument("--username", help="SIP username")
+    sip_register.add_argument("--password", help="SIP password")
+    sip_register.add_argument("--domain", help="SIP domain")
+    sip_unregister = sip_sub.add_parser("unregister", help="Unregister SIP endpoint")
+    sip_unregister.add_argument("--username", help="SIP username")
+    sip_unregister.add_argument("--password", help="SIP password")
+    sip_unregister.add_argument("--domain", help="SIP domain")
+    sip_sub.add_parser("status", help="Show SIP registration status")
+
+    # voice ari
+    ari_parser = voice_sub.add_parser("ari", help="Manage ARI connection")
+    ari_sub = ari_parser.add_subparsers(dest="ari_action", metavar="<action>")
+    ari_connect = ari_sub.add_parser("connect", help="Connect ARI application")
+    ari_connect.add_argument("--app", help="ARI application name")
+    ari_disconnect = ari_sub.add_parser("disconnect", help="Disconnect ARI application")
+    ari_disconnect.add_argument("--app", help="ARI application name")
+    ari_sub.add_parser("status", help="Show ARI connection status")
+    ari_sub.add_parser("apps", help="List registered ARI applications")
+
+    # voice call
+    call_parser = voice_sub.add_parser("call", help="Place an outbound call via Asterisk")
+    call_parser.add_argument("number", help="Phone number to call")
+    call_parser.add_argument("--caller-id", help="Caller ID to present")
+    call_parser.add_argument("--auto-answer", action="store_true", help="Auto-answer the call")
+    call_parser.add_argument("--record", action="store_true", help="Record the call")
+
+    # voice hangup
+    hangup_parser = voice_sub.add_parser("hangup", help="Hang up active call(s)")
+    hangup_parser.add_argument("--channel", help="Channel ID to hang up")
+    hangup_parser.add_argument("--all", action="store_true", help="Hang up all calls")
+
+    # voice voip-status
+    voice_sub.add_parser("voip-status", help="Show VOIP bridge status (ARI, SIP, calls, Dograh)")
+
+    # voice voip-config
+    voip_config_parser = voice_sub.add_parser("voip-config", help="Manage VOIP configuration")
+    voip_config_sub = voip_config_parser.add_subparsers(dest="voip_config_action", metavar="<action>")
+    voip_config_sub.add_parser("show", help="Show current VOIP configuration")
+    voip_config_set = voip_config_sub.add_parser("set", help="Set a VOIP config value")
+    voip_config_set.add_argument("key", help="Config key (e.g., asterisk_ari_url, dograh_ws_url)")
+    voip_config_set.add_argument("value", help="Config value")
+    voip_config_sub.add_parser("reload", help="Reload VOIP configuration in plugin")
+
     # voice providers
     providers_parser = voice_sub.add_parser("providers", help="Manage voice providers (TTS/STT/LLM Voice)")
     providers_sub = providers_parser.add_subparsers(dest="providers_command", metavar="<subcommand>")
@@ -281,10 +329,145 @@ def handle_providers(args) -> int:
     return 1
 
 
+# ──────────────────────────────────────────────
+# VOIP Handlers
+# ──────────────────────────────────────────────
+
+async def handle_sip(args) -> dict:
+    """Handle SIP registration commands."""
+    # This would use the sora-voip plugin's bridge
+    if not args.sip_action:
+        return {"status": "error", "message": "SIP action required: register, unregister, status"}
+
+    try:
+        from plugins.sora_voip import get_bridge
+        bridge = get_bridge()
+        if not bridge:
+            return {"status": "error", "message": "VOIP bridge not initialized. Ensure sora-voip plugin is loaded."}
+
+        if args.sip_action == "register":
+            return await bridge.sip_register(args.username, args.password, args.domain)
+        elif args.sip_action == "unregister":
+            return await bridge.sip_unregister()
+        elif args.sip_action == "status":
+            return await bridge.sip_status()
+        else:
+            return {"status": "error", "message": f"Unknown SIP action: {args.sip_action}"}
+    except ImportError:
+        return {"status": "error", "message": "sora-voip plugin not available. Install with: pip install -e ./plugins/sora_voip"}
+
+
+async def handle_ari(args) -> dict:
+    """Handle ARI connection commands."""
+    if not args.ari_action:
+        return {"status": "error", "message": "ARI action required: connect, disconnect, status, apps"}
+
+    try:
+        from plugins.sora_voip import get_bridge
+        bridge = get_bridge()
+        if not bridge:
+            return {"status": "error", "message": "VOIP bridge not initialized. Ensure sora-voip plugin is loaded."}
+
+        if args.ari_action == "connect":
+            return await bridge.ari_connect(args.app)
+        elif args.ari_action == "disconnect":
+            return await bridge.ari_disconnect()
+        elif args.ari_action == "status":
+            return bridge.ari_status()
+        elif args.ari_action == "apps":
+            return await bridge.ari_list_apps()
+        else:
+            return {"status": "error", "message": f"Unknown ARI action: {args.ari_action}"}
+    except ImportError:
+        return {"status": "error", "message": "sora-voip plugin not available"}
+
+
+async def handle_call(args) -> dict:
+    """Handle outbound call command."""
+    try:
+        from plugins.sora_voip import get_bridge
+        bridge = get_bridge()
+        if not bridge:
+            return {"status": "error", "message": "VOIP bridge not initialized. Ensure sora-voip plugin is loaded."}
+
+        auto_answer = args.auto_answer if args.auto_answer else None
+        record = args.record if args.record else None
+
+        return await bridge.originate_call(
+            number=args.number,
+            caller_id=args.caller_id,
+            auto_answer=auto_answer,
+            record=record,
+        )
+    except ImportError:
+        return {"status": "error", "message": "sora-voip plugin not available"}
+
+
+async def handle_hangup(args) -> dict:
+    """Handle hangup command."""
+    try:
+        from plugins.sora_voip import get_bridge
+        bridge = get_bridge()
+        if not bridge:
+            return {"status": "error", "message": "VOIP bridge not initialized. Ensure sora-voip plugin is loaded."}
+
+        if args.all:
+            return await bridge.hangup(all_calls=True)
+        elif args.channel:
+            return await bridge.hangup(channel_id=args.channel)
+        else:
+            return {"status": "error", "message": "Either --channel or --all required"}
+    except ImportError:
+        return {"status": "error", "message": "sora-voip plugin not available"}
+
+
+async def handle_voip_status(args) -> dict:
+    """Show VOIP bridge status."""
+    try:
+        from plugins.sora_voip import get_bridge
+        bridge = get_bridge()
+        if not bridge:
+            return {"status": "error", "message": "VOIP bridge not initialized. Ensure sora-voip plugin is loaded."}
+
+        status = bridge.get_status(detailed=True)
+        status["status"] = "ok"
+        return status
+    except ImportError:
+        return {"status": "error", "message": "sora-voip plugin not available"}
+
+
+async def handle_voip_config(args) -> dict:
+    """Manage VOIP configuration."""
+    from sora_cli.config import load_config, save_config
+
+    config = load_config()
+    voip_config = config.setdefault("voip", {})
+
+    if not hasattr(args, 'voip_config_action') or not args.voip_config_action:
+        # Show current config
+        safe_config = {k: ("***" if k in ("asterisk_password", "dograh_api_key") else v) for k, v in voip_config.items()}
+        print(json.dumps(safe_config, indent=2))
+        return {"status": "ok", "config": safe_config}
+
+    if args.voip_config_action == "show":
+        safe_config = {k: ("***" if k in ("asterisk_password", "dograh_api_key") else v) for k, v in voip_config.items()}
+        return {"status": "ok", "config": safe_config}
+    elif args.voip_config_action == "set":
+        if not hasattr(args, 'key') or not args.key:
+            return {"status": "error", "message": "key required for set action"}
+        voip_config[args.key] = args.value
+        save_config(config)
+        return {"status": "ok", "message": f"Set {args.key} = {args.value}"}
+    elif args.voip_config_action == "reload":
+        return {"status": "ok", "message": "VOIP config reloaded (plugin hot-reload would trigger here)"}
+    else:
+        return {"status": "error", "message": f"Unknown voip-config action: {args.voip_config_action}"}
+
+
 def main(args) -> int:
     """Main entry point for voice subcommands."""
     if args.voice_command is None:
-        print("Usage: sora voice <live|vapi|elevenlabs|status|leave|providers>")
+        print("Usage: sora voice <live|vapi|elevenlabs|status|leave|providers|sip|ari|call|hangup|voip-status|voip-config>")
         return 1
 
     # Handle providers subcommand (non-async)
@@ -303,6 +486,18 @@ def main(args) -> int:
             result = asyncio.run(get_voice_status())
         elif args.voice_command == "leave":
             result = asyncio.run(stop_voice_bridges(args.guild))
+        elif args.voice_command == "sip":
+            result = asyncio.run(handle_sip(args))
+        elif args.voice_command == "ari":
+            result = asyncio.run(handle_ari(args))
+        elif args.voice_command == "call":
+            result = asyncio.run(handle_call(args))
+        elif args.voice_command == "hangup":
+            result = asyncio.run(handle_hangup(args))
+        elif args.voice_command == "voip-status":
+            result = asyncio.run(handle_voip_status(args))
+        elif args.voice_command == "voip-config":
+            result = asyncio.run(handle_voip_config(args))
         else:
             print(f"Unknown voice command: {args.voice_command}")
             return 1

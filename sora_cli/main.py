@@ -7,9 +7,18 @@ Usage:
     sora chat                # Interactive chat
     sora setup               # Interactive setup wizard
     sora voice               # Voice bridge management
-    sora voice live          # Start Gemini Live voice bridge
-    sora voice vapi          # Start Vapi voice bridge
+    sora voice live          # Start Gemini Live voice bridge (Discord)
+    sora voice vapi          # Start Vapi voice bridge (Discord)
+    sora voice elevenlabs    # Start ElevenLabs voice bridge (Discord)
     sora voice status        # Show voice bridge status
+    sora voice leave         # Stop voice bridge
+    sora voice sip           # Manage SIP registration (Asterisk)
+    sora voice ari           # Manage ARI connection (Asterisk)
+    sora voice call          # Place outbound call via Asterisk
+    sora voice hangup        # Hang up active call(s)
+    sora voice voip-status   # Show VOIP bridge status (ARI, SIP, calls, Dograh)
+    sora voice voip-config   # Manage VOIP configuration
+    sora voice providers     # Manage voice providers (TTS/STT/LLM Voice)
     sora mcp                 # MCP server management
     sora mcp start           # Start MCP server
     sora mcp status          # Show MCP status
@@ -415,6 +424,70 @@ voice_leave_parser = voice_sub.add_parser("leave", help="Stop voice bridge", add
 voice_leave_parser.add_argument("-h", "--help", action="help")
 voice_leave_parser.add_argument("--guild", help="Discord guild ID (omit to stop all)")
 
+# VOIP subcommands
+# voice sip
+sip_parser = voice_sub.add_parser("sip", help="Manage SIP registration", add_help=False)
+sip_parser.add_argument("-h", "--help", action="help")
+sip_sub = sip_parser.add_subparsers(dest="sip_action", metavar="<action>")
+sip_register = sip_sub.add_parser("register", help="Register SIP endpoint", add_help=False)
+sip_register.add_argument("-h", "--help", action="help")
+sip_register.add_argument("--username", help="SIP username")
+sip_register.add_argument("--password", help="SIP password")
+sip_register.add_argument("--domain", help="SIP domain")
+sip_unregister = sip_sub.add_parser("unregister", help="Unregister SIP endpoint", add_help=False)
+sip_unregister.add_argument("-h", "--help", action="help")
+sip_unregister.add_argument("--username", help="SIP username")
+sip_unregister.add_argument("--password", help="SIP password")
+sip_unregister.add_argument("--domain", help="SIP domain")
+sip_status = sip_sub.add_parser("status", help="Show SIP registration status", add_help=False)
+sip_status.add_argument("-h", "--help", action="help")
+
+# voice ari
+ari_parser = voice_sub.add_parser("ari", help="Manage ARI connection", add_help=False)
+ari_parser.add_argument("-h", "--help", action="help")
+ari_sub = ari_parser.add_subparsers(dest="ari_action", metavar="<action>")
+ari_connect = ari_sub.add_parser("connect", help="Connect ARI application", add_help=False)
+ari_connect.add_argument("-h", "--help", action="help")
+ari_connect.add_argument("--app", help="ARI application name")
+ari_disconnect = ari_sub.add_parser("disconnect", help="Disconnect ARI application", add_help=False)
+ari_disconnect.add_argument("-h", "--help", action="help")
+ari_disconnect.add_argument("--app", help="ARI application name")
+ari_status = ari_sub.add_parser("status", help="Show ARI connection status", add_help=False)
+ari_status.add_argument("-h", "--help", action="help")
+ari_apps = ari_sub.add_parser("apps", help="List registered ARI applications", add_help=False)
+ari_apps.add_argument("-h", "--help", action="help")
+
+# voice call
+call_parser = voice_sub.add_parser("call", help="Place an outbound call via Asterisk", add_help=False)
+call_parser.add_argument("-h", "--help", action="help")
+call_parser.add_argument("number", help="Phone number to call")
+call_parser.add_argument("--caller-id", help="Caller ID to present")
+call_parser.add_argument("--auto-answer", action="store_true", help="Auto-answer the call")
+call_parser.add_argument("--record", action="store_true", help="Record the call")
+
+# voice hangup
+hangup_parser = voice_sub.add_parser("hangup", help="Hang up active call(s)", add_help=False)
+hangup_parser.add_argument("-h", "--help", action="help")
+hangup_parser.add_argument("--channel", help="Channel ID to hang up")
+hangup_parser.add_argument("--all", action="store_true", help="Hang up all calls")
+
+# voice voip-status
+voip_status_parser = voice_sub.add_parser("voip-status", help="Show VOIP bridge status (ARI, SIP, calls, Dograh)", add_help=False)
+voip_status_parser.add_argument("-h", "--help", action="help")
+
+# voice voip-config
+voip_config_parser = voice_sub.add_parser("voip-config", help="Manage VOIP configuration", add_help=False)
+voip_config_parser.add_argument("-h", "--help", action="help")
+voip_config_sub = voip_config_parser.add_subparsers(dest="voip_config_action", metavar="<action>")
+voip_config_show = voip_config_sub.add_parser("show", help="Show current VOIP configuration", add_help=False)
+voip_config_show.add_argument("-h", "--help", action="help")
+voip_config_set = voip_config_sub.add_parser("set", help="Set a VOIP config value", add_help=False)
+voip_config_set.add_argument("-h", "--help", action="help")
+voip_config_set.add_argument("key", help="Config key (e.g., asterisk_ari_url, dograh_ws_url)")
+voip_config_set.add_argument("value", help="Config value")
+voip_config_reload = voip_config_sub.add_parser("reload", help="Reload VOIP configuration in plugin", add_help=False)
+voip_config_reload.add_argument("-h", "--help", action="help")
+
 # voice providers
 providers_parser = voice_sub.add_parser("providers", help="Manage voice providers (TTS/STT/LLM Voice)", add_help=False)
 providers_sub = providers_parser.add_subparsers(dest="providers_command", metavar="<subcommand>")
@@ -539,16 +612,33 @@ for sub_name, sub_help in [
 plugins_parser = _add_subcommand("plugins", "Plugin management")
 plugins_sub = plugins_parser.add_subparsers(dest="plugins_command", metavar="<subcommand>")
 
-for sub_name, sub_help in [
-    ("list", "List installed plugins"),
-    ("enable", "Enable a plugin"),
-    ("disable", "Disable a plugin"),
-    ("install", "Install a plugin from GitHub"),
-    ("remove", "Remove a plugin"),
-    ("update", "Update all plugins"),
-]:
-    sub = plugins_sub.add_parser(sub_name, help=sub_help, add_help=False)
-    sub.add_argument("-h", "--help", action="help")
+# plugins list
+list_parser = plugins_sub.add_parser("list", help="List installed plugins", add_help=False)
+list_parser.add_argument("-h", "--help", action="help")
+
+# plugins enable
+enable_parser = plugins_sub.add_parser("enable", help="Enable a plugin", add_help=False)
+enable_parser.add_argument("-h", "--help", action="help")
+enable_parser.add_argument("plugin_name", help="Plugin name to enable")
+
+# plugins disable
+disable_parser = plugins_sub.add_parser("disable", help="Disable a plugin", add_help=False)
+disable_parser.add_argument("-h", "--help", action="help")
+disable_parser.add_argument("plugin_name", help="Plugin name to disable")
+
+# plugins install
+install_parser = plugins_sub.add_parser("install", help="Install a plugin from GitHub", add_help=False)
+install_parser.add_argument("-h", "--help", action="help")
+install_parser.add_argument("plugin_name", help="GitHub repo (user/repo)")
+
+# plugins remove
+remove_parser = plugins_sub.add_parser("remove", help="Remove a plugin", add_help=False)
+remove_parser.add_argument("-h", "--help", action="help")
+remove_parser.add_argument("plugin_name", help="Plugin name to remove")
+
+# plugins update
+update_parser = plugins_sub.add_parser("update", help="Update all plugins", add_help=False)
+update_parser.add_argument("-h", "--help", action="help")
 
 # ---- dashboard ----
 dashboard_parser = _add_subcommand("dashboard", "Launch web dashboard")

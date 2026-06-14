@@ -1,0 +1,51 @@
+import{_ as i,o as a,c as n,a2 as p}from"./chunks/framework.DqgtWGRo.js";const E=JSON.parse('{"title":"Asterisk Configuration","description":"","frontmatter":{},"headers":[],"relativePath":"voip/asterisk.md","filePath":"voip/asterisk.md"}'),l={name:"voip/asterisk.md"};function t(e,s,h,k,r,d){return a(),n("div",null,[...s[0]||(s[0]=[p(`<h1 id="asterisk-configuration" tabindex="-1">Asterisk Configuration <a class="header-anchor" href="#asterisk-configuration" aria-label="Permalink to &quot;Asterisk Configuration&quot;">​</a></h1><h2 id="ari-conf" tabindex="-1">ari.conf <a class="header-anchor" href="#ari-conf" aria-label="Permalink to &quot;ari.conf&quot;">​</a></h2><div class="language-ini vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">ini</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">[general]</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">enabled</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = yes</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">pretty</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = yes</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">allowed_origins</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = *</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">[sora]</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">type</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = user</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">read_only</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = no</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">password</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = secure-password</span></span></code></pre></div><p>Restart Asterisk: <code>asterisk -rx &quot;module reload res_ari.so&quot;</code></p><h2 id="pjsip-conf-sip-endpoint" tabindex="-1">pjsip.conf (SIP Endpoint) <a class="header-anchor" href="#pjsip-conf-sip-endpoint" aria-label="Permalink to &quot;pjsip.conf (SIP Endpoint)&quot;">​</a></h2><div class="language-ini vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">ini</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">[transport-udp]</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">type</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = transport</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">protocol</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = udp</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">bind</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = 0.0.0.0:5060</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">[sora-endpoint]</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">type</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = endpoint</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">transport</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = transport-udp</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">context</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = from-sora</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">disallow</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = all</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">allow</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = ulaw,alaw,opus</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">auth</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = sora-auth</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">aors</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = sora-aor</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">direct_media</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = no</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">rtp_symmetric</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = yes</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">force_rport</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = yes</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">rewrite_contact</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = yes</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">[sora-auth]</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">type</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = auth</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">auth_type</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = userpass</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">username</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = sora</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">password</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = secure-password</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">[sora-aor]</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">type</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = aor</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">max_contacts</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = 1</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">remove_existing</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> = yes</span></span></code></pre></div><h2 id="extensions-conf-dialplan" tabindex="-1">extensions.conf (Dialplan) <a class="header-anchor" href="#extensions-conf-dialplan" aria-label="Permalink to &quot;extensions.conf (Dialplan)&quot;">​</a></h2><div class="language-ini vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">ini</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">[from-sora]</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">exten</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> =&gt; s,1,NoOp(Inbound to Sora)</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;"> same</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> =&gt; n,Stasis(sora-bridge)</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;"> same</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> =&gt; n,Hangup()</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6A737D;--shiki-dark:#6A737D;">; Outbound via Sora</span></span>
+<span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">[sora-outbound]</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;">exten</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> =&gt; _X.,1,NoOp(Outbound via Sora)</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;"> same</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> =&gt; n,Dial(PJSIP/\${EXTEN}@your-provider,30)</span></span>
+<span class="line"><span style="--shiki-light:#D73A49;--shiki-dark:#F97583;"> same</span><span style="--shiki-light:#24292E;--shiki-dark:#E1E4E8;"> =&gt; n,Hangup()</span></span></code></pre></div><h2 id="verify-ari" tabindex="-1">Verify ARI <a class="header-anchor" href="#verify-ari" aria-label="Permalink to &quot;Verify ARI&quot;">​</a></h2><div class="language-bash vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang">bash</span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span style="--shiki-light:#6A737D;--shiki-dark:#6A737D;"># Check ARI is running</span></span>
+<span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">asterisk</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> -rx</span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;"> &quot;ari show apps&quot;</span></span>
+<span class="line"><span style="--shiki-light:#6A737D;--shiki-dark:#6A737D;"># Should show: sora-bridge</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6A737D;--shiki-dark:#6A737D;"># Check endpoint</span></span>
+<span class="line"><span style="--shiki-light:#6F42C1;--shiki-dark:#B392F0;">asterisk</span><span style="--shiki-light:#005CC5;--shiki-dark:#79B8FF;"> -rx</span><span style="--shiki-light:#032F62;--shiki-dark:#9ECBFF;"> &quot;pjsip show endpoints&quot;</span></span>
+<span class="line"><span style="--shiki-light:#6A737D;--shiki-dark:#6A737D;"># Should show: sora-endpoint</span></span></code></pre></div>`,10)])])}const c=i(l,[["render",t]]);export{E as __pageData,c as default};
