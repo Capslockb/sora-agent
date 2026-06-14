@@ -37,9 +37,10 @@ S0RA Agent is a voice companion layer for Hermes-style agents. It keeps the usef
 - Doctor diagnostics
 - Setup wizard
 
-### 📊 Web Control Panel
-- Voice bridge demo/status preview
-- Provider toggle panel
+### 📊 Voice Visualizer Web UI
+- Live waveform / pipeline visualizer for Discord voice bridges
+- Provider status cards for Gemini Live, Vapi, ElevenLabs, and VOIP
+- Backend-driven status from `/api/status` and `/api/visualizer/state`
 - System status monitor
 - Install guide with copy-paste commands
 - Full documentation
@@ -206,7 +207,7 @@ sora-agent/
 ├── plugins/
 │   └── sora_hermes/        # Hermes plugin
 ├── ui-tui/                 # Ink/React TUI
-├── website/                # React voice control panel
+├── website/                # React voice visualizer web UI
 ├── agent/                  # Compatibility shims; Hermes remains the agent core
 └── tests/                  # Test suite
 ```
@@ -238,8 +239,10 @@ pip install "sora-agent[edge-tts,elevenlabs,minimax-tts,openai-tts,faster-whispe
 # MCP
 pip install "sora-agent[mcp]"
 
-# Web dashboard
+# Web visualizer UI
 pip install "sora-agent[web]"
+sora dashboard build
+sora dashboard start --port 3000 --api-port 8080
 
 # All optional
 pip install "sora-agent[all]"

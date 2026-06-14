@@ -29,8 +29,8 @@ features:
     title: Hermes DNA
     details: Same config system, profiles, skins, plugin architecture, constants, logging as Hermes. Drop-in familiar experience.
   - icon: 🌐
-    title: Web Control Panel
-    details: React + Vite control panel with voice demo/status, provider toggles, MCP status, and real-time system monitoring.
+    title: Voice Visualizer Web UI
+    details: React + Vite visualizer with waveform, provider cards, voice pipeline state, MCP status, and real-time system monitoring.
   - icon: 📦
     title: Install Anywhere
     details: pipx install git+https://github.com/Capslockb/sora-agent. Git-based updates. OpenWakeWord "Hey Sora" support.

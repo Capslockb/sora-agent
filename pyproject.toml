@@ -121,6 +121,7 @@ locales = ["locales/*.yaml"]
 [tool.setuptools.package-data]
 sora_cli = []
 "ui_tui" = ["src/**/*", "package.json", "tsconfig.json", "dist/**/*"]
+"website" = ["src/**/*", "package.json", "package-lock.json", "tsconfig.json", "vite.config.ts", "index.html", "dist/**/*"]
 plugins = [
     "**/plugin.yaml",
     "**/plugin.yml",

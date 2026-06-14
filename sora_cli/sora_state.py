@@ -60,7 +60,7 @@ class SoraState:
             root = Path(sora_home)
         else:
             from sora_constants import resolve_profile_env
-            root = resolve_profile_env(profile_name)
+            root = Path(resolve_profile_env(profile_name))
 
         return cls(
             sora_root=root,

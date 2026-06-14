@@ -202,6 +202,23 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
+def _resolve_website_dir() -> Path:
+    """Find the bundled website in dev checkouts and installed packages."""
+    dev_path = PROJECT_ROOT / "website"
+    if (dev_path / "package.json").exists():
+        return dev_path
+
+    import importlib.util
+
+    spec = importlib.util.find_spec("website")
+    if spec and spec.submodule_search_locations:
+        pkg_path = Path(next(iter(spec.submodule_search_locations))).resolve()
+        if (pkg_path / "package.json").exists():
+            return pkg_path
+
+    return dev_path
+
+
 # ---------------------------------------------------------------------------
 # Profile override — MUST happen before any sora module import.
 # ---------------------------------------------------------------------------
@@ -984,21 +1001,24 @@ def _handle_dashboard(args) -> int:
     subcommand = getattr(args, "dashboard_command", None)
 
     if subcommand is None:
-        print("Sora Web Dashboard")
+        print("S0RA Voice Visualizer")
         print()
         print("Usage: sora dashboard <subcommand> [options]")
         print()
         print("Subcommands:")
-        print("  start    Start dashboard server (production)")
-        print("  dev      Start dashboard in development mode")
-        print("  build    Build dashboard for production")
+        print("  start    Start visualizer server (production)")
+        print("  dev      Start visualizer in development mode")
+        print("  build    Build visualizer for production")
         print()
         return 0
 
     if subcommand == "build":
         import subprocess
-        tui_path = PROJECT_ROOT / "website"
-        print("Building dashboard...")
+        tui_path = _resolve_website_dir()
+        if not (tui_path / "package.json").exists():
+            print(f"Dashboard web UI not found at {tui_path}", file=sys.stderr)
+            return 1
+        print("Building dashboard visualizer...")
         result = subprocess.run(["npm", "install"], cwd=tui_path, capture_output=False)
         if result.returncode != 0:
             print("npm install failed", file=sys.stderr)
@@ -1012,7 +1032,10 @@ def _handle_dashboard(args) -> int:
 
     elif subcommand == "dev":
         import subprocess
-        tui_path = PROJECT_ROOT / "website"
+        tui_path = _resolve_website_dir()
+        if not (tui_path / "package.json").exists():
+            print(f"Dashboard web UI not found at {tui_path}", file=sys.stderr)
+            return 1
         port = args.port
         print(f"Starting dashboard dev server on port {port}...")
         try:
@@ -1042,7 +1065,7 @@ def _handle_dashboard(args) -> int:
         time.sleep(1)
 
         # Start dashboard preview server
-        tui_path = PROJECT_ROOT / "website"
+        tui_path = _resolve_website_dir()
         dist_path = tui_path / "dist"
         if not dist_path.exists():
             print("Dashboard not built. Run 'sora dashboard build' first.")

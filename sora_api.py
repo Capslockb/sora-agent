@@ -194,6 +194,83 @@ async def dashboard_calls():
     return []
 
 
+@app.get("/api/visualizer/state")
+async def visualizer_state():
+    """Return a compact, UI-friendly voice visualizer snapshot."""
+    config = get_sora_config()
+    voice_config = cfg_get(config, "voice", default={})
+    provider = voice_config.get("provider", "none")
+    discord_cfg = voice_config.get("discord", {}) if isinstance(voice_config, dict) else {}
+    provider_cfg = voice_config.get(provider.replace("-", "_"), {}) if isinstance(voice_config, dict) else {}
+
+    configured_provider = provider not in (None, "", "none")
+    guild = provider_cfg.get("guild_id") or discord_cfg.get("guild_id") or "not configured"
+    channel = (
+        provider_cfg.get("channel_id")
+        or provider_cfg.get("voice_channel_id")
+        or discord_cfg.get("voice_channel_id")
+        or discord_cfg.get("channel_id")
+        or "not configured"
+    )
+
+    providers = [
+        {
+            "id": "gemini-live",
+            "label": "Gemini Live",
+            "category": "LLM Voice",
+            "configured": bool(get_env_value("GEMINI_API_KEY") or get_env_value("GOOGLE_API_KEY") or voice_config.get("gemini_live", {}).get("model")),
+            "active": provider == "gemini-live",
+        },
+        {
+            "id": "vapi",
+            "label": "Vapi",
+            "category": "LLM Voice",
+            "configured": bool(get_env_value("VAPI_API_KEY") or voice_config.get("vapi", {}).get("assistant_id")),
+            "active": provider == "vapi",
+        },
+        {
+            "id": "elevenlabs",
+            "label": "ElevenLabs",
+            "category": "LLM Voice",
+            "configured": bool(get_env_value("ELEVENLABS_AGENT_ID") or voice_config.get("elevenlabs", {}).get("agent_id")),
+            "active": provider == "elevenlabs",
+        },
+        {
+            "id": "voip",
+            "label": "VOIP / Asterisk",
+            "category": "Telephony",
+            "configured": bool(get_env_value("SORA_ARI_URL") or get_env_value("SORA_DOGRAH_WS_URL")),
+            "active": provider == "voip",
+        },
+    ]
+
+    pipeline_state = "configured" if configured_provider else "waiting"
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "pipeline": [
+            {"id": "discord", "label": "Discord Voice", "state": pipeline_state, "detail": f"Guild: {guild}"},
+            {"id": "bridge", "label": "S0RA Bridge", "state": pipeline_state, "detail": "Hermes-facing voice orchestration"},
+            {"id": "provider", "label": "Voice Provider", "state": pipeline_state, "detail": provider or "none"},
+            {"id": "speaker", "label": "Audio Return", "state": pipeline_state, "detail": f"Channel: {channel}"},
+        ],
+        "providers": providers,
+        "audio": {
+            "inputLevel": 0.35 if configured_provider else 0.0,
+            "outputLevel": 0.46 if configured_provider else 0.0,
+            "sampleRate": voice_config.get("audio", {}).get("sample_rate", 16000),
+            "inputChunks": 0,
+            "outputChunks": 0,
+        },
+        "call": {
+            "active": configured_provider,
+            "provider": provider or "none",
+            "channel": channel,
+            "guild": guild,
+        },
+    }
+
+
 # --- Voice Endpoints ---
 
 @app.get("/api/voice/status")
