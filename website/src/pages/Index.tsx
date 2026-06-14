@@ -283,8 +283,8 @@ export const Index = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="flex flex-col items-center gap-8 mb-16">
             <VoiceButton
               size="lg"
-              state={soraError ? 'error' : micState}
-              errorMessage={micError || soraError}
+              state={micActive ? micState : soraError ? 'error' : micState}
+              errorMessage={micActive ? undefined : soraError || undefined}
               onToggle={micActive ? micStop : micStart}
             />
 
