@@ -39,6 +39,7 @@ S0RA Agent is a voice companion layer for Hermes-style agents. It keeps the usef
 
 ### 📊 Voice Visualizer Web UI
 - Live waveform / pipeline visualizer for Discord voice bridges
+- Browser microphone permission test with local Web Audio waveform preview
 - Provider status cards for Gemini Live, Vapi, ElevenLabs, and VOIP
 - Backend-driven status from `/api/status` and `/api/visualizer/state`
 - System status monitor

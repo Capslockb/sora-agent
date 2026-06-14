@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Activity, Bot, BrainCircuit, Cable, Mic2, PhoneCall, Radio, RefreshCw, Sparkles, Waves } from 'lucide-react'
 import './styles.css'
@@ -17,6 +17,8 @@ type StatusPayload = {
   voip?: { status: string; ari: boolean; port: number; calls: number }
   system?: { status: string; platform: string; python: string }
 }
+
+type MicStatus = 'idle' | 'requesting' | 'active' | 'denied' | 'error' | 'unsupported'
 
 type VisualizerPayload = {
   status: string
@@ -56,6 +58,89 @@ function seededWave(seed: number, count = 44) {
   })
 }
 
+function useMicrophoneVisualizer() {
+  const [status, setStatus] = useState<MicStatus>('idle')
+  const [error, setError] = useState('')
+  const [levels, setLevels] = useState<number[]>(() => seededWave(0).map(v => v / 100))
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const frameRef = useRef<number | null>(null)
+
+  const stop = useCallback(() => {
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
+    frameRef.current = null
+    streamRef.current?.getTracks().forEach(track => track.stop())
+    streamRef.current = null
+    analyserRef.current?.disconnect()
+    analyserRef.current = null
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => undefined)
+    }
+    audioContextRef.current = null
+    setStatus('idle')
+    setError('')
+    setLevels(seededWave(0).map(v => v / 100))
+  }, [])
+
+  const start = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus('unsupported')
+      setError('Browser does not expose navigator.mediaDevices.getUserMedia')
+      return
+    }
+
+    setStatus('requesting')
+    setError('')
+    try {
+      const stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 16000,
+          },
+        }),
+        new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('Microphone permission request timed out')), 10000)),
+      ])
+
+      streamRef.current = stream
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      const context = new AudioCtx()
+      if (context.state === 'suspended') await context.resume()
+      const analyser = context.createAnalyser()
+      analyser.fftSize = 128
+      analyser.smoothingTimeConstant = 0.78
+      const source = context.createMediaStreamSource(stream)
+      source.connect(analyser)
+      audioContextRef.current = context
+      analyserRef.current = analyser
+      setStatus('active')
+
+      const data = new Uint8Array(analyser.frequencyBinCount)
+      const draw = () => {
+        analyser.getByteFrequencyData(data)
+        const next = Array.from({ length: 44 }, (_, index) => {
+          const sample = data[Math.floor(index * data.length / 44)] ?? 0
+          return Math.max(0.08, Math.min(1, sample / 255))
+        })
+        setLevels(next)
+        frameRef.current = window.requestAnimationFrame(draw)
+      }
+      draw()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setStatus(message.includes('denied') || message.includes('NotAllowed') ? 'denied' : 'error')
+      setError(message)
+    }
+  }, [])
+
+  useEffect(() => () => stop(), [stop])
+
+  return { status, error, levels, start, stop }
+}
+
 function useSoraData() {
   const [status, setStatus] = useState<StatusPayload>(fallbackStatus)
   const [visualizer, setVisualizer] = useState<VisualizerPayload | null>(null)
@@ -90,19 +175,19 @@ function useSoraData() {
   return { status, visualizer, error, loading, refresh }
 }
 
-function Waveform({ active, level }: { active: boolean; level: number }) {
+function Waveform({ active, level, levels }: { active: boolean; level: number; levels?: number[] }) {
   const [tick, setTick] = useState(0)
   useEffect(() => {
     const id = window.setInterval(() => setTick(t => t + 1), active ? 120 : 420)
     return () => window.clearInterval(id)
   }, [active])
-  const bars = useMemo(() => seededWave(tick * (active ? 9 : 2)), [tick, active])
+  const bars = useMemo(() => levels?.map(v => Math.round(v * 100)) ?? seededWave(tick * (active ? 9 : 2)), [tick, active, levels])
   return (
     <div className="waveform" aria-label="voice waveform visualizer">
       {bars.map((height, i) => (
         <span
           key={i}
-          style={{ height: `${Math.max(10, height * (active ? Math.max(level, 0.22) : 0.2))}%`, animationDelay: `${i * 18}ms` }}
+          style={{ height: `${Math.max(10, height * (levels ? 1 : active ? Math.max(level, 0.22) : 0.2))}%`, animationDelay: `${i * 18}ms` }}
         />
       ))}
     </div>
@@ -172,8 +257,11 @@ function Metric({ label, value, icon }: { label: string; value: string | number;
 
 function App() {
   const { status, visualizer, error, loading, refresh } = useSoraData()
+  const mic = useMicrophoneVisualizer()
   const voiceActive = visualizer?.call.active || status.voice?.status === 'configured'
   const outputLevel = visualizer?.audio.outputLevel ?? 0.45
+  const micActive = mic.status === 'active'
+  const waveformLevels = micActive ? mic.levels : undefined
 
   return (
     <main className="app-shell">
@@ -186,12 +274,18 @@ function App() {
           <h1>Voice Visualizer Web UI</h1>
           <p>Live control surface for Hermes-facing voice bridges: Discord, Gemini Live, Vapi, ElevenLabs, and VOIP.</p>
         </div>
-        <button className="refresh" onClick={refresh} disabled={loading}>
-          <RefreshCw size={16} /> Refresh
-        </button>
+        <div className="hero-actions">
+          <button className="mic-button" onClick={micActive ? mic.stop : mic.start} disabled={mic.status === 'requesting'}>
+            <Mic2 size={16} /> {mic.status === 'requesting' ? 'Requesting mic…' : micActive ? 'Stop mic preview' : 'Enable mic preview'}
+          </button>
+          <button className="refresh" onClick={refresh} disabled={loading}>
+            <RefreshCw size={16} /> Refresh
+          </button>
+        </div>
       </header>
 
       {error && <div className="alert">Backend unreachable: {error}. Showing local fallback visualizer.</div>}
+      {mic.error && <div className="alert">Mic preview unavailable: {mic.error}</div>}
 
       <section className="visualizer-card">
         <div className="visual-core">
@@ -199,12 +293,16 @@ function App() {
             <Waves size={84} />
           </div>
           <div>
-            <span className="status-dot"><i className={voiceActive ? 'on' : ''} /> {voiceActive ? 'voice path configured' : 'standing by'}</span>
+            <span className="status-dot"><i className={voiceActive || micActive ? 'on' : ''} /> {micActive ? 'browser mic live' : voiceActive ? 'voice path configured' : 'standing by'}</span>
             <h2>{status.voice?.llmProvider ?? 'none'}</h2>
-            <p>{status.voice?.model ?? 'No model selected'}</p>
+            <p>{micActive ? 'Local browser microphone preview via getUserMedia + AnalyserNode' : status.voice?.model ?? 'No model selected'}</p>
+            <div className="mic-strip">
+              <span>Mic permission</span>
+              <strong>{mic.status}</strong>
+            </div>
           </div>
         </div>
-        <Waveform active={Boolean(voiceActive)} level={outputLevel} />
+        <Waveform active={Boolean(voiceActive || micActive)} level={outputLevel} levels={waveformLevels} />
       </section>
 
       <section className="metrics-grid">
