@@ -40,7 +40,13 @@ export default defineConfig(() => ({
   server: {
     host: '::',
     port: 8082,
-    allowedHosts: ['localhost', '.ngrok.io', '.ngrok-free.app'],
+    allowedHosts: ['localhost', '.ngrok.io', '.ngrok-free.app', '.tailb9e21e.ts.net'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [react()],
   resolve: {

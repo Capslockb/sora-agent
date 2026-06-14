@@ -26,7 +26,7 @@ declare global {
 }
 
 // Default fallback URL for local development
-const DEFAULT_API_BASE_URL = 'http://localhost:3001';
+const DEFAULT_API_BASE_URL = '';
 
 /**
  * Get the API base URL for making backend requests.
