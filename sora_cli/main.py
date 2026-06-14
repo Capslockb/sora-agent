@@ -440,6 +440,30 @@ voice_elevenlabs_parser.add_argument("--guild", help="Discord guild ID")
 voice_elevenlabs_parser.add_argument("--channel", help="Discord voice channel ID")
 voice_elevenlabs_parser.add_argument("--user", help="Discord user ID (to infer channel)")
 
+voice_openai_parser = voice_sub.add_parser("openai", help="Start OpenAI Realtime voice bridge (WebRTC)", add_help=False)
+voice_openai_parser.add_argument("-h", "--help", action="help")
+voice_openai_parser.add_argument("--guild", help="Discord guild ID")
+voice_openai_parser.add_argument("--channel", help="Discord voice channel ID")
+voice_openai_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
+voice_xai_parser = voice_sub.add_parser("xai", help="Start xAI Grok voice bridge", add_help=False)
+voice_xai_parser.add_argument("-h", "--help", action="help")
+voice_xai_parser.add_argument("--guild", help="Discord guild ID")
+voice_xai_parser.add_argument("--channel", help="Discord voice channel ID")
+voice_xai_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
+voice_ultravox_parser = voice_sub.add_parser("ultravox", help="Start Ultravox voice bridge", add_help=False)
+voice_ultravox_parser.add_argument("-h", "--help", action="help")
+voice_ultravox_parser.add_argument("--guild", help="Discord guild ID")
+voice_ultravox_parser.add_argument("--channel", help="Discord voice channel ID")
+voice_ultravox_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
+voice_retell_parser = voice_sub.add_parser("retell", help="Start Retell AI voice bridge", add_help=False)
+voice_retell_parser.add_argument("-h", "--help", action="help")
+voice_retell_parser.add_argument("--guild", help="Discord guild ID")
+voice_retell_parser.add_argument("--channel", help="Discord voice channel ID")
+voice_retell_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
 voice_status_parser = voice_sub.add_parser("status", help="Show voice bridge status", add_help=False)
 voice_status_parser.add_argument("-h", "--help", action="help")
 

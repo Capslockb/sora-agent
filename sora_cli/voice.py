@@ -102,6 +102,30 @@ def build_voice_parser(subparsers):
     eleven_parser.add_argument("--channel", help="Discord voice channel ID")
     eleven_parser.add_argument("--user", help="Discord user ID (to infer channel)")
 
+    # voice openai
+    openai_parser = voice_sub.add_parser("openai", help="Start OpenAI Realtime voice bridge (WebRTC)")
+    openai_parser.add_argument("--guild", help="Discord guild ID")
+    openai_parser.add_argument("--channel", help="Discord voice channel ID")
+    openai_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
+    # voice xai
+    xai_parser = voice_sub.add_parser("xai", help="Start xAI Grok voice bridge")
+    xai_parser.add_argument("--guild", help="Discord guild ID")
+    xai_parser.add_argument("--channel", help="Discord voice channel ID")
+    xai_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
+    # voice ultravox
+    uv_parser = voice_sub.add_parser("ultravox", help="Start Ultravox voice bridge")
+    uv_parser.add_argument("--guild", help="Discord guild ID")
+    uv_parser.add_argument("--channel", help="Discord voice channel ID")
+    uv_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
+    # voice retell
+    retell_parser = voice_sub.add_parser("retell", help="Start Retell AI voice bridge")
+    retell_parser.add_argument("--guild", help="Discord guild ID")
+    retell_parser.add_argument("--channel", help="Discord voice channel ID")
+    retell_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
     # voice status
     voice_sub.add_parser("status", help="Show voice bridge status")
 
@@ -536,10 +560,138 @@ async def handle_voip_config(args) -> dict:
         return {"status": "error", "message": f"Unknown voip-config action: {args.voip_config_action}"}
 
 
+# ── New provider handlers (OpenAI, xAI, Ultravox, Retell) ──
+
+
+async def start_openai_realtime(guild_id, channel_id, user_id) -> dict:
+    """Start an OpenAI Realtime voice bridge."""
+    from sora_cli.config import load_config, get_env_value
+    from sora_cli.openai_realtime_client import OpenAIRealtimeConfig, OpenAIRealtimeClient
+
+    config = load_config()
+    guild_id, channel_id, user_id = _resolve_discord_target(config, "openai_realtime", guild_id, channel_id, user_id)
+    api_key = get_env_value("OPENAI_API_KEY")
+    if not api_key:
+        return {"status": "error", "message": "OPENAI_API_KEY not set"}
+
+    voice_cfg = config.get("voice", {})
+    oc = voice_cfg.get("openai_realtime", {}) if isinstance(voice_cfg, dict) else {}
+
+    rt_config = OpenAIRealtimeConfig(
+        api_key=api_key,
+        model=oc.get("model", "gpt-4o-realtime-preview"),
+        voice=oc.get("voice", "alloy"),
+        instructions=oc.get("instructions", "You are a helpful voice assistant."),
+    )
+    client = OpenAIRealtimeClient(rt_config)
+    await client.connect()
+    key = client.ephemeral_key()
+    await client.disconnect()
+    return {
+        "status": "ok",
+        "provider": "openai-realtime",
+        "guild": guild_id or "auto",
+        "channel": channel_id or "auto",
+        "ephemeral_key": f"{key[:12]}..." if key else None,
+    }
+
+
+async def start_xai_grok(guild_id, channel_id, user_id) -> dict:
+    """Start an xAI Grok voice bridge."""
+    from sora_cli.config import load_config, get_env_value
+    from sora_cli.xai_client import XAIConfig, XAIClient
+
+    config = load_config()
+    guild_id, channel_id, user_id = _resolve_discord_target(config, "xai", guild_id, channel_id, user_id)
+    api_key = get_env_value("XAI_API_KEY")
+    if not api_key:
+        return {"status": "error", "message": "XAI_API_KEY not set"}
+
+    voice_cfg = config.get("voice", {})
+    xc = voice_cfg.get("xai", {}) if isinstance(voice_cfg, dict) else {}
+
+    xai_cfg = XAIConfig(
+        api_key=api_key,
+        model=xc.get("model", "grok-2-realtime"),
+        voice=xc.get("voice", "ember"),
+        instructions=xc.get("instructions", "You are a helpful voice assistant."),
+    )
+    client = XAIClient(xai_cfg)
+    return {
+        "status": "ok",
+        "provider": "xai-grok",
+        "guild": guild_id or "auto",
+        "channel": channel_id or "auto",
+        "details": f"XAI client ready (model={xai_cfg.model})",
+    }
+
+
+async def start_ultravox_bridge(guild_id, channel_id, user_id) -> dict:
+    """Start an Ultravox voice bridge."""
+    from sora_cli.config import load_config, get_env_value
+    from sora_cli.ultravox_client import UltravoxConfig, create_ultravox_call
+
+    config = load_config()
+    guild_id, channel_id, user_id = _resolve_discord_target(config, "ultravox", guild_id, channel_id, user_id)
+    api_key = get_env_value("ULTRAVOX_API_KEY")
+    if not api_key:
+        return {"status": "error", "message": "ULTRAVOX_API_KEY not set"}
+
+    voice_cfg = config.get("voice", {})
+    uc = voice_cfg.get("ultravox", {}) if isinstance(voice_cfg, dict) else {}
+
+    uv_cfg = UltravoxConfig(
+        api_key=api_key,
+        model=uc.get("model", "fixie-ai/ultravox"),
+        voice=uc.get("voice", "default"),
+        system_prompt=uc.get("system_prompt", "You are a helpful voice assistant."),
+    )
+    join_url = await create_ultravox_call(uv_cfg)
+    return {
+        "status": "ok",
+        "provider": "ultravox",
+        "guild": guild_id or "auto",
+        "channel": channel_id or "auto",
+        "join_url": join_url[:60] + "..." if len(join_url) > 60 else join_url,
+    }
+
+
+async def start_retell_bridge(guild_id, channel_id, user_id) -> dict:
+    """Start a Retell AI voice bridge."""
+    from sora_cli.config import load_config, get_env_value
+    from sora_cli.retell_client import RetellConfig, create_web_call
+
+    config = load_config()
+    guild_id, channel_id, user_id = _resolve_discord_target(config, "retell", guild_id, channel_id, user_id)
+    agent_id = get_env_value("RETELL_AGENT_ID")
+    api_key = get_env_value("RETELL_API_KEY")
+    if not agent_id:
+        return {"status": "error", "message": "RETELL_AGENT_ID not set"}
+    if not api_key:
+        return {"status": "error", "message": "RETELL_API_KEY not set"}
+
+    voice_cfg = config.get("voice", {})
+    rc = voice_cfg.get("retell", {}) if isinstance(voice_cfg, dict) else {}
+
+    rt_cfg = RetellConfig(
+        api_key=api_key,
+        agent_id=agent_id,
+        voice_id=rc.get("voice_id", ""),
+    )
+    data = await create_web_call(rt_cfg)
+    return {
+        "status": "ok",
+        "provider": "retell",
+        "guild": guild_id or "auto",
+        "channel": channel_id or "auto",
+        "call_id": data.get("call_id"),
+    }
+
+
 def main(args) -> int:
     """Main entry point for voice subcommands."""
     if args.voice_command is None:
-        print("Usage: sora voice <live|vapi|elevenlabs|status|leave|providers|sip|ari|call|hangup|voip-status|voip-config>")
+        print("Usage: sora voice <live|vapi|elevenlabs|openai|xai|ultravox|retell|status|leave|providers|sip|ari|call|hangup|voip-status|voip-config>")
         return 1
 
     # Handle providers subcommand (non-async)
@@ -554,6 +706,14 @@ def main(args) -> int:
             result = asyncio.run(start_vapi(args.guild, args.channel, args.user))
         elif args.voice_command == "elevenlabs":
             result = asyncio.run(start_elevenlabs(args.guild, args.channel, args.user))
+        elif args.voice_command == "openai":
+            result = asyncio.run(start_openai_realtime(args.guild, args.channel, args.user))
+        elif args.voice_command == "xai":
+            result = asyncio.run(start_xai_grok(args.guild, args.channel, args.user))
+        elif args.voice_command == "ultravox":
+            result = asyncio.run(start_ultravox_bridge(args.guild, args.channel, args.user))
+        elif args.voice_command == "retell":
+            result = asyncio.run(start_retell_bridge(args.guild, args.channel, args.user))
         elif args.voice_command == "status":
             result = asyncio.run(get_voice_status())
         elif args.voice_command == "leave":
