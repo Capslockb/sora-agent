@@ -6,10 +6,10 @@ S0RA includes a unified provider system for **TTS**, **STT**, and **LLM Voice**.
 
 | Type | Providers | Use Case |
 |------|-----------|----------|
-| `llm_voice` | Gemini Live, Vapi | Full duplex conversation |
+| `llm_voice` | Gemini Live, Vapi, ElevenLabs, OpenAI Realtime, xAI Grok, Ultravox, Retell AI | Full duplex conversation |
 | `voice_platform` | Vapi, ElevenLabs | Managed conversation platforms |
-| `tts` | Edge TTS, OpenAI TTS, ElevenLabs | Text → Speech |
-| `stt` | Whisper | Speech → Text |
+| `tts` | Edge TTS, OpenAI TTS, ElevenLabs, Gemini TTS, MiniMax TTS, Mistral TTS | Text → Speech |
+| `stt` | Faster Whisper, OpenAI Whisper, Gemini STT | Speech → Text |
 
 ## CLI Management
 
@@ -20,12 +20,17 @@ sora voice providers list
 # Enable/disable
 sora voice providers enable gemini-live
 sora voice providers disable vapi
+sora voice providers enable openai-realtime
+sora voice providers enable xai-grok
+sora voice providers enable ultravox
+sora voice providers enable retell
 
 # Configure (interactive)
 sora voice providers config edge-tts
+sora voice providers config openai-realtime
 
-# Quick toggle in chat
-# /providers enable elevenlabs
+# Quick-setup via setup wizard
+sora setup --provider openai-realtime
 ```
 
 ## Configuration
@@ -33,12 +38,16 @@ sora voice providers config edge-tts
 ```yaml
 voice:
   providers:
-    gemini_live:  { enabled: true,  configured: true,  type: llm_voice, model: gemini-3.1-flash-live-preview }
-    vapi:         { enabled: false, configured: false, type: voice_platform }
-    elevenlabs:   { enabled: false, configured: false, type: tts }
-    edge_tts:     { enabled: true,  configured: true,  type: tts }
-    openai_tts:   { enabled: false, configured: false, type: tts }
-    whisper:      { enabled: false, configured: false, type: stt }
+    gemini_live:      { enabled: true,  configured: true,  type: llm_voice, model: gemini-3.1-flash-live-preview }
+    vapi:             { enabled: false, configured: false, type: voice_platform }
+    elevenlabs:       { enabled: false, configured: false, type: tts }
+    openai_realtime:  { enabled: false, configured: false, type: llm_voice }
+    xai_grok:         { enabled: false, configured: false, type: llm_voice }
+    ultravox:         { enabled: false, configured: false, type: llm_voice }
+    retell:           { enabled: false, configured: false, type: llm_voice }
+    edge_tts:         { enabled: true,  configured: true,  type: tts }
+    openai_tts:       { enabled: false, configured: false, type: tts }
+    whisper:          { enabled: false, configured: false, type: stt }
 ```
 
 ## Runtime Switching
@@ -52,6 +61,8 @@ voice:
 
 # Switch LLM Voice
 /voice gemini-live
+/voice openai-realtime
+/voice xai-grok
 ```
 
 ## Web Dashboard

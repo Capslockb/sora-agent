@@ -33,15 +33,38 @@ voice:
     assistant_id: ""
   elevenlabs:
     enabled: false
+  openai_realtime:
+    enabled: false
+    model: gpt-4o-realtime-preview
+    voice: alloy
+    instructions: ""
+  xai_grok:
+    enabled: false
+    model: grok-realtime
+    voice: ""
+    instructions: ""
+  ultravox:
+    enabled: false
+    model: fixie-ai/ultravox
+    voice: ""
+    system_prompt: ""
+  retell:
+    enabled: false
+    agent_id: ""
+    voice_id: ""
   
   # Provider Toggle (TTS/STT/LLM Voice)
   providers:
-    gemini_live:  { enabled: true,  type: llm_voice }
-    vapi:         { enabled: false, type: voice_platform }
-    elevenlabs:   { enabled: false, type: tts }
-    edge_tts:     { enabled: true,  type: tts }
-    openai_tts:   { enabled: false, type: tts }
-    whisper:      { enabled: false, type: stt }
+    gemini_live:     { enabled: true,  type: llm_voice }
+    vapi:            { enabled: false, type: voice_platform }
+    elevenlabs:      { enabled: false, type: tts }
+    openai_realtime: { enabled: false, type: llm_voice }
+    xai_grok:        { enabled: false, type: llm_voice }
+    ultravox:        { enabled: false, type: llm_voice }
+    retell:          { enabled: false, type: llm_voice }
+    edge_tts:        { enabled: true,  type: tts }
+    openai_tts:      { enabled: false, type: tts }
+    whisper:         { enabled: false, type: stt }
 
   # Discord config
   discord:
@@ -102,7 +125,12 @@ openwakeword:
 | `DISCORD_BOT_TOKEN` | Discord bot token | All Discord voice |
 | `VAPI_API_KEY` | Vapi.ai API key | Vapi bridge |
 | `ELEVENLABS_API_KEY` | ElevenLabs API key | ElevenLabs bridge |
-| `OPENAI_API_KEY` | OpenAI API key | OpenAI TTS |
+| `ELEVENLABS_AGENT_ID` | ElevenLabs agent ID | ElevenLabs Conversational AI |
+| `OPENAI_API_KEY` | OpenAI API key | OpenAI Realtime, TTS, STT |
+| `XAI_API_KEY` | xAI API key | xAI Grok bridge |
+| `ULTRAVOX_API_KEY` | Ultravox API key | Ultravox bridge |
+| `RETELL_API_KEY` | Retell AI API key | Retell AI bridge |
+| `RETELL_AGENT_ID` | Retell agent ID | Retell web calls |
 | `OPENROUTER_API_KEY` | OpenRouter key | Model provider |
 | `HONCHO_API_KEY` | Honcho memory key | Cloud memory |
 

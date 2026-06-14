@@ -10,11 +10,14 @@ S0RA Agent is a voice companion layer for Hermes-style agents. It keeps the usef
 
 ## Features
 
-### 🎤 Voice Bridges
+### 🎤 Voice Bridges (7 providers)
 - **Gemini Live** — Direct streaming to Google's Multimodal Live API with native audio
 - **Vapi.ai** — Managed conversational AI platform with WebSocket transport
-- **ElevenLabs** — High-quality conversational AI voices (planned)
-- **Edge TTS** — Free Microsoft neural voices for testing
+- **ElevenLabs Conversational AI** — Ultra-realistic voice conversations
+- **OpenAI Realtime** — WebRTC-based realtime voice API with function calling
+- **xAI Grok** — Real-time voice API powered by Grok models
+- **Ultravox** — Managed STT/LLM/TTS pipeline for realtime voice
+- **Retell AI** — Voice agent platform for telephony and web calls
 
 ### 🔌 MCP Integration
 - Built-in MCP server with stdio, SSE, and streamable-http transports
@@ -80,8 +83,21 @@ sora setup
 # 1. Run setup wizard (interactive)
 sora setup
 
-# 2. Start a voice bridge (Gemini Live)
-sora voice live --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
+# Quick-setup a specific provider (skip the full wizard)
+sora setup --provider openai-realtime    # OpenAI WebRTC
+sora setup --provider xai-grok           # xAI Grok
+sora setup --provider elevenlabs         # ElevenLabs Conversational AI
+sora setup --provider gemini-live        # Gemini Live
+sora setup --provider vapi               # Vapi.ai
+sora setup --provider ultravox           # Ultravox
+sora setup --provider retell             # Retell AI
+
+# 2. Start a voice bridge
+sora voice live --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID       # Gemini Live
+sora voice openai --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID     # OpenAI Realtime
+sora voice xai --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID        # xAI Grok
+sora voice ultravox --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID   # Ultravox
+sora voice retell --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID     # Retell AI
 
 # 3. Or use Vapi.ai
 sora voice vapi --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
@@ -106,9 +122,14 @@ sora benchmark
 | `sora` | Show voice-first CLI help |
 | `sora chat` | Hermes-compatible chat shell (not S0RA's primary interface) |
 | `sora setup` | Run interactive setup wizard |
+| `sora setup --provider <name>` | Quick-setup a specific voice provider (gemini-live, vapi, elevenlabs, openai-realtime, xai-grok, ultravox, retell) |
 | `sora voice live` | Start Gemini Live voice bridge |
 | `sora voice vapi` | Start Vapi.ai voice bridge |
 | `sora voice elevenlabs` | Prepare/start ElevenLabs Conversational AI bridge |
+| `sora voice openai` | Start OpenAI Realtime voice bridge (WebRTC) |
+| `sora voice xai` | Start xAI Grok realtime voice bridge |
+| `sora voice ultravox` | Start Ultravox voice bridge (managed pipeline) |
+| `sora voice retell` | Start Retell AI voice bridge (telephony/web calls) |
 | `sora voice status` | Show voice bridge status |
 | `sora voice leave` | Stop voice bridge |
 | `sora voice providers` | Manage voice providers (TTS/STT/LLM Voice) |
@@ -140,6 +161,10 @@ sora voice providers enable gemini-live
 sora voice providers enable vapi
 sora voice providers enable elevenlabs
 sora voice providers enable edge-tts
+sora voice providers enable openai-realtime
+sora voice providers enable xai-grok
+sora voice providers enable ultravox
+sora voice providers enable retell
 
 # Disable a provider
 sora voice providers disable vapi
@@ -221,12 +246,20 @@ sora-agent/
 - Discord Bot Token (for voice bridges)
 - Gemini API Key (for Gemini Live)
 - Vapi API Key (optional, for Vapi bridge)
+- ElevenLabs API Key (optional, for ElevenLabs bridge)
+- OpenAI API Key (optional, for OpenAI Realtime/TTS/STT)
+- xAI API Key (optional, for xAI Grok bridge)
+- Ultravox API Key (optional, for Ultravox bridge)
+- Retell API Key (optional, for Retell AI bridge)
 
 ## Optional Dependencies
 
 ```bash
 # Voice bridges
 pip install "sora-agent[gemini-live,vapi]"
+
+# New voice bridges (CLI-only, no extra deps)
+pip install "sora-agent[openai-realtime,xai-grok,ultravox,retell]"
 
 # Web search backends
 pip install "sora-agent[exa,firecrawl,parallel-web]"

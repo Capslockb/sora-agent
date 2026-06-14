@@ -1,10 +1,14 @@
 # What is S0RA?
 
-**S0RA Agent** is a standalone CLI application that mirrors the Hermes Agent architecture but focuses on **real-time voice AI** through multiple providers:
+**S0RA Agent** is a standalone CLI application that mirrors the Hermes Agent architecture but focuses on **real-time voice AI** through multiple providers (7 bridges + 6 TTS/STT):
 
 - **Gemini Live** — Google's multimodal live API (Discord + VOIP)
 - **Vapi.ai** — Managed conversational AI platform (Discord + Phone)
-- **ElevenLabs** — High-quality TTS/Conversational AI (Discord)
+- **ElevenLabs** — High-quality conversational AI (Discord)
+- **OpenAI Realtime** — WebRTC-based realtime voice with function calling
+- **xAI Grok** — Real-time voice via Grok models (WSS)
+- **Ultravox** — Managed STT/LLM/TTS pipeline
+- **Retell AI** — Voice agent platform for telephony/web calls
 - **Edge TTS / OpenAI TTS / Whisper** — Local/cloud TTS & STT fallback
 
 ## Key Philosophy
@@ -26,7 +30,7 @@
 |---------|--------|------|
 | Primary Interface | Text chat | **Voice-first** (Discord + VOIP) |
 | Voice Providers | Discord only | Discord + **Asterisk/SIP + Dograh** |
-| Provider Toggle | No | **Yes** (Gemini/Vapi/ElevenLabs/Edge/OpenAI/Whisper) |
+| Provider Toggle | No | **Yes** (Gemini/Vapi/ElevenLabs/OpenAI/xAI/Ultravox/Retell/Edge/OpenAI/Whisper) |
 | MCP | Yes | Yes + **auto-discovery + WebSocket** |
 | Installation | `pipx install hermes-agent` | `pipx install git+...sora-agent` |
 | Updates | Git-based | **Git-based** |

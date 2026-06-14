@@ -22,13 +22,25 @@ The interactive wizard guides you through:
 
 1. **Model Provider** — OpenRouter, Ollama, etc.
 2. **Discord Bot** — Token, Guild ID, Channel ID
-3. **Voice Bridges** — Gemini Live, Vapi, ElevenLabs (Discord)
+3. **Voice Bridges** — Gemini Live, Vapi, ElevenLabs, OpenAI Realtime, xAI Grok, Ultravox, Retell AI (Discord)
 4. **VOIP Integration** — Asterisk ARI, Dograh/Gemini Live (phone)
 5. **MCP** — Auto-detect running servers, configure stdio/HTTP
 6. **Memory** — Honcho, OpenClaw, or Hermes memory passthrough
 7. **Providers** — Enable/disable TTS/STT/LLM Voice
 8. **Tools** — OpenCode, Codex, Gemini Harness
 9. **OpenWakeWord** — "Hey Sora" hotword detection
+
+Or quick-setup a specific voice provider (prompts only the relevant API keys):
+
+```bash
+sora setup --provider gemini-live        # Gemini API key
+sora setup --provider vapi               # Vapi API key
+sora setup --provider elevenlabs         # ElevenLabs API key + Agent ID
+sora setup --provider openai-realtime    # OpenAI API key
+sora setup --provider xai-grok           # xAI API key
+sora setup --provider ultravox           # Ultravox API key
+sora setup --provider retell             # Retell API key + Agent ID
+```
 
 ## 3. Start Voice Bridge (Discord)
 
@@ -41,6 +53,18 @@ sora voice vapi --guild <GUILD_ID> --channel <CHANNEL_ID>
 
 # ElevenLabs (requires ELEVENLABS_API_KEY)
 sora voice elevenlabs --guild <GUILD_ID> --channel <CHANNEL_ID>
+
+# OpenAI Realtime (requires OPENAI_API_KEY)
+sora voice openai --guild <GUILD_ID> --channel <CHANNEL_ID>
+
+# xAI Grok (requires XAI_API_KEY)
+sora voice xai --guild <GUILD_ID> --channel <CHANNEL_ID>
+
+# Ultravox (requires ULTRAVOX_API_KEY)
+sora voice ultravox --guild <GUILD_ID> --channel <CHANNEL_ID>
+
+# Retell AI (requires RETELL_API_KEY)
+sora voice retell --guild <GUILD_ID> --channel <CHANNEL_ID>
 ```
 
 ## 4. Check Status

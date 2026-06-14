@@ -3,7 +3,7 @@ layout: home
 hero:
   name: S0RA Agent
   text: Hermes Voice Companion CLI
-  tagline: Built around Gemini Live, Vapi, ElevenLabs, and VOIP (Asterisk + Dograh). Designed as a Hermes companion layer, not a separate isolated chat brain.
+  tagline: Built around Gemini Live, Vapi, ElevenLabs, OpenAI Realtime, xAI Grok, Ultravox, Retell AI, and VOIP (Asterisk + Dograh). Designed as a Hermes companion layer, not a separate isolated chat brain.
   image:
     src: /sora-agent/favicon.svg
     alt: S0RA Agent
@@ -18,7 +18,7 @@ hero:
 features:
   - icon: 🎙️
     title: Multi-Provider Voice
-    details: Switch between Gemini Live, Vapi.ai, ElevenLabs, Edge TTS, OpenAI TTS, Whisper STT with a single CLI command.
+    details: Switch between Gemini Live, Vapi.ai, ElevenLabs, OpenAI Realtime, xAI Grok, Ultravox, Retell AI, Edge TTS, OpenAI TTS, Whisper STT with a single CLI command.
   - icon: 📞
     title: VOIP / Asterisk + Dograh
     details: Connect your self-hosted PBX via Asterisk ARI. Route phone calls through Dograh to Gemini Live for AI conversations.
@@ -60,9 +60,14 @@ pip install -e .
 
 ```bash
 sora setup           # Interactive wizard (Discord, Voice, MCP, VOIP, Memory, Providers)
+sora setup --provider openai-realtime  # Quick-setup any provider
 sora voice live      # Start Gemini Live bridge (Discord)
 sora voice vapi      # Start Vapi bridge (Discord)
-sora voice elevenlabs # Prepare/start ElevenLabs bridge (Discord)
+sora voice elevenlabs # Start ElevenLabs bridge (Discord)
+sora voice openai    # Start OpenAI Realtime bridge (WebRTC)
+sora voice xai       # Start xAI Grok bridge
+sora voice ultravox  # Start Ultravox bridge (managed pipeline)
+sora voice retell    # Start Retell AI bridge (telephony/web)
 sora voice providers # List/enable/disable TTS/STT/LLM providers
 sora mcp start       # Start MCP server
 sora voice voip-status # Check VOIP bridge (Asterisk + Dograh)
