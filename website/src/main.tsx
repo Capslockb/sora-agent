@@ -1,7 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Activity, Bot, BrainCircuit, Cable, Mic2, PhoneCall, Radio, RefreshCw, Sparkles, Waves } from 'lucide-react'
+import { Activity, Bot, BrainCircuit, Cable, Mic2, PhoneCall, Radio, RefreshCw, Sparkles } from 'lucide-react'
+import {
+  VoiceOrb,
+  VoiceWave,
+  VADIndicator,
+  WaveformMini,
+  useMicrophoneStream,
+  useAudioAnalyser,
+  useVoiceActivity,
+  type VoiceState,
+} from 'react-ai-voice-visualizer'
 import './styles.css'
+
+// ── S0RA backend types ──
 
 type StatusPayload = {
   voice?: {
@@ -17,8 +29,6 @@ type StatusPayload = {
   voip?: { status: string; ari: boolean; port: number; calls: number }
   system?: { status: string; platform: string; python: string }
 }
-
-type MicStatus = 'idle' | 'requesting' | 'active' | 'denied' | 'error' | 'unsupported'
 
 type VisualizerPayload = {
   status: string
@@ -39,8 +49,10 @@ const fallbackStatus: StatusPayload = {
   voice: { status: 'offline', type: 'none', model: '—', activeCalls: 0, llmProvider: 'none', ttsProvider: 'none', sttProvider: 'none' },
   mcp: { status: 'unknown', transport: 'stdio', port: 3000, clients: 0 },
   voip: { status: 'unknown', ari: false, port: 5000, calls: 0 },
-  system: { status: 'unknown', platform: 'unknown', python: 'unknown' }
+  system: { status: 'unknown', platform: 'unknown', python: 'unknown' },
 }
+
+// ── helpers ──
 
 function apiBase() {
   const explicit = import.meta.env.VITE_SORA_API_BASE
@@ -49,97 +61,18 @@ function apiBase() {
   return ''
 }
 
-function seededWave(seed: number, count = 44) {
-  return Array.from({ length: count }, (_, index) => {
-    const x = index + seed / 180
-    const primary = Math.sin(x * 0.72) * 0.5 + 0.5
-    const secondary = Math.sin(x * 1.87 + 1.4) * 0.5 + 0.5
-    return Math.max(14, Math.round((primary * 0.65 + secondary * 0.35) * 92))
-  })
+function voiceStateFromSora(
+  callActive: boolean,
+  micActive: boolean,
+  voiceStatus: string,
+): VoiceState {
+  if (callActive) return 'speaking'
+  if (micActive) return 'listening'
+  if (voiceStatus === 'configured') return 'listening'
+  return 'idle'
 }
 
-function useMicrophoneVisualizer() {
-  const [status, setStatus] = useState<MicStatus>('idle')
-  const [error, setError] = useState('')
-  const [levels, setLevels] = useState<number[]>(() => seededWave(0).map(v => v / 100))
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const frameRef = useRef<number | null>(null)
-
-  const stop = useCallback(() => {
-    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
-    frameRef.current = null
-    streamRef.current?.getTracks().forEach(track => track.stop())
-    streamRef.current = null
-    analyserRef.current?.disconnect()
-    analyserRef.current = null
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => undefined)
-    }
-    audioContextRef.current = null
-    setStatus('idle')
-    setError('')
-    setLevels(seededWave(0).map(v => v / 100))
-  }, [])
-
-  const start = useCallback(async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus('unsupported')
-      setError('Browser does not expose navigator.mediaDevices.getUserMedia')
-      return
-    }
-
-    setStatus('requesting')
-    setError('')
-    try {
-      const stream = await Promise.race([
-        navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 16000,
-          },
-        }),
-        new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('Microphone permission request timed out')), 10000)),
-      ])
-
-      streamRef.current = stream
-      const AudioCtx = window.AudioContext || window.webkitAudioContext
-      const context = new AudioCtx()
-      if (context.state === 'suspended') await context.resume()
-      const analyser = context.createAnalyser()
-      analyser.fftSize = 128
-      analyser.smoothingTimeConstant = 0.78
-      const source = context.createMediaStreamSource(stream)
-      source.connect(analyser)
-      audioContextRef.current = context
-      analyserRef.current = analyser
-      setStatus('active')
-
-      const data = new Uint8Array(analyser.frequencyBinCount)
-      const draw = () => {
-        analyser.getByteFrequencyData(data)
-        const next = Array.from({ length: 44 }, (_, index) => {
-          const sample = data[Math.floor(index * data.length / 44)] ?? 0
-          return Math.max(0.08, Math.min(1, sample / 255))
-        })
-        setLevels(next)
-        frameRef.current = window.requestAnimationFrame(draw)
-      }
-      draw()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setStatus(message.includes('denied') || message.includes('NotAllowed') ? 'denied' : 'error')
-      setError(message)
-    }
-  }, [])
-
-  useEffect(() => () => stop(), [stop])
-
-  return { status, error, levels, start, stop }
-}
+// ── S0RA data hook ──
 
 function useSoraData() {
   const [status, setStatus] = useState<StatusPayload>(fallbackStatus)
@@ -152,7 +85,7 @@ function useSoraData() {
       const base = apiBase()
       const [statusRes, visualizerRes] = await Promise.all([
         fetch(`${base}/api/status`),
-        fetch(`${base}/api/visualizer/state`)
+        fetch(`${base}/api/visualizer/state`),
       ])
       if (!statusRes.ok) throw new Error(`status HTTP ${statusRes.status}`)
       if (!visualizerRes.ok) throw new Error(`visualizer HTTP ${visualizerRes.status}`)
@@ -175,31 +108,14 @@ function useSoraData() {
   return { status, visualizer, error, loading, refresh }
 }
 
-function Waveform({ active, level, levels }: { active: boolean; level: number; levels?: number[] }) {
-  const [tick, setTick] = useState(0)
-  useEffect(() => {
-    const id = window.setInterval(() => setTick(t => t + 1), active ? 120 : 420)
-    return () => window.clearInterval(id)
-  }, [active])
-  const bars = useMemo(() => levels?.map(v => Math.round(v * 100)) ?? seededWave(tick * (active ? 9 : 2)), [tick, active, levels])
-  return (
-    <div className="waveform" aria-label="voice waveform visualizer">
-      {bars.map((height, i) => (
-        <span
-          key={i}
-          style={{ height: `${Math.max(10, height * (levels ? 1 : active ? Math.max(level, 0.22) : 0.2))}%`, animationDelay: `${i * 18}ms` }}
-        />
-      ))}
-    </div>
-  )
-}
+// ── sub-components ──
 
 function Pipeline({ visualizer }: { visualizer: VisualizerPayload | null }) {
   const pipeline = visualizer?.pipeline ?? [
     { id: 'discord', label: 'Discord Voice', state: 'waiting', detail: 'No API data yet' },
     { id: 'bridge', label: 'S0RA Bridge', state: 'waiting', detail: 'Awaiting backend' },
     { id: 'provider', label: 'Voice Provider', state: 'waiting', detail: 'Gemini / Vapi / ElevenLabs' },
-    { id: 'speaker', label: 'Audio Return', state: 'waiting', detail: 'Playback pipeline' }
+    { id: 'speaker', label: 'Audio Return', state: 'waiting', detail: 'Playback pipeline' },
   ]
   return (
     <section className="panel pipeline-panel">
@@ -225,7 +141,7 @@ function ProviderGrid({ visualizer, status }: { visualizer: VisualizerPayload | 
     { id: 'gemini-live', label: 'Gemini Live', category: 'LLM Voice', configured: false, active: status.voice?.llmProvider === 'gemini-live' },
     { id: 'vapi', label: 'Vapi', category: 'LLM Voice', configured: false, active: status.voice?.llmProvider === 'vapi' },
     { id: 'elevenlabs', label: 'ElevenLabs', category: 'LLM Voice', configured: false, active: status.voice?.llmProvider === 'elevenlabs' },
-    { id: 'voip', label: 'VOIP', category: 'Telephony', configured: Boolean(status.voip?.ari), active: status.voice?.llmProvider === 'voip' }
+    { id: 'voip', label: 'VOIP / Asterisk', category: 'Telephony', configured: Boolean(status.voip?.ari), active: status.voice?.llmProvider === 'voip' },
   ]
   return (
     <section className="panel">
@@ -255,56 +171,141 @@ function Metric({ label, value, icon }: { label: string; value: string | number;
   )
 }
 
+// ── App ──
+
 function App() {
   const { status, visualizer, error, loading, refresh } = useSoraData()
-  const mic = useMicrophoneVisualizer()
-  const voiceActive = visualizer?.call.active || status.voice?.status === 'configured'
-  const outputLevel = visualizer?.audio.outputLevel ?? 0.45
-  const micActive = mic.status === 'active'
-  const waveformLevels = micActive ? mic.levels : undefined
+
+  // Library hooks — microphone + audio analysis
+  const { stream, isActive: micActive, start: micStart, stop: micStop } = useMicrophoneStream()
+  const { frequencyData, volume, timeDomainData } = useAudioAnalyser(stream, {
+    fftSize: 256,
+    smoothingTimeConstant: 0.8,
+  })
+  const { isSpeaking } = useVoiceActivity(volume, {
+    volumeThreshold: 0.08,
+    silenceThreshold: 1200,
+  })
+
+  // Derived state
+  const callActive = visualizer?.call.active || false
+  const voiceStatus = status.voice?.status ?? 'stopped'
+  const voiceState = voiceStateFromSora(callActive, micActive, voiceStatus)
+  const provider = status.voice?.llmProvider ?? 'none'
 
   return (
     <main className="app-shell">
       <div className="orb orb-a" />
       <div className="orb orb-b" />
 
+      {/* header */}
       <header className="hero">
         <div>
           <div className="eyebrow"><Sparkles size={16} /> S0RA voice companion</div>
-          <h1>Voice Visualizer Web UI</h1>
-          <p>Live control surface for Hermes-facing voice bridges: Discord, Gemini Live, Vapi, ElevenLabs, and VOIP.</p>
+          <h1>Voice Visualizer</h1>
+          <p>Live control surface for Hermes-facing voice bridges — Gemini Live, Vapi, ElevenLabs, VOIP.</p>
         </div>
         <div className="hero-actions">
-          <button className="mic-button" onClick={micActive ? mic.stop : mic.start} disabled={mic.status === 'requesting'}>
-            <Mic2 size={16} /> {mic.status === 'requesting' ? 'Requesting mic…' : micActive ? 'Stop mic preview' : 'Enable mic preview'}
-          </button>
+          {micActive ? (
+            <button className="mic-button" onClick={micStop}>
+              <Mic2 size={16} /> Stop mic
+            </button>
+          ) : (
+            <button className="mic-button" onClick={micStart}>
+              <Mic2 size={16} /> Enable mic
+            </button>
+          )}
           <button className="refresh" onClick={refresh} disabled={loading}>
             <RefreshCw size={16} /> Refresh
           </button>
         </div>
       </header>
 
-      {error && <div className="alert">Backend unreachable: {error}. Showing local fallback visualizer.</div>}
-      {mic.error && <div className="alert">Mic preview unavailable: {mic.error}</div>}
+      {/* alerts */}
+      {error && <div className="alert">Backend unreachable: {error}. Showing local fallback.</div>}
 
+      {/* ── VOICE VISUALIZER (the actual voice part) ── */}
       <section className="visualizer-card">
         <div className="visual-core">
-          <div className={`pulse-ring ${voiceActive ? 'active' : ''}`}>
-            <Waves size={84} />
-          </div>
+          {/* Hero visual — VoiceOrb from react-ai-voice-visualizer */}
+          <VoiceOrb
+            audioData={frequencyData}
+            volume={volume}
+            state={voiceState}
+            size={220}
+            primaryColor="#06B6D4"
+            secondaryColor="#8B5CF6"
+            glowIntensity={0.7}
+            noiseScale={0.18}
+            noiseSpeed={0.55}
+            onClick={micActive ? micStop : micStart}
+          />
+
+          {/* Metadata column */}
           <div>
-            <span className="status-dot"><i className={voiceActive || micActive ? 'on' : ''} /> {micActive ? 'browser mic live' : voiceActive ? 'voice path configured' : 'standing by'}</span>
-            <h2>{status.voice?.llmProvider ?? 'none'}</h2>
-            <p>{micActive ? 'Local browser microphone preview via getUserMedia + AnalyserNode' : status.voice?.model ?? 'No model selected'}</p>
-            <div className="mic-strip">
-              <span>Mic permission</span>
-              <strong>{mic.status}</strong>
+            <div className="visual-meta">
+              <VADIndicator
+                state={
+                  micActive && isSpeaking ? 'speaking'
+                  : micActive ? 'listening'
+                  : callActive ? 'speaking'
+                  : voiceStatus === 'configured' ? 'idle'
+                  : 'idle'
+                }
+                size="md"
+                showLabel
+              />
+
+              <h2>{provider}</h2>
+              <p>{status.voice?.model ?? 'No model selected'}</p>
+
+              <div className="mic-strip">
+                <span>Mic</span>
+                <strong>{micActive ? 'active' : 'idle'}</strong>
+              </div>
+
+              <div className="mic-strip">
+                <span>Volume</span>
+                <strong>{Math.round(volume * 100)}%</strong>
+              </div>
+
+              {micActive && (
+                <div className="mic-strip">
+                  <span>Speaking</span>
+                  <strong>{isSpeaking ? 'yes 🔊' : 'no'}</strong>
+                </div>
+              )}
             </div>
           </div>
         </div>
-        <Waveform active={Boolean(voiceActive || micActive)} level={outputLevel} levels={waveformLevels} />
+
+        {/* Waveform — VoiceWave from library (replaces the old fake bars) */}
+        <div className="waveform">
+          {micActive ? (
+            <VoiceWave
+              audioData={frequencyData}
+              volume={volume}
+              state={voiceState}
+              size={280}
+              lineColor="#62eaff"
+              numberOfLines={5}
+              lineWidth={2}
+              phaseShift={0.15}
+            />
+          ) : (
+            <WaveformMini
+              audioData={frequencyData}
+              volume={volume}
+              barCount={16}
+              width={280}
+              height={40}
+              color="#62eaff"
+            />
+          )}
+        </div>
       </section>
 
+      {/* metrics row */}
       <section className="metrics-grid">
         <Metric label="Voice" value={status.voice?.status ?? 'unknown'} icon={<Mic2 size={20} />} />
         <Metric label="MCP" value={`${status.mcp?.transport ?? 'stdio'}:${status.mcp?.port ?? 0}`} icon={<Bot size={20} />} />
@@ -312,11 +313,13 @@ function App() {
         <Metric label="System" value={status.system?.python ?? 'unknown'} icon={<Activity size={20} />} />
       </section>
 
+      {/* pipeline + providers */}
       <div className="two-column">
         <Pipeline visualizer={visualizer} />
         <ProviderGrid visualizer={visualizer} status={status} />
       </div>
 
+      {/* footer */}
       <footer>
         <Radio size={14} /> API: {apiBase() || 'same-origin'} · Last sample: {visualizer?.timestamp ?? 'not connected'}
       </footer>
