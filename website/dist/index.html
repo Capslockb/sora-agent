@@ -1,12 +1,21 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:* https://* wss://*; media-src 'self' blob:; worker-src 'self' blob:;" />
+    <title>S0RA — Voice Orchestration</title>
+    <meta name="description" content="S0RA voice orchestration surface for Hermes-facing voice bridges" />
     <meta name="theme-color" content="#050712" />
-    <title>S0RA Voice Visualizer</title>
-    <script type="module" crossorigin src="/sora/assets/index-CzDBHucU.js"></script>
-    <link rel="stylesheet" crossorigin href="/sora/assets/index-BqGehpBY.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/index-BhcHyFGv.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-BYbx6iT9.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui-utils-BBAXt6Si.js">
+    <link rel="modulepreload" crossorigin href="/assets/motion-Dk8iBM1F.js">
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-D5l_8RUd.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Dalw1kux.css">
   </head>
   <body>
     <div id="root"></div>

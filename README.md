@@ -208,7 +208,7 @@ sora-agent/
 ├── plugins/
 │   └── sora_hermes/        # Hermes plugin
 ├── ui-tui/                 # Ink/React TUI
-├── website/                # React voice visualizer web UI
+├── website/                # React voice visualizer web UI (PuPuPlatter-based, Acoustic Noir design system)
 ├── agent/                  # Compatibility shims; Hermes remains the agent core
 └── tests/                  # Test suite
 ```
