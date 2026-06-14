@@ -416,6 +416,9 @@ setup_parser = _add_subcommand("setup", "Run interactive setup wizard")
 setup_parser.add_argument(
     "--non-interactive", action="store_true", help="Print guidance for headless setup"
 )
+setup_parser.add_argument(
+    "--provider", help="Set up a specific voice provider (gemini-live, vapi, elevenlabs, openai-realtime, xai-grok, ultravox, retell)"
+)
 
 
 # ---- voice ----

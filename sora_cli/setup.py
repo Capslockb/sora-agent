@@ -521,11 +521,18 @@ def wizard_discord(config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def wizard_voice_bridges(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Section 3: Voice Bridges — Gemini Live & Vapi."""
+    """Section 3: Voice Bridges — all 7 providers."""
     print_header("3. Voice Bridges")
-    print_info("Sora supports two voice bridge backends:")
+    print_info("Sora supports 7 voice bridge backends:")
     print_info("  • Gemini Live — Direct streaming to Google's multimodal live API")
-    print_info("  • Vapi.ai — Managed conversational AI platform (dashboard, phone, web)")
+    print_info("  • Vapi.ai — Managed conversational AI platform")
+    print_info("  • ElevenLabs — Ultra-realistic voice conversations")
+    print_info("  • OpenAI Realtime — WebRTC-based realtime voice API")
+    print_info("  • xAI Grok — xAI's realtime voice API")
+    print_info("  • Ultravox — Managed STT/LLM/TTS pipeline")
+    print_info("  • Retell AI — Telephony and web call voice agents")
+    print()
+    print_info("You can set up individual providers with: sora setup --provider <name>")
     print()
 
     # Gemini Live
@@ -1036,23 +1043,13 @@ def main(args) -> int:
     config = load_config()
 
     # Check for OpenClaw migration
-    openclaw_path = Path.home() / ".openclaw"
-    if openclaw_path.exists() and not cfg_get(config, "migrated_from_openclaw", default=False):
-        print()
-        print(SORA_LOGO)
-        print(color("═══ S0RA Agent Setup ═══", Colors.CYAN, Colors.BOLD))
-        print(color("OpenClaw installation detected!", Colors.YELLOW, Colors.BOLD))
-        print()
-        print_info("Found OpenClaw at ~/.openclaw")
-        print_info("Sora can migrate your settings, memories, skills, and API keys.")
-        print()
-        if prompt_yes_no("Migrate from OpenClaw now?", default=True):
-            _animate_spinner("Migrating from OpenClaw...", 2.0)
-            _migrate_from_openclaw(config)
-            config["migrated_from_openclaw"] = True
-        else:
-            print_info("Skipping OpenClaw migration. You can run it later with 'sora setup'.")
-    
+    _check_openclaw_migration(config)
+
+    # If --provider is specified, jump directly to provider setup
+    provider = getattr(args, "provider", None)
+    if provider:
+        return _setup_single_provider(provider, config)
+
     print()
     print(SORA_LOGO)
     print(color("═══ S0RA Agent Setup ═══", Colors.CYAN, Colors.BOLD))
@@ -1067,7 +1064,7 @@ def main(args) -> int:
     config = wizard_mcp(config)
     config = wizard_memory(config)
     config = wizard_tools(config)
-    
+
     # OpenWakeWord setup
     config = wizard_wake_word(config)
 
@@ -1139,6 +1136,58 @@ def _migrate_from_openclaw(config: Dict[str, Any]) -> None:
             print_success("✓ Migrated skills")
         except Exception as e:
             print_warning(f"Failed to migrate skills: {e}")
+
+
+PROVIDER_MAP = {
+    "gemini-live": {"env": "GEMINI_API_KEY", "key_url": "https://aistudio.google.com/apikey", "provider": "Gemini Live"},
+    "vapi": {"env": "VAPI_API_KEY", "key_url": "https://dashboard.vapi.ai/api-keys", "provider": "Vapi.ai"},
+    "elevenlabs": {"env": "ELEVENLABS_AGENT_ID", "key_url": "https://elevenlabs.io/app/conversational-ai", "provider": "ElevenLabs"},
+    "openai-realtime": {"env": "OPENAI_API_KEY", "key_url": "https://platform.openai.com/api-keys", "provider": "OpenAI Realtime"},
+    "xai-grok": {"env": "XAI_API_KEY", "key_url": "https://x.ai/api", "provider": "xAI Grok"},
+    "ultravox": {"env": "ULTRAVOX_API_KEY", "key_url": "https://docs.ultravox.ai", "provider": "Ultravox"},
+    "retell": {"env": "RETELL_API_KEY", "key_url": "https://docs.retellai.com", "provider": "Retell AI"},
+}
+
+
+def _setup_single_provider(provider: str, config: Dict[str, Any]) -> int:
+    """Quick-setup a single voice provider via sora setup --provider <name>."""
+    info = PROVIDER_MAP.get(provider)
+    if not info:
+        print_error(f"Unknown provider: {provider}")
+        print_info("Available: gemini-live, vapi, elevenlabs, openai-realtime, xai-grok, ultravox, retell")
+        return 1
+
+    print()
+    print_header(f"Setup: {info['provider']}")
+    print_info(f"Configure the {info['provider']} voice bridge.")
+    print()
+
+    key = get_env_value(info["env"])
+    if key:
+        print_info(f"API key: {'*' * 12}... (configured)")
+    else:
+        print_warning(f"API key: NOT CONFIGURED (needs {info['env']})")
+        print_info(f"Get your key at: {info['key_url']}")
+        print()
+        if prompt_yes_no("Enter API key now?", default=True):
+            val = prompt(info["env"], password=True)
+            if val:
+                save_env_value(info["env"], val)
+
+    # Provider-specific extra config
+    if provider == "elevenlabs":
+        agent_id = prompt("ElevenLabs Agent ID", default=get_env_value("ELEVENLABS_AGENT_ID") or "")
+        if agent_id:
+            save_env_value("ELEVENLABS_AGENT_ID", agent_id)
+    elif provider == "retell":
+        agent_id = prompt("Retell Agent ID", default=get_env_value("RETELL_AGENT_ID") or "")
+        if agent_id:
+            save_env_value("RETELL_AGENT_ID", agent_id)
+
+    save_config(config)
+    print()
+    print_success(f"✓ {info['provider']} configured")
+    return 0
 
 
 def wizard_wake_word(config: Dict[str, Any]) -> Dict[str, Any]:
