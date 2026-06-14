@@ -42,6 +42,11 @@ export default defineConfig(() => ({
     port: 8082,
     allowedHosts: ['localhost', '.ngrok.io', '.ngrok-free.app', '.tailb9e21e.ts.net'],
     proxy: {
+      '/sora/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/sora\/api/, '/api'),
+      },
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
