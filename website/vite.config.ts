@@ -36,6 +36,7 @@ function manualChunks(id: string): string | undefined {
 
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
+  base: '/sora/',
   server: {
     host: '::',
     port: 8082,
