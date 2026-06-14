@@ -1,12 +1,12 @@
 # S0RA Agent
 
-> **Voice-First AI Assistant** — Standalone CLI for Gemini Live, Vapi, and MCP voice bridges. Mirrors Hermes CLI architecture.
+> **S0RA voice companion layer** — Hermes-aligned CLI/plugins for Gemini Live, Vapi, ElevenLabs, MCP, and VOIP bridges.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active-brightgreen.svg)]()
 
-S0RA Agent is a standalone command-line application built around **Gemini Live**, **Vapi.ai**, and **MCP** (Model Context Protocol) functionality. It mirrors the Hermes Agent CLI architecture while being purpose-built for real-time voice interactions.
+S0RA Agent is a voice companion layer for Hermes-style agents. It keeps the useful CLI/plugin pieces for real-time voice, MCP, and VOIP control without pretending to be a separate isolated chat assistant.
 
 ## Features
 
@@ -37,8 +37,8 @@ S0RA Agent is a standalone command-line application built around **Gemini Live**
 - Doctor diagnostics
 - Setup wizard
 
-### 📊 Web Dashboard
-- Live voice demo preview
+### 📊 Web Control Panel
+- Voice bridge demo/status preview
 - Provider toggle panel
 - System status monitor
 - Install guide with copy-paste commands
@@ -101,10 +101,12 @@ sora benchmark
 
 | Command | Description |
 |---------|-------------|
-| `sora` / `sora chat` | Start interactive chat session |
+| `sora` | Show voice-first CLI help |
+| `sora chat` | Hermes-compatible chat shell (not S0RA's primary interface) |
 | `sora setup` | Run interactive setup wizard |
 | `sora voice live` | Start Gemini Live voice bridge |
 | `sora voice vapi` | Start Vapi.ai voice bridge |
+| `sora voice elevenlabs` | Prepare/start ElevenLabs Conversational AI bridge |
 | `sora voice status` | Show voice bridge status |
 | `sora voice leave` | Stop voice bridge |
 | `sora voice providers` | Manage voice providers (TTS/STT/LLM Voice) |
@@ -146,7 +148,7 @@ sora voice providers disable vapi
 Configuration is stored in `~/.sora/config.yaml` and secrets in `~/.sora/.env`.
 
 ### Profiles
-Supports multiple isolated profiles like Hermes:
+Supports multiple profiles for config separation like Hermes:
 ```bash
 sora --profile myprofile setup
 sora --profile myprofile chat
@@ -180,7 +182,7 @@ And Discord slash commands:
 
 ## Architecture
 
-S0RA mirrors Hermes CLI architecture:
+S0RA reuses Hermes-style CLI architecture where it helps voice/plugin operations:
 
 ```
 sora-agent/
@@ -204,8 +206,8 @@ sora-agent/
 ├── plugins/
 │   └── sora_hermes/        # Hermes plugin
 ├── ui-tui/                 # Ink/React TUI
-├── website/                # React web dashboard
-├── agent/                  # Agent core (optional)
+├── website/                # React voice control panel
+├── agent/                  # Compatibility shims; Hermes remains the agent core
 └── tests/                  # Test suite
 ```
 

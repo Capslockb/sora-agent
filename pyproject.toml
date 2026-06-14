@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sora-agent"
 version = "0.1.0"
-description = "S0RA Agent — Standalone CLI for Gemini Live, Vapi, and MCP voice bridges. Mirrors Hermes CLI architecture."
+description = "S0RA Agent — Hermes companion CLI/plugins for Gemini Live, Vapi, ElevenLabs, MCP, and VOIP voice bridges."
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 authors = [{name = "Capslockb"}]

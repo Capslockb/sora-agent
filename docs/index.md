@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: S0RA Agent
-  text: Standalone Voice Agent CLI
-  tagline: Built around Gemini Live, Vapi, ElevenLabs, and VOIP (Asterisk + Dograh). Mirrors Hermes architecture — works plug-n-play with Hermes or independently.
+  text: Hermes Voice Companion CLI
+  tagline: Built around Gemini Live, Vapi, ElevenLabs, and VOIP (Asterisk + Dograh). Designed as a Hermes companion layer, not a separate isolated chat brain.
   image:
     src: /sora-agent/favicon.svg
     alt: S0RA Agent
@@ -29,8 +29,8 @@ features:
     title: Hermes DNA
     details: Same config system, profiles, skins, plugin architecture, constants, logging as Hermes. Drop-in familiar experience.
   - icon: 🌐
-    title: Web Dashboard
-    details: React + Vite dashboard with live voice demo, provider toggles, MCP status, and real-time system monitoring.
+    title: Web Control Panel
+    details: React + Vite control panel with voice demo/status, provider toggles, MCP status, and real-time system monitoring.
   - icon: 📦
     title: Install Anywhere
     details: pipx install git+https://github.com/Capslockb/sora-agent. Git-based updates. OpenWakeWord "Hey Sora" support.
@@ -62,9 +62,10 @@ pip install -e .
 sora setup           # Interactive wizard (Discord, Voice, MCP, VOIP, Memory, Providers)
 sora voice live      # Start Gemini Live bridge (Discord)
 sora voice vapi      # Start Vapi bridge (Discord)
+sora voice elevenlabs # Prepare/start ElevenLabs bridge (Discord)
 sora voice providers # List/enable/disable TTS/STT/LLM providers
 sora mcp start       # Start MCP server
-sora voip-status     # Check VOIP bridge (Asterisk + Dograh)
+sora voice voip-status # Check VOIP bridge (Asterisk + Dograh)
 sora doctor          # System health check
 sora tui --build     # Launch Terminal UI
 ```

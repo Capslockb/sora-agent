@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        S0RA Agent CLI                           │
+│                  S0RA Voice Companion CLI                       │
 ├─────────────────────────────────────────────────────────────────┤
 │  Constants  │  Config  │  Logging  │  Profiles  │  Skins  │     │
 ├─────────────────────────────────────────────────────────────────┤
@@ -18,7 +18,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Core Modules
+## Core Modules (compatibility + voice operations)
 
 | Module | Path | Purpose |
 |--------|------|---------|
@@ -31,7 +31,7 @@
 
 ## Voice Architecture
 
-### Discord Voice Bridges
+### Discord Voice Bridges (Hermes-facing)
 
 ```
 Discord Gateway (Voice WS)

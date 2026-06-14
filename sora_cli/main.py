@@ -3,8 +3,8 @@
 S0RA Agent CLI - Main entry point.
 
 Usage:
-    sora                     # Interactive chat (default)
-    sora chat                # Interactive chat
+    sora                     # Show voice-first help
+    sora chat                # Hermes-compatible chat shell
     sora setup               # Interactive setup wizard
     sora voice               # Voice bridge management
     sora voice live          # Start Gemini Live voice bridge (Discord)
@@ -344,7 +344,7 @@ from sora_cli import __version__, __release_date__
 # Build the main parser
 parser = argparse.ArgumentParser(
     prog="sora",
-    description="S0RA Agent — Standalone CLI for Gemini Live, Vapi, and MCP",
+    description="S0RA Agent — Hermes companion CLI for voice bridges, VOIP, and MCP",
     add_help=False,
 )
 
@@ -386,7 +386,7 @@ def _add_subcommand(name: str, help_text: str, aliases: list = None):
 
 
 # ---- chat ----
-chat_parser = _add_subcommand("chat", "Start interactive chat session", ["c"])
+chat_parser = _add_subcommand("chat", "Hermes-compatible chat shell", ["c"])
 chat_parser.add_argument("--toolsets", help="Comma-separated toolsets to enable")
 chat_parser.add_argument("--skills", help="Comma-separated skills to load")
 chat_parser.add_argument("--model", help="Model to use for this session")
@@ -416,6 +416,12 @@ voice_vapi_parser.add_argument("-h", "--help", action="help")
 voice_vapi_parser.add_argument("--guild", help="Discord guild ID")
 voice_vapi_parser.add_argument("--channel", help="Discord voice channel ID")
 voice_vapi_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
+voice_elevenlabs_parser = voice_sub.add_parser("elevenlabs", help="Start ElevenLabs Conversational AI voice bridge", add_help=False)
+voice_elevenlabs_parser.add_argument("-h", "--help", action="help")
+voice_elevenlabs_parser.add_argument("--guild", help="Discord guild ID")
+voice_elevenlabs_parser.add_argument("--channel", help="Discord voice channel ID")
+voice_elevenlabs_parser.add_argument("--user", help="Discord user ID (to infer channel)")
 
 voice_status_parser = voice_sub.add_parser("status", help="Show voice bridge status", add_help=False)
 voice_status_parser.add_argument("-h", "--help", action="help")
@@ -778,8 +784,8 @@ def main() -> int:
 
     # Dispatch to subcommand handlers
     if args.command is None:
-        # Default to chat
-        return _handle_chat(args)
+        parser.print_help()
+        return 0
 
     handler_map = {
         "chat": _handle_chat,

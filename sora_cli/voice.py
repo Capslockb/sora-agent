@@ -19,6 +19,66 @@ from sora_logging import setup_logging
 setup_logging("cli")
 
 
+def _env_first(*names: str) -> Optional[str]:
+    """Return the first non-empty environment value."""
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
+
+
+def _resolve_discord_target(
+    config: dict,
+    provider_name: str,
+    guild_id: Optional[str] = None,
+    channel_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Resolve Discord target IDs from CLI args, provider config, global config, then env.
+
+    This is the standalone CLI's autodetect layer. A process without a live
+    Discord adapter cannot discover a user's current voice channel, but it can
+    and should auto-fill the configured/default guild, voice channel, and user.
+    """
+    voice_config = config.get("voice", {}) if isinstance(config, dict) else {}
+    discord_config = voice_config.get("discord", {}) if isinstance(voice_config, dict) else {}
+    provider_config = voice_config.get(provider_name, {}) if isinstance(voice_config, dict) else {}
+
+    guild_id = (
+        guild_id
+        or provider_config.get("guild_id")
+        or discord_config.get("guild_id")
+        or _env_first("DISCORD_GUILD_ID", "SORA_DISCORD_GUILD_ID")
+    )
+    channel_id = (
+        channel_id
+        or provider_config.get("channel_id")
+        or provider_config.get("voice_channel_id")
+        or discord_config.get("voice_channel_id")
+        or discord_config.get("channel_id")
+        or _env_first("DISCORD_VOICE_CHANNEL_ID", "SORA_DISCORD_VOICE_CHANNEL_ID")
+    )
+    user_id = (
+        user_id
+        or provider_config.get("default_user_id")
+        or discord_config.get("default_user_id")
+        or _env_first("DISCORD_USER_ID", "SORA_DISCORD_USER_ID")
+    )
+    return guild_id, channel_id, user_id
+
+
+def _redact_url_secret(url: str) -> str:
+    """Hide signed ElevenLabs token values while keeping the URL debuggable."""
+    if "token=" not in url:
+        return url
+    prefix, token = url.split("token=", 1)
+    if "&" in token:
+        _secret, rest = token.split("&", 1)
+        return f"{prefix}token=***&{rest}"
+    return f"{prefix}token=***"
+
+
 def build_voice_parser(subparsers):
     """Build the voice subcommand parser (called from main.py)."""
     voice_parser = subparsers.add_parser("voice", help="Voice bridge management")
@@ -35,6 +95,12 @@ def build_voice_parser(subparsers):
     vapi_parser.add_argument("--guild", help="Discord guild ID")
     vapi_parser.add_argument("--channel", help="Discord voice channel ID")
     vapi_parser.add_argument("--user", help="Discord user ID (to infer channel)")
+
+    # voice elevenlabs
+    eleven_parser = voice_sub.add_parser("elevenlabs", help="Start ElevenLabs Conversational AI voice bridge")
+    eleven_parser.add_argument("--guild", help="Discord guild ID")
+    eleven_parser.add_argument("--channel", help="Discord voice channel ID")
+    eleven_parser.add_argument("--user", help="Discord user ID (to infer channel)")
 
     # voice status
     voice_sub.add_parser("status", help="Show voice bridge status")
@@ -121,13 +187,7 @@ async def start_gemini_live(
 
     config = load_config()
     gemini_config = config.get("voice", {}).get("gemini_live", {})
-    discord_config = config.get("voice", {}).get("discord", {})
-
-    # Use defaults from config if not provided
-    if not guild_id:
-        guild_id = discord_config.get("guild_id")
-    if not user_id:
-        user_id = discord_config.get("default_user_id")
+    guild_id, channel_id, user_id = _resolve_discord_target(config, "gemini_live", guild_id, channel_id, user_id)
 
     if not guild_id or not channel_id:
         return {
@@ -169,12 +229,7 @@ async def start_vapi(
 
     config = load_config()
     vapi_config = config.get("voice", {}).get("vapi", {})
-    discord_config = config.get("voice", {}).get("discord", {})
-
-    if not guild_id:
-        guild_id = discord_config.get("guild_id")
-    if not user_id:
-        user_id = discord_config.get("default_user_id")
+    guild_id, channel_id, user_id = _resolve_discord_target(config, "vapi", guild_id, channel_id, user_id)
 
     if not guild_id or not channel_id:
         return {
@@ -212,37 +267,54 @@ async def start_elevenlabs(
 
     config = load_config()
     eleven_config = config.get("voice", {}).get("elevenlabs", {})
-    discord_config = config.get("voice", {}).get("discord", {})
-
-    if not guild_id:
-        guild_id = discord_config.get("guild_id")
-    if not user_id:
-        user_id = discord_config.get("default_user_id")
+    guild_id, channel_id, user_id = _resolve_discord_target(config, "elevenlabs", guild_id, channel_id, user_id)
 
     if not guild_id or not channel_id:
         return {
             "status": "error",
-            "message": "guild_id and channel_id are required"
+            "message": "guild_id and channel_id are required (provide --guild/--channel, voice.discord.voice_channel_id, voice.elevenlabs.channel_id, or DISCORD_VOICE_CHANNEL_ID)",
         }
 
     eleven_key = get_env_value("ELEVENLABS_API_KEY")
-    discord_token = get_env_value("DISCORD_BOT_TOKEN")
+    agent_id = eleven_config.get("agent_id") or get_env_value("ELEVENLABS_AGENT_ID")
+    discord_token = get_env_value("DISCORD_BOT_TOKEN") or eleven_config.get("discord_bot_token")
 
-    if not eleven_key:
-        return {"status": "error", "message": "ELEVENLABS_API_KEY not set"}
+    if not agent_id:
+        return {"status": "error", "message": "ELEVENLABS_AGENT_ID or voice.elevenlabs.agent_id not set"}
     if not discord_token:
         return {"status": "error", "message": "DISCORD_BOT_TOKEN not set"}
 
-    try:
-        return {
-            "status": "success",
-            "message": f"ElevenLabs bridge starting for guild {guild_id}, channel {channel_id}",
-            "bridge_type": "elevenlabs",
-            "guild_id": guild_id,
-            "channel_id": channel_id,
-        }
-    except Exception as e:
-        return {"status": "error", "message": f"Failed to start ElevenLabs bridge: {e}"}
+    from sora_cli.elevenlabs_client import get_signed_conversation_url, public_conversation_url
+
+    websocket_url = public_conversation_url(agent_id)
+    auth_mode = "public-agent-url"
+
+    # Private agents require a signed URL. If an API key is present, prefer it.
+    if eleven_key:
+        try:
+            websocket_url = await get_signed_conversation_url(agent_id, eleven_key)
+            auth_mode = "signed-url"
+        except RuntimeError as e:
+            text = str(e)
+            if "HTTP 401" not in text and "HTTP 403" not in text and "HTTP 404" not in text:
+                return {"status": "error", "message": text}
+
+    return {
+        "status": "success",
+        "message": f"ElevenLabs Conversational AI bridge ready for guild {guild_id}, channel {channel_id}",
+        "bridge_type": "elevenlabs",
+        "guild_id": guild_id,
+        "channel_id": channel_id,
+        "user_id": user_id,
+        "agent_id": agent_id,
+        "auth_mode": auth_mode,
+        "websocket_url": _redact_url_secret(websocket_url),
+        "protocol": {
+            "client_audio_event": "{user_audio_chunk: <base64 pcm chunk>}",
+            "server_audio_event": "type=audio, audio_event.audio_base_64",
+            "ping_response": "reply with {type: pong, event_id: ping_event.event_id}",
+        },
+    }
 
 
 async def get_voice_status() -> dict:
@@ -274,7 +346,7 @@ def handle_providers(args) -> int:
     default_providers = {
         "gemini_live": {"enabled": True, "configured": False, "type": "llm_voice", "model": "gemini-3.1-flash-live-preview"},
         "vapi": {"enabled": False, "configured": False, "type": "voice_platform"},
-        "elevenlabs": {"enabled": False, "configured": False, "type": "tts"},
+        "elevenlabs": {"enabled": False, "configured": False, "type": "llm_voice"},
         "edge_tts": {"enabled": True, "configured": True, "type": "tts"},
         "openai_tts": {"enabled": False, "configured": False, "type": "tts"},
         "whisper": {"enabled": False, "configured": False, "type": "stt"},

@@ -48,8 +48,8 @@ PROVIDERS = {
         "category": "llm_voice",
         "name": "ElevenLabs Conversational AI",
         "description": "Ultra-realistic voice conversations with ElevenLabs",
-        "env_vars": ["ELEVENLABS_API_KEY", "ELEVENLABS_AGENT_ID"],
-        "config_keys": ["voice.elevenlabs.agent_id", "voice.elevenlabs.voice_id"],
+        "env_vars": ["ELEVENLABS_AGENT_ID"],
+        "config_keys": ["voice.elevenlabs.agent_id", "voice.elevenlabs.voice_id", "voice.elevenlabs.channel_id"],
         "features": ["realtime", "high_quality", "multilingual"],
     },
 
@@ -179,7 +179,7 @@ def list_providers(args) -> int:
 def enable_provider(args) -> int:
     """Enable a provider for a category."""
     from sora_cli.colors import Colors, color
-    from sora_cli.cli_output import print_info, print_success, print_error
+    from sora_cli.cli_output import print_info, print_success, print_error, print_warning
     from sora_cli.setup import print_header
 
     provider_id = args.provider
@@ -227,7 +227,7 @@ def disable_provider(args) -> int:
 def configure_provider(args) -> int:
     """Configure a provider's settings."""
     from sora_cli.colors import Colors, color
-    from sora_cli.cli_output import print_info, print_success, print_error
+    from sora_cli.cli_output import print_info, print_success, print_error, print_warning
     from sora_cli.setup import print_header, prompt, prompt_yes_no
 
     provider_id = args.provider

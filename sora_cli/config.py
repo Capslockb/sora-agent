@@ -148,6 +148,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "assistant_id": "",
             "phone_number_id": "",
         },
+        "elevenlabs": {
+            "enabled": False,
+            "agent_id": "",
+            "voice_id": "",
+            "channel_id": "",
+        },
         "discord": {
             "bot_token": "",
             "application_id": "",
