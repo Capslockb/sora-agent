@@ -102,6 +102,7 @@ const staticLimiter = rateLimit({
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // Required for rate-limiter behind Tailscale (X-Forwarded-For)
 
 const PORT = process.env.SERVER_PORT || 3001;
 const startTime = Date.now();
