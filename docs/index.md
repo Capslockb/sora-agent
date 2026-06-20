@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: S0RA Agent
-  text: Standalone Voice Agent CLI
-  tagline: Built around Gemini Live, Vapi, ElevenLabs, and VOIP (Asterisk + Dograh). Mirrors Hermes architecture — works plug-n-play with Hermes or independently.
+  text: SORA Bridge Control Layer
+  tagline: CLI, profiles, FastAPI backend, MCP, Hermes plugin, VOIP controls, and the future home for SORA-owned voice bridge runtime.
   image:
     src: /sora-agent/favicon.svg
     alt: S0RA Agent
@@ -12,61 +12,61 @@ hero:
       text: Quick Start
       link: /guide/quick-start
     - theme: alt
+      text: Bridge Status
+      link: /guide/sora-bridge-status
+    - theme: alt
       text: GitHub Repo
       link: https://github.com/Capslockb/sora-agent
 
 features:
+  - icon: 🎛️
+    title: Control Layer First
+    details: SORA currently provides CLI, config, profiles, status, API, MCP, Hermes tooling, and migration scaffolding for voice providers.
   - icon: 🎙️
-    title: Multi-Provider Voice
-    details: Switch between Gemini Live, Vapi.ai, ElevenLabs, Edge TTS, OpenAI TTS, Whisper STT with a single CLI command.
-  - icon: 📞
-    title: VOIP / Asterisk + Dograh
-    details: Connect your self-hosted PBX via Asterisk ARI. Route phone calls through Dograh to Gemini Live for AI conversations.
+    title: Voice Runtime Migration
+    details: Gemini/Vapi/ElevenLabs command paths exist, but the production Discord/Gemini live runtime still lives in gemini-live-discord-bridge until transplanted or wrapped.
   - icon: 🔌
     title: MCP Integration
-    details: Auto-detects running MCP servers (stdio + HTTP). WebSocket MCP with CLI management. Works with Honcho, OpenClaw, Hermes memory.
-  - icon: 🎨
-    title: Hermes DNA
-    details: Same config system, profiles, skins, plugin architecture, constants, logging as Hermes. Drop-in familiar experience.
-  - icon: 🌐
-    title: Web Dashboard
-    details: React + Vite dashboard with live voice demo, provider toggles, MCP status, and real-time system monitoring.
-  - icon: 📦
-    title: Install Anywhere
-    details: pipx install git+https://github.com/Capslockb/sora-agent. Git-based updates. OpenWakeWord "Hey Sora" support.
+    details: MCP command and API surfaces exist for status, detection, stdio/HTTP-style configuration, and WebSocket MCP controls.
+  - icon: 📞
+    title: VOIP / Asterisk + Dograh
+    details: SIP, ARI, call, hangup, voip-status, and voip-config command surfaces are present for self-hosted telephony work.
+  - icon: 🧩
+    title: Hermes Plugin
+    details: ships a sora-hermes plugin with SORA voice and MCP tools; slash commands currently guide users to the dedicated voice plugins.
+  - icon: 🖥️
+    title: API + TUI Surfaces
+    details: FastAPI backend and Ink/React TUI source are present; runtime-backed voice process management is still being built out.
   - icon: 🩺
-    title: Doctor & Benchmark
-    details: Built-in health checks, dependency verification, latency benchmarks, and configuration validation.
-  - icon: 🤖
-    title: ACP Server Mode
-    details: Run as ACP server for editor integration (VS Code, Cursor, etc.) with full tool access.
+    title: Doctor & Status
+    details: Built-in setup, status, doctor, benchmark, config, logs, plugin, skills, and cron command paths.
 ---
 
 <div class="vp-doc" style="text-align: center; margin-top: 2rem;">
 
-## Install Now
+## Start Here
 
 ```bash
-# Via pipx (recommended)
+# Install
 pipx install git+https://github.com/Capslockb/sora-agent
 
-# Or clone & install
-git clone https://github.com/Capslockb/sora-agent
-cd sora-agent
-pip install -e .
+# Configure and inspect SORA
+sora setup
+sora status
+sora doctor
+
+# Run the API backend
+sora-api
 ```
 
-## First Commands
+## Important Voice Note
 
-```bash
-sora setup           # Interactive wizard (Discord, Voice, MCP, VOIP, Memory, Providers)
-sora voice live      # Start Gemini Live bridge (Discord)
-sora voice vapi      # Start Vapi bridge (Discord)
-sora voice providers # List/enable/disable TTS/STT/LLM providers
-sora mcp start       # Start MCP server
-sora voip-status     # Check VOIP bridge (Asterisk + Dograh)
-sora doctor          # System health check
-sora tui --build     # Launch Terminal UI
-```
+For **working live Gemini voice in Discord today**, use `Capslockb/gemini-live-discord-bridge` and its `/voice-live` command.
+
+In this repo, `sora voice live` is currently a SORA control/scaffold path: it validates config and returns a start-status response, but the full Discord/Gemini runtime has not yet been transplanted.
+
+Read the status guide before relying on voice runtime behavior:
+
+[Bridge status →](/guide/sora-bridge-status)
 
 </div>
