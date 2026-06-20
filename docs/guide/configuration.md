@@ -1,123 +1,165 @@
 # Configuration
 
-## Config File Locations
+SORA uses profile-aware configuration. The active home directory is controlled by `SORA_HOME`; when unset, SORA uses `~/.sora/`.
 
-| Profile | Config Path |
-|---------|-------------|
-| Default | `~/.sora/config.yaml` |
-| Named | `~/.sora-profiles/<name>/config.yaml` |
-| Project | `.sora/config.yaml` (via `SORA_HOME`) |
+## File locations
 
-## Config Structure
+| Purpose | Path |
+|---|---|
+| Default SORA home | `~/.sora/` |
+| Main config | `~/.sora/config.yaml` |
+| Env file | `~/.sora/.env` |
+| Logs | `~/.sora/logs/` |
+| Sessions | `~/.sora/sessions/` |
+| Plugins | `~/.sora/plugins/` |
+| Skills | `~/.sora/skills/` |
+| Cron jobs | `~/.sora/cron/` |
+| Named profile | `~/.sora/profiles/<name>/` if it exists |
+| Alternate named profile | `~/.sora-<name>/` if it exists |
+| Project/custom home | any path via `SORA_HOME=/path/to/home` |
+
+Important correction: named profiles are resolved as `~/.sora/profiles/<name>/` or `~/.sora-<name>/`, not `~/.sora-profiles/<name>/`.
+
+## Profile usage
+
+```bash
+# Use default profile
+sora --profile default status
+
+# Use an existing named profile
+sora --profile myprofile setup
+
+# Or set an explicit home
+export SORA_HOME=~/.sora-myprofile
+sora status
+```
+
+Profile names must match the validation in `sora_cli/main.py`: lowercase letters/numbers plus `_` or `-`, starting with a letter/number.
+
+## Default config shape
+
+The current defaults are defined in `sora_cli/config.py`. Useful sections include:
 
 ```yaml
-# ~/.sora/config.yaml
-display:
-  interface: cli        # cli | tui
-  skin: sora            # sora | sora-dark | minimal | hermes | <custom>
-  theme: dark           # auto | light | dark
-
 model:
-  provider: openrouter  # openrouter | ollama | anthropic | openai
-  model: anthropic/claude-3.5-sonnet
-  temperature: 0.7
+  provider: openrouter
+  base_url: https://openrouter.ai/api/v1
+  default: nvidia/nemotron-3-ultra:free
+  reasoning_effort: medium
+
+display:
+  interface: cli
+  skin: sora
+  show_tool_progress: true
+  show_reasoning: true
+  context_bar: true
+
+memory:
+  provider: honcho
+  honcho:
+    host: http://localhost:8377
+    peer: user
 
 voice:
-  # Discord Voice Bridges
   gemini_live:
     enabled: true
     model: gemini-3.1-flash-live-preview
     voice: Kore
+    auto_greeting: "I'm here."
+    allowed_speakers: []
+    video_enabled: true
+    video_max_fps: 1.0
+    audio_preroll_ms: 320
+    auto_leave_quiet_seconds: 900
   vapi:
-    enabled: false
+    enabled: true
     assistant_id: ""
-  elevenlabs:
-    enabled: false
-  
-  # Provider Toggle (TTS/STT/LLM Voice)
-  providers:
-    gemini_live:  { enabled: true,  type: llm_voice }
-    vapi:         { enabled: false, type: voice_platform }
-    elevenlabs:   { enabled: false, type: tts }
-    edge_tts:     { enabled: true,  type: tts }
-    openai_tts:   { enabled: false, type: tts }
-    whisper:      { enabled: false, type: stt }
-
-  # Discord config
+    phone_number_id: ""
   discord:
+    bot_token: ""
+    application_id: ""
     guild_id: ""
     default_user_id: ""
-
-# VOIP / Asterisk + Dograh
-voip:
-  asterisk_ari_url: "http://localhost:8088/ari"
-  asterisk_username: "sora"
-  asterisk_password: ""
-  asterisk_app_name: "sora-bridge"
-  dograh_ws_url: "wss://dograh.local/ws"
-  dograh_api_key: ""
-  gemini_model: "gemini-2.0-flash-exp"
-  sample_rate: 48000
-  rtp_port_range: "10000-20000"
-  auto_answer: true
-  record_calls: false
-  recording_dir: "~/.sora/recordings"
+    voice_channel_id: ""
 
 mcp:
   enabled: true
   servers: {}
-  auto_discover: true
-  ws_port: 3000
-
-memory:
-  honcho:
-    enabled: true
-    auto_detect: true
-  openclaw:
-    enabled: false
-    auto_detect: true
-
-plugins:
-  enabled: ["sora-voip", "sora-hermes"]
-
-tools:
-  opencode:
-    enabled: true
-    auto_detect: true
-  codex:
-    enabled: true
-  gemini_harness:
-    enabled: false
-
-openwakeword:
-  enabled: false
-  model_path: "~/.sora/openwakeword/hey_sora.onnx"
 ```
 
-## Environment Variables
+The loaded config is a deep merge of these defaults and the user's `config.yaml`.
 
-| Variable | Description | Required For |
-|----------|-------------|--------------|
-| `GEMINI_API_KEY` \| `GOOGLE_API_KEY` | Google AI Studio key | Gemini Live |
-| `DISCORD_BOT_TOKEN` | Discord bot token | All Discord voice |
-| `VAPI_API_KEY` | Vapi.ai API key | Vapi bridge |
-| `ELEVENLABS_API_KEY` | ElevenLabs API key | ElevenLabs bridge |
-| `OPENAI_API_KEY` | OpenAI API key | OpenAI TTS |
-| `OPENROUTER_API_KEY` | OpenRouter key | Model provider |
-| `HONCHO_API_KEY` | Honcho memory key | Cloud memory |
+## Environment variables
 
-## Profiles
+Common keys read by CLI/API paths:
 
-```bash
-# List profiles
-sora config profiles
+| Variable | Used for |
+|---|---|
+| `OPENROUTER_API_KEY` | Default model provider path |
+| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Gemini and Gemini Live config checks |
+| `VAPI_API_KEY` | Vapi config checks |
+| `ELEVENLABS_API_KEY` | ElevenLabs config checks |
+| `DISCORD_BOT_TOKEN` | Discord voice command prerequisite checks |
+| `DISCORD_APPLICATION_ID` | Discord/Hermes integration settings |
+| `HONCHO_API_KEY` | Honcho/cloud memory integration |
+| `SORA_ARI_URL` | Asterisk ARI integration |
+| `SORA_ARI_USER` | Asterisk ARI username |
+| `SORA_ARI_PASSWORD` | Asterisk ARI password |
+| `SORA_DOGRAH_WS_URL` | Dograh WebSocket URL |
+| `SORA_DOGRAH_API_KEY` | Dograh API key |
+| `SORA_HOME` | Override active SORA home/profile |
+| `SORA_TUI` | Force TUI startup when set to `1` |
+| `SORA_REDACT_SECRETS` | Secret-redaction behavior |
+| `SORA_FORCE_IPV4` | IPv4 preference flag |
 
-# Create new profile
-sora config profile create my-profile
+The API exposes env read/update helpers at:
 
-# Switch profile
-sora --profile my-profile
-
-# Or set env var
-export SORA_HOME=~/.sora-my-profile
+```text
+GET  /api/config/env
+POST /api/config/env
 ```
+
+## Voice configuration caveat
+
+The config contains Gemini Live, Vapi, ElevenLabs, and Discord settings. These are useful for SORA's future bridge ownership, but the current `sora voice live`, `sora voice vapi`, and `sora voice elevenlabs` handlers still behave as control/scaffold paths.
+
+They validate env/config and return status. They do not yet launch the complete long-running runtime that exists in `gemini-live-discord-bridge`.
+
+Read: [`sora-bridge-status.md`](sora-bridge-status.md)
+
+## API backend configuration
+
+`sora-api` reads `network.http` from config and falls back to:
+
+```text
+host: 0.0.0.0
+port: 8080
+```
+
+Example config:
+
+```yaml
+network:
+  http:
+    host: 127.0.0.1
+    port: 8080
+```
+
+## MCP configuration
+
+The API and CLI use the `mcp` section for server configuration, default transport, default port, and WebSocket settings.
+
+API endpoints include:
+
+```text
+/api/mcp/status
+/api/mcp/servers
+/api/mcp/detect
+/api/mcp/start
+/api/mcp/stop
+/api/mcp/ws/status
+/api/mcp/ws/start
+/api/mcp/ws/stop
+```
+
+`/api/mcp/start` and `/api/mcp/ws/start` currently save intended config and return a starting response; verify actual runtime state separately.
