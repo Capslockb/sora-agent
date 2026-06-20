@@ -1,66 +1,137 @@
 # Quick Start
 
+This guide gets SORA installed and explains which commands are production-ready today versus migration scaffolding.
+
 ## 1. Install
 
 ```bash
-# Recommended: pipx (isolated, auto-updatable)
+# Recommended: isolated install
 pipx install git+https://github.com/Capslockb/sora-agent
 
 # Or development install
 git clone https://github.com/Capslockb/sora-agent
 cd sora-agent
-pip install -e .
+uv pip install -e ".[dev]"
 ```
 
-## 2. Run Setup Wizard
+## 2. Run setup
 
 ```bash
 sora setup
 ```
 
-The interactive wizard guides you through:
+The interactive wizard/config paths cover:
 
-1. **Model Provider** — OpenRouter, Ollama, etc.
-2. **Discord Bot** — Token, Guild ID, Channel ID
-3. **Voice Bridges** — Gemini Live, Vapi, ElevenLabs (Discord)
-4. **VOIP Integration** — Asterisk ARI, Dograh/Gemini Live (phone)
-5. **MCP** — Auto-detect running servers, configure stdio/HTTP
-6. **Memory** — Honcho, OpenClaw, or Hermes memory passthrough
-7. **Providers** — Enable/disable TTS/STT/LLM Voice
-8. **Tools** — OpenCode, Codex, Gemini Harness
-9. **OpenWakeWord** — "Hey Sora" hotword detection
+1. model provider configuration;
+2. Discord-related IDs and tokens;
+3. Gemini Live / Vapi / ElevenLabs config values;
+4. MCP configuration;
+5. memory settings;
+6. provider/tool toggles.
 
-## 3. Start Voice Bridge (Discord)
+Config is stored under `~/.sora/` by default, or under `SORA_HOME` when that env var is set.
 
-```bash
-# Gemini Live (requires GEMINI_API_KEY + DISCORD_BOT_TOKEN)
-sora voice live --guild <GUILD_ID> --channel <CHANNEL_ID>
-
-# Vapi.ai (requires VAPI_API_KEY)
-sora voice vapi --guild <GUILD_ID> --channel <CHANNEL_ID>
-
-# ElevenLabs (requires ELEVENLABS_API_KEY)
-sora voice elevenlabs --guild <GUILD_ID> --channel <CHANNEL_ID>
-```
-
-## 4. Check Status
+## 3. Check SORA state
 
 ```bash
 sora status          # Overall system status
-sora voice status    # Voice bridges
-sora mcp status      # MCP servers
-sora doctor          # Health check
+sora doctor          # Diagnostics
+sora voice status    # Voice command status object
+sora mcp status      # MCP status
 ```
 
-## 5. Launch Web Dashboard
+## 4. Start the API backend
 
 ```bash
-sora dashboard start --port 3000
-# Open http://localhost:3000
+sora-api
 ```
 
-## 6. Launch TUI
+Default bind falls back to:
+
+```text
+0.0.0.0:8080
+```
+
+Useful endpoints:
+
+```text
+/health
+/api/status
+/api/voice/status
+/api/config
+/api/config/env
+/api/mcp/status
+```
+
+## 5. Voice commands: current truth
+
+SORA has voice commands, but they are **not yet the production Discord/Gemini runtime**.
 
 ```bash
-sora tui --build     # First run (builds Ink/React)
-sora tui             # Subsequent runs
+sora voice live --guild <GUILD_ID> --channel <CHANNEL_ID>
+sora voice vapi --guild <GUILD_ID> --channel <CHANNEL_ID>
+sora voice elevenlabs --guild <GUILD_ID> --channel <CHANNEL_ID>
+sora voice status
+sora voice leave --guild <GUILD_ID>
+```
+
+Current behavior:
+
+- the commands validate required config/env values;
+- they return status objects;
+- they do not yet launch the full long-running Discord receive/playback + provider runtime;
+- `sora voice status` currently reports no active bridge registry behind it.
+
+Read: [`sora-bridge-status.md`](sora-bridge-status.md)
+
+## 6. Working Gemini Live voice today
+
+For live Discord + Gemini audio today, use the dedicated Gemini bridge repo:
+
+```bash
+git clone https://github.com/Capslockb/gemini-live-discord-bridge.git
+cd gemini-live-discord-bridge
+./install.sh
+systemctl --user restart hermes-gateway
+```
+
+Then in Discord:
+
+```text
+/voice-live
+```
+
+Use SORA as the migration/control layer until the working Gemini bridge runtime is transplanted or wrapped.
+
+## 7. MCP
+
+```bash
+sora mcp start
+sora mcp status
+sora mcp list
+sora mcp catalog
+sora mcp ws status
+```
+
+## 8. VOIP controls
+
+```bash
+sora voice sip status
+sora voice ari status
+sora voice voip-status
+sora voice voip-config show
+```
+
+These are control/config surfaces for Asterisk/ARI/SIP/Dograh work. Confirm the underlying services are actually running before treating status output as a live call bridge.
+
+## 9. TUI
+
+```bash
+cd ui-tui
+npm install
+npm run build
+cd ..
+sora tui
+```
+
+Depending on install layout, `sora tui` may require the TUI package to be built first.

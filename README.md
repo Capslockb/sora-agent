@@ -1,83 +1,99 @@
 # S0RA Agent / SORA Bridge
 
-> **SORA Bridge control layer** — CLI, FastAPI backend, Hermes plugin, MCP tooling, VOIP controls, TUI work, and the migration target for the older Gemini Discord bridge.
+> A user-friendly control layer for SORA: CLI, profiles, config, FastAPI backend, MCP tools, Hermes integration, VOIP controls, and the migration home for the future SORA voice bridge.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Active-brightgreen.svg)]()
+[![Status](https://img.shields.io/badge/Status-Active%20Migration-yellow.svg)]()
 
-## Status: active transition from Gemini Bridge
+## Read this first
 
-S0RA Agent is the new home for the broader **SORA Bridge** layer. It is not yet a complete drop-in replacement for [`Capslockb/gemini-live-discord-bridge`](https://github.com/Capslockb/gemini-live-discord-bridge).
+SORA Bridge is **not yet the production Discord/Gemini voice runtime**.
 
-Current split:
+Today, this repo is best used for:
 
-| Area | Current source of truth |
-|---|---|
-| Working live Discord/Gemini audio runtime | `Capslockb/gemini-live-discord-bridge` |
-| SORA CLI, config, status, doctor, profiles | this repo |
-| Hermes SORA plugin tools | this repo, `plugins/sora_hermes/` |
-| FastAPI dashboard/control backend | this repo, `sora-api` / `sora_api.py` |
-| MCP management | this repo |
-| VOIP/SIP/ARI/Dograh control surface | this repo |
-| Full SORA-owned provider runtime | in progress |
+- setting up and managing SORA profiles;
+- running the `sora` CLI;
+- starting the FastAPI control/backend server;
+- managing MCP configuration and status;
+- experimenting with VOIP/SIP/ARI/Dograh control surfaces;
+- installing the Hermes-facing SORA plugin;
+- preparing the migration path away from the older Gemini bridge.
 
-The README has been rewritten to match the current code more honestly. Earlier docs overstated the live bridge/runtime side. The code currently contains strong scaffolding and control surfaces, while the actual long-running Gemini Discord bridge still lives in the Gemini bridge repo until it is transplanted or wrapped cleanly.
+For the currently working live Discord + Gemini audio bridge, continue using:
 
----
-
-## What works today
-
-| Capability | Current state |
-|---|---|
-| `sora` CLI | Main command entrypoint |
-| `sora setup` | Interactive setup wizard / configuration path |
-| `sora status` | Component status dashboard |
-| `sora doctor` | Diagnostics path |
-| `sora benchmark` | Benchmark command path |
-| Profiles | `--profile` / `SORA_HOME` profile-aware paths |
-| TUI | Ink/React TUI package exists under `ui-tui/` |
-| MCP | Start/status/list/catalog/ws command surface |
-| Hermes plugin | Registers `sora_voice_*` and `sora_mcp_*` tools |
-| FastAPI API | `sora-api` script exposes `/health`, `/api/status`, voice/config/MCP endpoints |
-| VOIP controls | SIP, ARI, call, hangup, voip-status, voip-config command surface |
-
-## What is still in progress
-
-| Area | Reality |
-|---|---|
-| `sora voice live` | Validates config and returns a Gemini Live bridge-start status; the full Discord/Gemini runtime is not yet transplanted from the old bridge |
-| `sora voice vapi` | Validates config and returns a Vapi bridge-start status; long-running Vapi runtime integration still needs hardening |
-| `sora voice status` | Currently returns empty/no active bridges unless backed by future runtime state |
-| Dashboard frontend | Backend API exists; frontend/web docs may lag behind code |
-| Hermes slash commands | Registered as compatibility hints; the active live Discord command remains `/voice-live` from the old Gemini bridge until migration is complete |
-
----
-
-## Installation
-
-```bash
-# Using pipx
-pipx install git+https://github.com/capslockb/sora-agent
-
-# Or with uv
-uv pip install git+https://github.com/capslockb/sora-agent
-
-# Or with pip
-pip install git+https://github.com/capslockb/sora-agent
+```text
+Capslockb/gemini-live-discord-bridge
 ```
 
-For development:
+That older repo currently owns the working `/voice-live` Discord runtime. This repo is where the SORA-owned bridge layer is being built and documented.
+
+---
+
+## What should I use?
+
+| Goal | Use this |
+|---|---|
+| Talk to Gemini Live in a Discord voice channel today | `gemini-live-discord-bridge` and `/voice-live` |
+| Configure SORA, profiles, env, status, diagnostics | this repo: `sora setup`, `sora status`, `sora doctor` |
+| Run the SORA API backend | this repo: `sora-api` |
+| Manage MCP from SORA | this repo: `sora mcp ...` |
+| Test SORA voice-provider commands | this repo: `sora voice ...`, but live/vapi/elevenlabs startup is scaffold/status until runtime transplant is complete |
+| Install a Hermes SORA plugin | this repo: `plugins/sora_hermes/` |
+| Build the terminal UI | this repo: `ui-tui/` |
+
+---
+
+## Current reality check
+
+| Area | Current state |
+|---|---|
+| Package | `sora-agent`, version `0.1.0` |
+| Python | `>=3.11,<3.15` |
+| Main CLI | `sora = sora_cli.main:main` |
+| API backend | `sora-api = sora_api:main`, FastAPI/uvicorn |
+| VOIP CLI | `sora-voip = plugins.sora_voip.cli:main` |
+| ACP CLI | `sora-acp = acp_adapter.entry:main` |
+| Config root | `~/.sora/` by default, or `SORA_HOME` |
+| Profiles | `~/.sora/profiles/<name>/` or `~/.sora-<name>/` |
+| Gemini Live voice command | validates config/env and returns a start-status object; full Discord runtime is not yet transplanted |
+| Vapi voice command | validates config/env and returns a start-status object; long-running runtime still needs hardening |
+| ElevenLabs voice command | validates config/env and returns a start-status object; long-running runtime still needs hardening |
+| SORA API voice start | saves intended provider/config and returns status; it does not currently launch a durable provider process |
+| Hermes SORA slash commands | compatibility guidance; for live Gemini use `/voice-live` from `discord-voice` |
+| Static docs | exist under `docs/`, but should be read with the code-grounded status notes |
+
+Detailed status notes: [`docs/guide/sora-bridge-status.md`](docs/guide/sora-bridge-status.md)
+
+---
+
+## Install
+
+Recommended isolated install:
 
 ```bash
-git clone https://github.com/capslockb/sora-agent
+pipx install git+https://github.com/Capslockb/sora-agent
+```
+
+Alternative install:
+
+```bash
+uv pip install git+https://github.com/Capslockb/sora-agent
+# or
+pip install git+https://github.com/Capslockb/sora-agent
+```
+
+Development install:
+
+```bash
+git clone https://github.com/Capslockb/sora-agent
 cd sora-agent
 uv pip install -e ".[dev]"
 ```
 
 ---
 
-## Quick start
+## First commands
 
 ```bash
 # Configure SORA
@@ -87,28 +103,28 @@ sora setup
 sora status
 sora doctor
 
-# Launch the terminal UI
-sora tui
-
-# Start the API backend
+# Run the API backend
 sora-api
+
+# Launch the terminal UI if built/available
+sora tui
 ```
 
-Voice bridge commands exist, but treat Gemini/Vapi startup as **migration scaffolding** until the runtime move is complete:
+Voice commands exist, but they are **not yet the production live Discord bridge**:
 
 ```bash
-# Gemini Live bridge control path — scaffold/status path for now
+# Scaffold/control path for future Gemini Live runtime
 sora voice live --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
 
-# Vapi bridge control path — scaffold/status path for now
+# Scaffold/control path for future Vapi runtime
 sora voice vapi --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
 
-# Stop/status paths
+# Status/stop paths
 sora voice status
 sora voice leave --guild YOUR_GUILD_ID
 ```
 
-For the current working Discord/Gemini voice runtime, use the older bridge repo for now:
+For live Discord/Gemini audio right now:
 
 ```bash
 git clone https://github.com/Capslockb/gemini-live-discord-bridge.git
@@ -121,55 +137,55 @@ systemctl --user restart hermes-gateway
 
 ---
 
-## Main commands
+## Main command map
 
-| Command | Description |
+| Command | What it does |
 |---|---|
-| `sora` / `sora chat` | Interactive chat session |
-| `sora setup` | Setup wizard / configuration |
-| `sora status` | System status dashboard |
-| `sora doctor` | Diagnostics |
-| `sora benchmark` | Performance benchmarks |
-| `sora config` | Configuration management |
+| `sora` / `sora chat` | Interactive chat path |
+| `sora setup` | Interactive setup wizard |
+| `sora status` | Component status dashboard |
+| `sora doctor` | Diagnostics and dependency checks |
+| `sora benchmark` | Performance benchmark path |
+| `sora config` | Configuration and env helpers |
 | `sora plugins` | Plugin management |
 | `sora skills` | Skill management |
 | `sora cron` | Cron job management |
-| `sora logs` | View logs |
-| `sora tui` | Launch terminal UI |
-| `sora update` | Update from git |
-| `sora uninstall` | Uninstall SORA Agent |
-| `sora version` | Version info |
+| `sora logs` | Log viewing |
+| `sora tui` | Terminal UI launcher |
+| `sora update` | Git/update path |
+| `sora uninstall` | Uninstall path |
+| `sora version` / `sora --version` | Version info |
 | `sora acp` / `sora-acp` | ACP/editor integration |
-| `sora-api` | FastAPI backend server |
+| `sora-api` | FastAPI backend |
 | `sora-voip` | VOIP plugin CLI entrypoint |
 
-### Voice commands
+### Voice and VOIP commands
 
-| Command | Description |
+| Command | Current behavior |
 |---|---|
-| `sora voice live` | Gemini Live bridge control path; runtime migration still pending |
-| `sora voice vapi` | Vapi bridge control path; runtime hardening still pending |
-| `sora voice elevenlabs` | ElevenLabs bridge control path |
-| `sora voice status` | Show current voice bridge status |
-| `sora voice leave` | Stop voice bridge(s) |
-| `sora voice providers list` | List configured providers |
-| `sora voice providers enable <provider>` | Enable a provider |
-| `sora voice providers disable <provider>` | Disable a provider |
-| `sora voice providers config <provider>` | Configure a provider |
-| `sora voice sip register/status/unregister` | SIP registration control |
-| `sora voice ari connect/status/apps/disconnect` | Asterisk ARI control |
-| `sora voice call <number>` | Place an outbound call through VOIP bridge |
-| `sora voice hangup --channel <id>` / `--all` | Hang up call(s) |
-| `sora voice voip-status` | Show VOIP bridge status |
-| `sora voice voip-config show/set/reload` | Manage VOIP config |
+| `sora voice live` | Validates Gemini/Discord config and returns a Gemini bridge-start status; runtime migration still pending |
+| `sora voice vapi` | Validates Vapi/Discord config and returns a Vapi bridge-start status; runtime hardening still pending |
+| `sora voice elevenlabs` | Validates ElevenLabs/Discord config and returns a start status; runtime hardening still pending |
+| `sora voice status` | Returns status object; currently no active bridge process registry |
+| `sora voice leave` | Returns stop status; durable bridge-process stop still depends on future runtime integration |
+| `sora voice providers list` | List configured voice providers |
+| `sora voice providers enable <provider>` | Enable provider in config |
+| `sora voice providers disable <provider>` | Disable provider in config |
+| `sora voice providers config <provider>` | Show guidance/config path for provider |
+| `sora voice sip register/status/unregister` | SIP registration control surface |
+| `sora voice ari connect/status/apps/disconnect` | Asterisk ARI control surface |
+| `sora voice call <number>` | Outbound-call control path through VOIP plugin/config |
+| `sora voice hangup --channel <id>` / `--all` | Hangup command path |
+| `sora voice voip-status` | VOIP status command path |
+| `sora voice voip-config show/set/reload` | VOIP config command path |
 
 ### MCP commands
 
-| Command | Description |
+| Command | What it does |
 |---|---|
-| `sora mcp start` | Start MCP server |
+| `sora mcp start` | Start/configure MCP server path |
 | `sora mcp status` | Show MCP status |
-| `sora mcp stop` | Stop MCP server |
+| `sora mcp stop` | Stop MCP server path |
 | `sora mcp list` | List available MCP servers |
 | `sora mcp catalog` | Browse MCP server catalog |
 | `sora mcp ws ...` | WebSocket MCP management |
@@ -178,25 +194,26 @@ systemctl --user restart hermes-gateway
 
 ## Configuration
 
-Configuration is stored under SORA home paths:
+SORA stores runtime configuration under SORA home:
 
 ```text
 ~/.sora/config.yaml
 ~/.sora/.env
 ```
 
-Profiles are supported:
+Profiles are supported through `--profile` / `-p` and `SORA_HOME`:
 
 ```bash
+sora --profile default status
 sora --profile myprofile setup
-sora --profile myprofile chat
+export SORA_HOME=~/.sora-myprofile
 ```
 
 Common environment variables:
 
 ```bash
-GEMINI_API_KEY=***
-GOOGLE_API_KEY=***
+OPENROUTER_API_KEY=***
+GEMINI_API_KEY=***       # or GOOGLE_API_KEY
 VAPI_API_KEY=***
 ELEVENLABS_API_KEY=***
 DISCORD_BOT_TOKEN=***
@@ -209,27 +226,7 @@ SORA_DOGRAH_WS_URL=***
 SORA_DOGRAH_API_KEY=***
 ```
 
----
-
-## Hermes plugin
-
-SORA also ships a Hermes plugin:
-
-```bash
-cp -r plugins/sora_hermes ~/.hermes/plugins/
-hermes plugins enable sora-hermes
-```
-
-The plugin registers these Hermes tools:
-
-- `sora_voice_live`
-- `sora_voice_vapi`
-- `sora_voice_leave`
-- `sora_voice_status`
-- `sora_mcp_start`
-- `sora_mcp_status`
-
-Important: the registered Discord slash commands are currently compatibility guidance. For live Gemini Discord audio, continue using `/voice-live` from `gemini-live-discord-bridge` until the runtime migration is finished.
+More detail: [`docs/guide/configuration.md`](docs/guide/configuration.md)
 
 ---
 
@@ -241,7 +238,7 @@ Run:
 sora-api
 ```
 
-Default bind is read from SORA config, falling back to:
+Default bind comes from `network.http` in SORA config and falls back to:
 
 ```text
 0.0.0.0:8080
@@ -268,11 +265,39 @@ Implemented API groups include:
 - `/api/mcp/ws/start`
 - `/api/mcp/ws/stop`
 
-Some endpoints currently save config and return intended state rather than starting a long-running provider runtime. Treat this API as the control/backend layer under active buildout.
+Important: voice/MCP start endpoints currently save intended config and return a state response. They should not be described as guaranteed durable runtime launchers yet.
 
 ---
 
-## Architecture
+## Hermes plugin
+
+SORA ships a Hermes plugin at:
+
+```text
+plugins/sora_hermes/
+```
+
+Install example:
+
+```bash
+cp -r plugins/sora_hermes ~/.hermes/plugins/
+hermes plugins enable sora-hermes
+```
+
+Registered Hermes tools:
+
+- `sora_voice_live`
+- `sora_voice_vapi`
+- `sora_voice_leave`
+- `sora_voice_status`
+- `sora_mcp_start`
+- `sora_mcp_status`
+
+The plugin also registers slash command names `sora-voice-live` and `sora-voice-vapi`, but their handlers currently return guidance to use the older dedicated Discord voice plugins. For production Gemini Live voice, use `/voice-live` from `gemini-live-discord-bridge` until SORA owns the runtime.
+
+---
+
+## Architecture map
 
 ```text
 sora-agent/
@@ -281,53 +306,13 @@ sora-agent/
 ├── sora_logging.py            # Logging setup
 ├── sora_api.py                # FastAPI backend
 ├── sora_cli/                  # CLI commands
-│   ├── main.py                # Main parser / dispatch
-│   ├── setup.py               # Setup wizard
-│   ├── voice.py               # Voice/VOIP command handlers
-│   ├── mcp.py                 # MCP management
-│   ├── status.py              # Status dashboard
-│   ├── doctor.py              # Diagnostics
-│   ├── benchmark.py           # Benchmarks
-│   ├── config.py              # Config/env helpers
-│   ├── plugins.py             # Plugin management
-│   ├── skills.py              # Skill management
-│   ├── cron.py                # Cron jobs
-│   └── tui.py                 # TUI launcher
-├── plugins/
-│   └── sora_hermes/           # Hermes plugin
+├── plugins/sora_hermes/       # Hermes plugin
 ├── plugins/sora_voip/         # VOIP plugin package
-├── ui-tui/                    # Ink/React terminal UI
+├── ui-tui/                    # Ink/React terminal UI source
 ├── agent/                     # Agent core
 ├── gateway/                   # Gateway components
-├── providers/                 # Provider integrations
+├── providers/                 # Provider integration area
 └── tests/                     # Test suite
-```
-
----
-
-## Optional dependencies
-
-```bash
-# Voice bridges
-pip install "sora-agent[gemini-live,vapi]"
-
-# Web search backends
-pip install "sora-agent[exa,firecrawl,parallel-web]"
-
-# Image generation
-pip install "sora-agent[fal]"
-
-# TTS/STT
-pip install "sora-agent[edge-tts,elevenlabs,minimax-tts,openai-tts,faster-whisper]"
-
-# MCP
-pip install "sora-agent[mcp]"
-
-# API/backend web dependencies
-pip install "sora-agent[web]"
-
-# All optional extras
-pip install "sora-agent[all]"
 ```
 
 ---
@@ -335,34 +320,29 @@ pip install "sora-agent[all]"
 ## Development
 
 ```bash
-# Install editable dev build
 uv pip install -e ".[dev]"
-
-# Run tests
 pytest
+ruff check .
 
-# Build TUI
+# TUI
 cd ui-tui
 npm install
 npm run build
-
-# Run linting
-ruff check .
 ```
 
 ---
 
-## Migration target
+## Migration plan
 
 SORA Bridge should eventually absorb or wrap the working pieces of the Gemini bridge:
 
-1. provider registry and config in SORA;
-2. API/TUI control in SORA;
-3. Hermes tool surface in SORA;
-4. Gemini Live Discord runtime transplanted from `gemini-live-discord-bridge`;
-5. old README/docs-site regenerated or retired after code and docs match.
+1. keep provider registry and config in SORA;
+2. keep API/TUI control in SORA;
+3. keep Hermes tool surface in SORA;
+4. transplant or wrap the working Gemini Live Discord runtime from `gemini-live-discord-bridge`;
+5. retire duplicate docs once code and docs match.
 
-Until then, keep both repos documented separately: Gemini bridge for the current live Discord/Gemini runtime, SORA bridge for the future shared control layer.
+Until that runtime transplant is complete, keep the repos documented separately: Gemini bridge for the current live Discord/Gemini runtime, SORA bridge for the shared control layer and future runtime home.
 
 ---
 
