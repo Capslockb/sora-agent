@@ -11,7 +11,7 @@
 [![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge)]()
 [![Hermes](https://img.shields.io/badge/Hermes-Aligned-915eff?style=for-the-badge)](https://hermes-agent.nousresearch.com)
 
-[**Website**](website/) · [**Install**](#-install) · [**Quick Start**](#-quick-start) · [**Architecture**](#-architecture) · [**Bridge Elements**](#-s0ra-bridge-elements) · [**Release Readiness**](docs/release-readiness.md) · [**Changelog**](CHANGELOG.md)
+[**Website**](website/) · [**Install**](#install) · [**Quick Start**](#quick-start) · [**Architecture**](#architecture) · [**Bridge Elements**](#s0ra-bridge-elements) · [**Release Readiness**](docs/release-readiness.md)
 
 </div>
 
