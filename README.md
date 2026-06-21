@@ -1,316 +1,257 @@
+<div align="center">
+
 # S0RA Agent
 
-> **S0RA voice companion layer** — Hermes-aligned CLI/plugins for Gemini Live, Vapi, ElevenLabs, MCP, and VOIP bridges.
+### Hermes-aligned CLI and plugins for real-time voice bridges.
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Active-brightgreen.svg)]()
+**One companion layer. Multiple voice providers. No isolation fantasy.**
 
-S0RA Agent is a voice companion layer for Hermes-style agents. It keeps the useful CLI/plugin pieces for real-time voice, MCP, and VOIP control without pretending to be a separate isolated chat assistant.
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-00E0FF?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![MIT License](https://img.shields.io/badge/License-MIT-915eff?style=for-the-badge)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge)]()
+[![Hermes](https://img.shields.io/badge/Hermes-Aligned-915eff?style=for-the-badge)](https://hermes-agent.nousresearch.com)
 
-## Features
+[**Website**](website/) · [**Install**](#-install) · [**Quick Start**](#-quick-start) · [**Architecture**](#-architecture) · [**Bridge Elements**](#-s0ra-bridge-elements) · [**Release Readiness**](docs/release-readiness.md) · [**Changelog**](CHANGELOG.md)
 
-### 🎤 Voice Bridges (7 providers)
-- **Gemini Live** — Direct streaming to Google's Multimodal Live API with native audio
-- **Vapi.ai** — Managed conversational AI platform with WebSocket transport
-- **ElevenLabs Conversational AI** — Ultra-realistic voice conversations
-- **OpenAI Realtime** — WebRTC-based realtime voice API with function calling
-- **xAI Grok** — Real-time voice API powered by Grok models
-- **Ultravox** — Managed STT/LLM/TTS pipeline for realtime voice
-- **Retell AI** — Voice agent platform for telephony and web calls
+</div>
 
-### 🔌 MCP Integration
-- Built-in MCP server with stdio, SSE, and streamable-http transports
-- Auto-detection of running MCP servers on device
-- Catalog of 11 common MCP servers (filesystem, GitHub, databases, browser, Slack, Notion, Google Drive, memory, Brave Search, fetch)
+---
 
-### 🧙 Interactive Setup Wizard
-- 7-section guided configuration (Model, Discord, Voice, MCP, Memory, Tools, Wake Word)
-- **OpenClaw migration** — Detects and imports settings from ~/.openclaw
-- **OpenWakeWord** — Optional "Hey Sora" wake word detection (fully local)
-- Animated spinners and ASCII art throughout
-- ASCII art logo and colored terminal output
+## What this release is
 
-### 🎨 Terminal UI (TUI)
-- Ink/React-based TUI with keyboard navigation
-- Voice bridge control panel
-- Provider management
-- System status dashboard
-- Benchmark runner
-- Doctor diagnostics
-- Setup wizard
+S0RA Agent is a **voice companion layer** for Hermes-style agents. It keeps the useful CLI and plugin pieces for real-time voice, MCP, and VOIP control without pretending to be a separate isolated chat assistant.
 
-### 📊 Voice Visualizer Web UI
-- Live waveform / pipeline visualizer for Discord voice bridges
-- Browser microphone permission test with local Web Audio waveform preview
-- Provider status cards for Gemini Live, Vapi, ElevenLabs, and VOIP
-- Backend-driven status from `/api/status` and `/api/visualizer/state`
-- System status monitor
-- Install guide with copy-paste commands
-- Full documentation
+This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin (`sora-hermes`), a VOIP plugin (`sora-voip`), and scaffolding for seven voice providers. The live Discord voice bridge is **not spawned by this repo alone** — it is provided by the separate Hermes `discord-voice` plugin, which S0RA can configure, query, and extend.
 
-### 🏥 Doctor & Benchmarks
-- Comprehensive system health checks
-- Performance benchmarks (CLI startup, config load, plugin discovery, MCP start, voice status, doctor check)
-- JSON output for CI/CD integration
+> **Relationship to the Gemini bridge:** S0RA shares the same bridge-element philosophy as [`gemini-live-discord-bridge`](https://github.com/Capslockb/gemini-live-discord-bridge) — operator-facing tools, a sidecar health surface, status truth-tagging, and a public docs/site. It is a **separate product/runtime**: Gemini bridge is a single Discord voice bridge; S0RA is a multi-provider companion CLI and plugin registry.
 
-### 🔄 Git-based Updates
-- `sora update` — Pull latest changes and reinstall dependencies
-- `sora update --check-only` — Check for updates without applying
-- Mirrors Hermes update mechanism
+---
 
-## Installation
+## Status map
 
-```bash
-# Using pipx (recommended)
-pipx install git+https://github.com/capslockb/sora-agent
+| Area | Status | Truthful scope |
+|---|---|---|
+| CLI entry (`sora --help`, `sora status`, `sora doctor`) | **WORKING** | Verified commands. 17 pytest tests pass. |
+| Setup wizard (`sora setup`) | **WORKING** | Interactive provider/API-key configuration. |
+| Provider registry (`sora voice providers`) | **WORKING** | List/enable/disable TTS/STT/LLM-voice providers. |
+| ElevenLabs signed URLs / WebSocket targets | **WORKING** | URL generation and bridge prep implemented. |
+| FastAPI dashboard (`/health`, `/api/status`) | **WORKING** | Default port `8080`. Verified with `TestClient`. |
+| Hermes plugin (`sora-hermes`) | **WORKING** | Registers `sora_voice_*` and `sora_mcp_*` tools. |
+| Discord voice bridges (`sora voice live/vapi/…`) | **PARTIAL** | CLI validates config and prepares bridge args. Live bridging requires the Hermes `discord-voice` plugin runtime. |
+| MCP server management | **PARTIAL** | Start/status/catalog CLI works; WebSocket/SSE paths are scaffolding. |
+| VOIP Asterisk + Dograh bridge (`sora-voip`) | **PARTIAL** | Plugin and ARI/SIP commands exist. Needs Asterisk/Dograh runtime. |
+| TUI mode (`sora tui`) | **PLANNED** | Stub falls back to REPL. Not a real Ink/React TUI yet. |
+| Interactive cron creation (`sora cron`) | **PLANNED** | List/show works; create/run are stubs. |
+| Skill search/browse/audit (`sora skills`) | **PLANNED** | Commands exist but operations are not implemented. |
+| Session log filtering (`sora logs`) | **PLANNED** | View works; filtering is not implemented. |
+| Doctor auto-fix (`sora doctor --fix`) | **PLANNED** | Diagnostics work; auto-fix is a stub. |
+| ACP adapter (`sora acp`) | **RESEARCH** | Entry point stub; no full ACP server implementation. |
 
-# Or with uv
-uv pip install git+https://github.com/capslockb/sora-agent
+See [`docs/release-readiness.md`](docs/release-readiness.md) for the full truth table, hard release rules, and E2E smoke checklist.
 
-# Or with pip
-pip install git+https://github.com/capslockb/sora-agent
-```
-
-Then run the interactive setup wizard:
-```bash
-sora setup
-```
-
-## Quick Start
-
-```bash
-# 1. Run setup wizard (interactive)
-sora setup
-
-# Quick-setup a specific provider (skip the full wizard)
-sora setup --provider openai-realtime    # OpenAI WebRTC
-sora setup --provider xai-grok           # xAI Grok
-sora setup --provider elevenlabs         # ElevenLabs Conversational AI
-sora setup --provider gemini-live        # Gemini Live
-sora setup --provider vapi               # Vapi.ai
-sora setup --provider ultravox           # Ultravox
-sora setup --provider retell             # Retell AI
-
-# 2. Start a voice bridge
-sora voice live --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID       # Gemini Live
-sora voice openai --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID     # OpenAI Realtime
-sora voice xai --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID        # xAI Grok
-sora voice ultravox --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID   # Ultravox
-sora voice retell --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID     # Retell AI
-
-# 3. Or use Vapi.ai
-sora voice vapi --guild YOUR_GUILD_ID --channel YOUR_CHANNEL_ID
-
-# 4. Launch the TUI
-sora tui
-
-# 5. Check system status
-sora status
-
-# 6. Run doctor diagnostics
-sora doctor
-
-# 7. Run performance benchmarks
-sora benchmark
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `sora` | Show voice-first CLI help |
-| `sora chat` | Hermes-compatible chat shell (not S0RA's primary interface) |
-| `sora setup` | Run interactive setup wizard |
-| `sora setup --provider <name>` | Quick-setup a specific voice provider (gemini-live, vapi, elevenlabs, openai-realtime, xai-grok, ultravox, retell) |
-| `sora voice live` | Start Gemini Live voice bridge |
-| `sora voice vapi` | Start Vapi.ai voice bridge |
-| `sora voice elevenlabs` | Prepare/start ElevenLabs Conversational AI bridge |
-| `sora voice openai` | Start OpenAI Realtime voice bridge (WebRTC) |
-| `sora voice xai` | Start xAI Grok realtime voice bridge |
-| `sora voice ultravox` | Start Ultravox voice bridge (managed pipeline) |
-| `sora voice retell` | Start Retell AI voice bridge (telephony/web calls) |
-| `sora voice status` | Show voice bridge status |
-| `sora voice leave` | Stop voice bridge |
-| `sora voice providers` | Manage voice providers (TTS/STT/LLM Voice) |
-| `sora mcp start` | Start MCP server |
-| `sora mcp status` | Show MCP server status |
-| `sora mcp list` | List available MCP servers |
-| `sora mcp catalog` | Browse MCP server catalog |
-| `sora status` | Show system health dashboard |
-| `sora doctor` | Run diagnostics |
-| `sora benchmark` | Run performance benchmarks |
-| `sora config` | Configuration management |
-| `sora plugins` | Plugin management |
-| `sora skills` | Skill management |
-| `sora cron` | Cron job management |
-| `sora logs` | View logs |
-| `sora tui` | Launch Terminal UI (Ink/React) |
-| `sora update` | Update to latest version |
-| `sora version` | Show version |
-| `sora acp` | Run as ACP server for editor integration |
-
-## Voice Providers
-
-```bash
-# List available providers
-sora voice providers list
-
-# Enable a provider
-sora voice providers enable gemini-live
-sora voice providers enable vapi
-sora voice providers enable elevenlabs
-sora voice providers enable edge-tts
-sora voice providers enable openai-realtime
-sora voice providers enable xai-grok
-sora voice providers enable ultravox
-sora voice providers enable retell
-
-# Disable a provider
-sora voice providers disable vapi
-```
-
-## Configuration
-
-Configuration is stored in `~/.sora/config.yaml` and secrets in `~/.sora/.env`.
-
-### Profiles
-Supports multiple profiles for config separation like Hermes:
-```bash
-sora --profile myprofile setup
-sora --profile myprofile chat
-```
-
-Profiles are stored in `~/.sora-profiles/` or `~/.sora-<name>/`.
-
-## Hermes Plugin
-
-S0RA also works as a Hermes plugin. Install:
-
-```bash
-# Copy plugin to Hermes
-cp -r plugins/sora_hermes ~/.hermes/plugins/
-
-# Enable in Hermes
-hermes plugins enable sora-hermes
-```
-
-This registers these tools in Hermes:
-- `sora_voice_live` — Start Gemini Live bridge
-- `sora_voice_vapi` — Start Vapi bridge
-- `sora_voice_leave` — Stop voice bridge
-- `sora_voice_status` — Check bridge status
-- `sora_mcp_start` — Start MCP server
-- `sora_mcp_status` — Get MCP server status
-
-And Discord slash commands:
-- `/sora-voice-live`
-- `/sora-voice-vapi`
+---
 
 ## Architecture
 
-S0RA reuses Hermes-style CLI architecture where it helps voice/plugin operations:
-
 ```
-sora-agent/
-├── sora_bootstrap.py       # UTF-8 stdio setup (Windows)
-├── sora_constants.py       # Profile-aware paths
-├── sora_logging.py         # Centralized logging
-├── sora_cli/               # CLI commands
-│   ├── main.py             # Entry point & parser
-│   ├── setup.py            # Interactive setup wizard
-│   ├── voice.py            # Voice bridge management
-│   ├── mcp.py              # MCP server management
-│   ├── status.py           # System status dashboard
-│   ├── doctor.py           # Diagnostics
-│   ├── benchmark.py        # Performance benchmarks
-│   ├── config.py           # Config management
-│   ├── plugins.py          # Plugin management
-│   ├── skills.py           # Skill management
-│   ├── cron.py             # Cron jobs
-│   ├── tui.py              # TUI launcher
-│   └── skin_engine.py      # Theme/skin system
-├── plugins/
-│   └── sora_hermes/        # Hermes plugin
-├── ui-tui/                 # Ink/React TUI
-├── website/                # React voice visualizer web UI (PuPuPlatter-based, Acoustic Noir design system)
-├── agent/                  # Compatibility shims; Hermes remains the agent core
-└── tests/                  # Test suite
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  User surface: sora CLI  │  FastAPI dashboard  │  Hermes chat (via plugin)   │
+└──────────────────────────┴─────────────────────┴───────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       S0RA CLI / API layer                                  │
+│  setup · voice · mcp · status · doctor · config · plugins · skills · cron │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+┌───────────────┐      ┌───────────────┐      ┌───────────────────────┐
+│ sora-hermes   │      │ sora-voip     │      │ built-in runtime      │
+│ plugin        │      │ plugin        │      │ (MCP scaffolds,       │
+│               │      │               │      │  provider registry,   │
+│ Registers     │      │ Asterisk ARI  │      │  FastAPI dashboard)   │
+│ sora_voice_*  │      │ + Dograh      │      │                       │
+│ tools in      │      │ SIP/RTP       │      │                       │
+│ Hermes        │      │               │      │                       │
+└───────┬───────┘      └───────┬───────┘      └───────────┬───────────┘
+        │                      │                          │
+        ▼                      ▼                          ▼
+┌───────────────┐      ┌───────────────┐      ┌───────────────────────┐
+│ Hermes        │      │ Asterisk      │      │ Provider backends     │
+│ discord-voice │      │ PBX + Dograh  │      │ (Gemini, Vapi,       │
+│ plugin        │      │ gateway       │      │ ElevenLabs, OpenAI,   │
+│               │      │               │      │ xAI, Ultravox, Retell)│
+│ Live bridge   │      │ Phone bridge  │      │                       │
+│ runtime       │      │ runtime       │      │                       │
+└───────────────┘      └───────────────┘      └───────────────────────┘
 ```
 
-## Requirements
+Read the full design in [`docs/guide/architecture.md`](docs/guide/architecture.md).
 
-- Python 3.11+
-- Node.js 20+ (for TUI and website)
-- Git
-- Discord Bot Token (for voice bridges)
-- Gemini API Key (for Gemini Live)
-- Vapi API Key (optional, for Vapi bridge)
-- ElevenLabs API Key (optional, for ElevenLabs bridge)
-- OpenAI API Key (optional, for OpenAI Realtime/TTS/STT)
-- xAI API Key (optional, for xAI Grok bridge)
-- Ultravox API Key (optional, for Ultravox bridge)
-- Retell API Key (optional, for Retell AI bridge)
+---
 
-## Optional Dependencies
+## Quick start
 
 ```bash
-# Voice bridges
-pip install "sora-agent[gemini-live,vapi]"
+# 1. Install
+pipx install git+https://github.com/Capslockb/sora-agent
+# or: git clone ... && pip install -e .
 
-# New voice bridges (CLI-only, no extra deps)
-pip install "sora-agent[openai-realtime,xai-grok,ultravox,retell]"
+# 2. Run the setup wizard
+sora setup
 
-# Web search backends
-pip install "sora-agent[exa,firecrawl,parallel-web]"
+# 3. Verify the install
+sora --version
+sora doctor
+sora status
 
-# Image generation
-pip install "sora-agent[fal]"
+# 4. Check provider state
+sora voice providers list
 
-# TTS/STT
-pip install "sora-agent[edge-tts,elevenlabs,minimax-tts,openai-tts,faster-whisper]"
-
-# MCP
-pip install "sora-agent[mcp]"
-
-# Web visualizer UI
-pip install "sora-agent[web]"
-sora dashboard build
-sora dashboard start --port 3000 --api-port 8080
-
-# All optional
-pip install "sora-agent[all]"
+# 5. Start the dashboard (optional)
+sora dashboard start --port 8080
+# Open http://127.0.0.1:8080/health
 ```
 
-## Development
+### Verification commands
 
 ```bash
-# Clone repo
-git clone https://github.com/capslockb/sora-agent
-cd sora-agent
-
-# Install in development mode
-uv pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Build TUI
-cd ui-tui && npx esbuild src/cli.tsx --bundle --platform=node --outfile=dist/cli.js --external:ink --external:react --format=esm
-
-# Build website
-cd website && npm run build
-
-# Run linting
-ruff check .
+sora --help
+sora status --json
+sora voice status
+sora mcp status
+python -m pytest tests/ -q
 ```
+
+See [`docs/guide/quick-start.md`](docs/guide/quick-start.md) for install pitfalls and next steps.
+
+---
+
+## S0RA bridge elements
+
+S0RA exposes a small operator-friendly tool surface. When the `sora-hermes` plugin is enabled, these tools register in Hermes:
+
+| Tool | Status | What it does |
+|---|---|---|
+| `sora_voice_live` | **PARTIAL** | Prepare/start Gemini Live Discord bridge args. Runtime provided by Hermes `discord-voice`. |
+| `sora_voice_vapi` | **PARTIAL** | Prepare/start Vapi Discord bridge args. Runtime provided by Hermes `discord-voice`. |
+| `sora_voice_leave` | **PARTIAL** | Stop active voice bridge via Hermes `discord-voice`. |
+| `sora_voice_status` | **WORKING** | Return structured voice bridge status from S0RA state. |
+| `sora_mcp_start` | **PARTIAL** | Start MCP server (stdio supported; HTTP/SSE scaffolding). |
+| `sora_mcp_status` | **WORKING** | Return MCP server status. |
+
+Read the deep doc in [`docs/bridge-elements.md`](docs/bridge-elements.md).
+
+---
+
+## Feature matrix
+
+| Feature | Status | Doc | Caveat |
+|---|---|---|---|
+| CLI help/version/status/doctor | **WORKING** | [`reference/cli/sora.md`](docs/reference/cli/sora.md) | — |
+| Setup wizard | **WORKING** | [`reference/cli/setup.md`](docs/reference/cli/setup.md) | — |
+| Provider enable/disable | **WORKING** | [`guide/voice/providers.md`](docs/guide/voice/providers.md) | — |
+| ElevenLabs URL signing | **WORKING** | [`guide/voice/elevenlabs.md`](docs/guide/voice/elevenlabs.md) | — |
+| FastAPI dashboard | **WORKING** | [`reference/cli/dashboard.md`](docs/reference/cli.md) | Default port `8080`. |
+| Hermes plugin tools | **WORKING** | [`reference/plugins/sora-hermes.md`](docs/reference/plugins/sora-hermes.md) | Requires `discord-voice` for live audio. |
+| Discord voice bridges | **PARTIAL** | [`guide/voice/gemini-live.md`](docs/guide/voice/gemini-live.md) | Live runtime in Hermes `discord-voice`. |
+| VOIP Asterisk/Dograh | **PARTIAL** | [`voip/setup.md`](docs/voip/setup.md) | Needs PBX runtime. |
+| MCP server | **PARTIAL** | [`guide/mcp/servers.md`](docs/guide/mcp/servers.md) | stdio works; WS/HTTP scaffolding. |
+| TUI | **PLANNED** | [`reference/cli/tui.md`](docs/reference/cli/tui.md) | Stub only. |
+| Cron | **PLANNED** | [`reference/cli/cron.md`](docs/reference/cli.md) | Partial. |
+| Skills | **PLANNED** | [`reference/cli/skills.md`](docs/reference/cli.md) | Partial. |
+| Logs | **PLANNED** | [`reference/cli/logs.md`](docs/reference/cli.md) | Partial. |
+| Doctor auto-fix | **PLANNED** | [`reference/cli/doctor.md`](docs/reference/cli/doctor.md) | Partial. |
+| ACP adapter | **RESEARCH** | [`reference/cli/acp.md`](docs/reference/cli.md) | Stub only. |
+
+---
+
+## Required environment
+
+The three critical pieces of configuration:
+
+```bash
+# ~/.sora/.env
+GEMINI_API_KEY=...            # For Gemini Live bridge
+DISCORD_BOT_TOKEN=...         # For Discord voice bridges (Hermes discord-voice)
+ELEVENLABS_API_KEY=...        # Optional, for ElevenLabs bridge
+```
+
+See [`docs/env-vars.md`](docs/env-vars.md) for the exhaustive grouped reference.
+
+---
+
+## Sidecar HTTP control API
+
+The S0RA dashboard exposes local control endpoints on the configured port (default `8080`):
+
+| Method | Path | Description | Status |
+|---|---|---|---|
+| GET | `/health` | API liveness | **WORKING** |
+| GET | `/api/status` | Voice/MCP/VOIP/system status | **WORKING** |
+| GET | `/api/visualizer/state` | UI-friendly visualizer snapshot | **WORKING** |
+| GET | `/api/dashboard/stats` | CPU/memory metrics | **WORKING** |
+| POST | `/api/voice/start` | Prepare voice bridge start | **PARTIAL** |
+| POST | `/api/mcp/start` | Start MCP server | **PARTIAL** |
+
+Full route list in [`docs/bridge-elements.md`](docs/bridge-elements.md).
+
+---
+
+## What this repo does not currently ship
+
+To prevent over-promising:
+
+- **A standalone live Discord voice bridge.** The audio path lives in the Hermes `discord-voice` plugin. S0RA configures and queries it.
+- **A hosted phone service.** VOIP requires your own Asterisk PBX and Dograh gateway.
+- **A cloud transcription API.** S0RA can point at external Whisper endpoints, but does not host one.
+- **A finished TUI.** `sora tui` is a stub.
+- **A finished ACP server.** `sora acp` is a research stub.
+- **Auto-fix diagnostics.** `sora doctor --fix` is not implemented.
+
+---
+
+## Release verification checklist
+
+```bash
+# 1. CLI sanity
+sora --help
+sora --version
+
+# 2. Health checks
+sora doctor
+sora status
+sora voice status
+sora mcp status
+
+# 3. API health
+curl -s http://127.0.0.1:8080/health | python3 -m json.tool
+
+# 4. Test suite
+python -m pytest tests/ -q
+
+# 5. Hermes plugin registration (when Hermes is installed)
+hermes plugins enable sora-hermes
+hermes tools list | grep sora_
+```
+
+Expected results: CLI returns `0`, doctor reports no hard failures, API returns `{"status":"healthy"}`, tests pass.
+
+---
+
+## Documentation
+
+- [`docs/guide/quick-start.md`](docs/guide/quick-start.md) — install, first commands, pitfalls
+- [`docs/guide/architecture.md`](docs/guide/architecture.md) — system map, audio path, integration boundaries
+- [`docs/bridge-elements.md`](docs/bridge-elements.md) — operator tools, sidecar API, wiring
+- [`docs/env-vars.md`](docs/env-vars.md) — exhaustive env var reference
+- [`docs/release-readiness.md`](docs/release-readiness.md) — status legend, truth table, release blockers
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — common failures and log locations
+- [`docs/.vitepress/config.mts`](docs/.vitepress/config.mts) — VitePress docs-site nav
+
+---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
-
-## Related Projects
-
-- [Hermes Agent](https://github.com/NousResearch/hermes-agent) — The agent that grows with you
-- [OpenClaw](https://github.com/openclaw/openclaw) — Personal AI assistant (migratable)
-- [Discord Voice Plugin](https://github.com/capslockb/hermes-plugins/tree/main/discord-voice) — Original Gemini Live bridge
+MIT — see [`LICENSE`](LICENSE).

@@ -1,46 +1,49 @@
 # What is S0RA?
 
-**S0RA Agent** is a standalone CLI application that mirrors the Hermes Agent architecture but focuses on **real-time voice AI** through multiple providers (7 bridges + 6 TTS/STT):
+**S0RA Agent** is a Hermes-aligned voice companion CLI. It focuses on real-time voice AI through multiple providers, but it does **not** reimplement the live Discord audio path — that is provided by the Hermes `discord-voice` plugin. S0RA supplies the operator layer: setup, status, provider management, sidecar API, and Hermes plugin tools.
 
-- **Gemini Live** — Google's multimodal live API (Discord + VOIP)
-- **Vapi.ai** — Managed conversational AI platform (Discord + Phone)
-- **ElevenLabs** — High-quality conversational AI (Discord)
-- **OpenAI Realtime** — WebRTC-based realtime voice with function calling
-- **xAI Grok** — Real-time voice via Grok models (WSS)
-- **Ultravox** — Managed STT/LLM/TTS pipeline
-- **Retell AI** — Voice agent platform for telephony/web calls
-- **Edge TTS / OpenAI TTS / Whisper** — Local/cloud TTS & STT fallback
+## Supported providers (configuration + status)
 
-## Key Philosophy
+These providers can be configured, enabled, and queried from S0RA. Live audio requires the appropriate runtime.
 
-| Aspect | Approach |
-|--------|----------|
-| **Architecture** | Mirrors Hermes exactly (constants, config, logging, profiles, skins, plugins) |
-| **Distribution** | `pipx install git+https://...` — isolated, updatable, git-based |
-| **Voice** | Provider toggle: switch TTS/STT/LLM Voice at runtime |
-| **VOIP** | Asterisk ARI → RTP → Dograh → Gemini Live (phone calls, not Discord) |
-| **MCP** | Auto-discovers local MCP servers (stdio + HTTP 3000-3010) |
-| **Memory** | Detects Honcho, OpenClaw, Hermes memory — auto-configures passthrough |
-| **Extensibility** | Plugin system compatible with Hermes plugins |
-| **UI** | CLI + TUI (Ink/React) + Web Dashboard (React/Vite) |
+- **Gemini Live** — Google's multimodal live API (Discord + VOIP) — **PARTIAL**
+- **Vapi.ai** — Managed conversational AI platform (Discord + Phone) — **PARTIAL**
+- **ElevenLabs** — High-quality conversational AI (Discord) — **WORKING** for URL signing, **PARTIAL** for live bridge
+- **OpenAI Realtime** — WebRTC-based realtime voice — **PARTIAL**
+- **xAI Grok** — Real-time voice via Grok models — **PARTIAL**
+- **Ultravox** — Managed STT/LLM/TTS pipeline — **PARTIAL**
+- **Retell AI** — Voice agent platform — **PARTIAL**
+- **Edge TTS / OpenAI TTS / Whisper** — TTS/STT fallback providers — **WORKING** for enable/disable
 
-## Quick Comparison
+## Key philosophy
+
+| Aspect | Approach | Status |
+|---|---|---|
+| Architecture | Mirrors Hermes constants/config/logging/profiles | **WORKING** |
+| Distribution | `pipx install git+https://...` | **WORKING** |
+| Provider toggle | Enable/disable TTS/STT/LLM-voice at runtime | **WORKING** |
+| VOIP | Asterisk ARI + Dograh (needs PBX) | **PARTIAL** |
+| MCP | stdio server; HTTP/SSE/WebSocket scaffolding | **PARTIAL** |
+| Memory | Honcho / Hermes passthrough detection | **PARTIAL** |
+| Web dashboard | FastAPI dashboard, port 8080 | **WORKING** |
+| TUI | Planned Ink/React interface | **PLANNED** |
+
+## Quick comparison
 
 | Feature | Hermes | S0RA |
-|---------|--------|------|
-| Primary Interface | Text chat | **Voice-first** (Discord + VOIP) |
-| Voice Providers | Discord only | Discord + **Asterisk/SIP + Dograh** |
-| Provider Toggle | No | **Yes** (Gemini/Vapi/ElevenLabs/OpenAI/xAI/Ultravox/Retell/Edge/OpenAI/Whisper) |
-| MCP | Yes | Yes + **auto-discovery + WebSocket** |
-| Installation | `pipx install hermes-agent` | `pipx install git+...sora-agent` |
-| Updates | Git-based | **Git-based** |
-| Web Dashboard | No | **Yes** (live demo, provider toggles) |
-| TUI | No | **Yes** (Ink/React) |
-| ACP Server | No | **Yes** |
+|---|---|---|
+| Primary interface | Text chat | **CLI + sidecar API** |
+| Discord voice runtime | `discord-voice` plugin | Same `discord-voice` plugin (S0RA configures it) |
+| Provider toggle | No | **Yes — WORKING** |
+| MCP | Yes | stdio **WORKING**, WebSocket/HTTP **PARTIAL** |
+| Web dashboard | No | **Yes — WORKING** |
+| TUI | No | **PLANNED** |
+| ACP server | No | **RESEARCH** |
 
-## Who Is It For?
+## Who is it for?
 
-- **Self-hosters** with Asterisk + Dograh wanting phone-call AI
-- **Discord bot developers** needing multi-provider voice bridges
-- **Hermes users** wanting a voice-focused companion agent
-- **Anyone** wanting a `hermes`-like CLI for voice AI that works standalone
+- Hermes users who want a dedicated CLI for voice/provider configuration.
+- Self-hosters with an Asterisk + Dograh PBX who want phone-call AI.
+- Anyone building a companion agent layer that shares Hermes conventions.
+
+Read the full status table in [`release-readiness.md`](../release-readiness.md).

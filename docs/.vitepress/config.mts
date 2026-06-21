@@ -17,7 +17,8 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/', activeMatch: '^/guide/' },
       { text: 'Reference', link: '/reference/cli', activeMatch: '^/reference/' },
-      { text: 'VOIP', link: '/voip/setup', activeMatch: '^/voip/' },
+      { text: 'VOIP', link: '/voip/', activeMatch: '^/voip/' },
+      { text: 'Release', link: '/release-readiness', activeMatch: '^/(release-readiness|bridge-elements|env-vars|troubleshooting)/' },
       { text: 'GitHub', link: 'https://github.com/Capslockb/sora-agent' },
     ],
 
@@ -30,6 +31,8 @@ export default defineConfig({
             { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Configuration', link: '/guide/configuration' },
+            { text: 'Bridge Elements', link: '/bridge-elements' },
+            { text: 'Release Readiness', link: '/release-readiness' },
           ],
         },
         {
@@ -91,11 +94,23 @@ export default defineConfig({
           ],
         },
       ],
+      '/release-readiness/': [
+        {
+          text: 'Release',
+          items: [
+            { text: 'Release Readiness', link: '/release-readiness' },
+            { text: 'Bridge Elements', link: '/bridge-elements' },
+            { text: 'Environment Variables', link: '/env-vars' },
+            { text: 'Troubleshooting', link: '/troubleshooting' },
+          ],
+        },
+      ],
       '/voip/': [
         {
           text: 'VOIP Integration',
           items: [
             { text: 'Overview', link: '/voip/' },
+            { text: 'Setup', link: '/voip/setup' },
             { text: 'Asterisk Setup', link: '/voip/asterisk' },
             { text: 'Dograh/Gemini Live', link: '/voip/dograh' },
             { text: 'SIP Configuration', link: '/voip/sip' },

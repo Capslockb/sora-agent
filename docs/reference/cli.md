@@ -1,6 +1,6 @@
-# CLI Reference
+# Commands Overview
 
-## Global Options
+## Global options
 
 ```bash
 sora [OPTIONS] <COMMAND> [ARGS]
@@ -8,75 +8,74 @@ sora [OPTIONS] <COMMAND> [ARGS]
 Options:
   -V, --version          Show version
   --profile NAME         Use named profile
-  --tui                  Launch TUI
+  --tui                  Launch TUI (PLANNED: currently falls back to REPL)
   --cli                  Force CLI mode
   --quiet                Suppress non-error output
   --skin NAME            Override skin (sora, sora-dark, minimal, hermes)
   -h, --help             Show help
 ```
 
-## Commands Overview
+## Commands overview
 
-| Command | Description |
-|---------|-------------|
-| `chat` | Interactive chat (default) |
-| `setup` | Interactive configuration wizard |
-| `voice` | Voice bridge management |
-| `mcp` | MCP server management |
-| `status` | System status |
-| `cron` | Cron job management |
-| `doctor` | Health check |
-| `logs` | View logs |
-| `config` | Configuration management |
-| `plugins` | Plugin management |
-| `skills` | Skill management |
-| `version` | Show version |
-| `update` | Update to latest |
-| `uninstall` | Uninstall S0RA |
-| `acp` | Run as ACP server |
-| `tui` | Launch Terminal UI |
-| `dashboard` | Web dashboard |
-| `providers` | Provider management |
-| `benchmark` | Performance benchmark |
-```
+| Command | Description | Status |
+|---|---|---|
+| `chat` | Interactive chat (REPL) | **WORKING** |
+| `setup` | Interactive configuration wizard | **WORKING** |
+| `voice` | Voice bridge management | **PARTIAL** |
+| `mcp` | MCP server management | **PARTIAL** |
+| `status` | System status | **WORKING** |
+| `cron` | Cron job management | **PLANNED** |
+| `doctor` | Health check | **WORKING** (auto-fix **PLANNED**) |
+| `logs` | View logs | **PLANNED** |
+| `config` | Configuration management | **WORKING** |
+| `plugins` | Plugin management | **WORKING** |
+| `skills` | Skill management | **PLANNED** |
+| `version` | Show version | **WORKING** |
+| `update` | Update to latest | **WORKING** |
+| `uninstall` | Uninstall S0RA | **WORKING** |
+| `acp` | Run as ACP server | **RESEARCH** |
+| `tui` | Launch Terminal UI | **PLANNED** |
+| `dashboard` | Web dashboard | **WORKING** |
+| `providers` | Provider management | **WORKING** |
+| `benchmark` | Performance benchmark | **WORKING** |
 
-### Voice Subcommands
+### Voice subcommands
 
 ```bash
 sora voice <SUBCOMMAND>
 
 Discord Bridges:
-  live          Start Gemini Live bridge
-  vapi          Start Vapi bridge
-  elevenlabs    Start ElevenLabs bridge
-  status        Show voice bridge status
-  leave         Stop voice bridge
+  live          Prepare/start Gemini Live bridge (PARTIAL: runtime in Hermes discord-voice)
+  vapi          Prepare/start Vapi bridge (PARTIAL)
+  elevenlabs    Prepare/start ElevenLabs bridge (PARTIAL)
+  status        Show voice bridge status (WORKING)
+  leave         Stop voice bridge (PARTIAL)
 
 VOIP (Asterisk + Dograh):
-  sip           Manage SIP registration
-  ari           Manage ARI connection
-  call          Place outbound call
-  hangup        Hang up active call(s)
-  voip-status   Show VOIP bridge status
-  voip-config   Manage VOIP configuration
+  sip           Manage SIP registration (PARTIAL)
+  ari           Manage ARI connection (PARTIAL)
+  call          Place outbound call (PARTIAL)
+  hangup        Hang up active call(s) (PARTIAL)
+  voip-status   Show VOIP bridge status (PARTIAL)
+  voip-config   Manage VOIP configuration (PARTIAL)
 
 Providers:
-  providers     Manage TTS/STT/LLM Voice providers
+  providers     Manage TTS/STT/LLM Voice providers (WORKING)
 ```
 
-### MCP Subcommands
+### MCP subcommands
 
 ```bash
 sora mcp <SUBCOMMAND>
-  start         Start MCP server
-  status        Show MCP status
-  stop          Stop MCP server
-  list          List configured servers
-  catalog       Browse available servers
-  discover      Auto-discover running servers
+  start         Start MCP server (PARTIAL: stdio works, HTTP/SSE scaffolded)
+  status        Show MCP status (WORKING)
+  stop          Stop MCP server (PARTIAL)
+  list          List configured servers (WORKING)
+  catalog       Browse available servers (WORKING)
+  discover      Auto-discover running servers (PARTIAL)
 ```
 
-### Config Subcommands
+### Config subcommands
 
 ```bash
 sora config <SUBCOMMAND>
@@ -88,7 +87,7 @@ sora config <SUBCOMMAND>
   reset         Reset to defaults
 ```
 
-### Plugin Subcommands
+### Plugin subcommands
 
 ```bash
 sora plugins <SUBCOMMAND>
@@ -99,3 +98,11 @@ sora plugins <SUBCOMMAND>
   remove NAME   Remove plugin
   update        Update all plugins
 ```
+
+For full per-command docs see:
+- [`sora`](cli/sora.md)
+- [`sora setup`](cli/setup.md)
+- [`sora doctor`](cli/doctor.md)
+- [`sora tui`](cli/tui.md)
+- [`sora voice`](cli/voice.md)
+- [`sora mcp`](cli/mcp.md)
