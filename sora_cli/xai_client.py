@@ -19,6 +19,7 @@ from sora_logging import get_logger
 logger = get_logger(__name__)
 
 XAI_REALTIME_WS = "wss://api.x.ai/v1/realtime"
+RECONNECT_BACKOFF = (1, 2, 4, 8, 16)
 
 
 @dataclass
@@ -51,11 +52,13 @@ class XAIClient:
         on_audio: Optional[Callable[[bytes, dict[str, Any]], Awaitable[None]]] = None,
         on_transcript: Optional[Callable[[str, dict[str, Any]], Awaitable[None]]] = None,
         on_error: Optional[Callable[[str], Awaitable[None]]] = None,
+        connection_timeout: float = 30,
     ) -> None:
         self.config = config
         self.on_audio = on_audio
         self.on_transcript = on_transcript
         self.on_error = on_error
+        self.connection_timeout = connection_timeout
         self.ws: Any = None
         self._receive_task: Optional[asyncio.Task] = None
         self._connected = False
@@ -72,29 +75,67 @@ class XAIClient:
         # Build query params with model
         url = f"{XAI_REALTIME_WS}?model={self.config.model}"
 
-        self.ws = await websockets.connect(
-            url,
-            additional_headers=headers,
-            ping_interval=20,
-            ping_timeout=20,
-        )
+        try:
+            self.ws = await websockets.connect(
+                url,
+                additional_headers=headers,
+                open_timeout=self.connection_timeout,
+                ping_interval=20,
+                ping_timeout=20,
+            )
 
-        # Send session update to configure voice
-        session_config = {
-            "type": "session.update",
-            "session": {
-                "modalities": self.config.modalities,
-                "instructions": self.config.instructions,
-                "voice": self.config.voice,
-                "temperature": self.config.temperature,
-                "input_audio_format": "pcm16",
-                "output_audio_format": "pcm16",
-            },
-        }
-        await self.ws.send(json.dumps(session_config))
-        self._connected = True
-        self._receive_task = asyncio.create_task(self._receive_loop())
-        logger.info("xAI Grok session connected (model=%s)", self.config.model)
+            # Send session update to configure voice
+            session_config = {
+                "type": "session.update",
+                "session": {
+                    "modalities": self.config.modalities,
+                    "instructions": self.config.instructions,
+                    "voice": self.config.voice,
+                    "temperature": self.config.temperature,
+                    "input_audio_format": "pcm16",
+                    "output_audio_format": "pcm16",
+                },
+            }
+            await self.ws.send(json.dumps(session_config))
+            self._connected = True
+            self._receive_task = asyncio.create_task(self._receive_loop())
+            logger.info("xAI Grok session connected (model=%s)", self.config.model)
+        except Exception as exc:
+            self._connected = False
+            if self.ws:
+                await self.ws.close()
+            self.ws = None
+            logger.error("xAI WebSocket connection failed: %s", exc)
+            raise
+
+    async def reconnect(self) -> bool:
+        """Reconnect with bounded exponential backoff."""
+        await self.disconnect()
+        for attempt, delay in enumerate(RECONNECT_BACKOFF, start=1):
+            await asyncio.sleep(delay)
+            try:
+                await self.connect()
+                return True
+            except Exception as exc:
+                logger.error(
+                    "xAI reconnect attempt %d/%d failed: %s",
+                    attempt,
+                    len(RECONNECT_BACKOFF),
+                    exc,
+                )
+        return False
+
+    async def health_check(self) -> bool:
+        """Ping the active WebSocket and return whether it responds."""
+        if not self.is_connected:
+            return False
+        try:
+            pong_waiter = await self.ws.ping()
+            await asyncio.wait_for(pong_waiter, timeout=self.connection_timeout)
+            return True
+        except Exception as exc:
+            logger.error("xAI WebSocket health check failed: %s", exc)
+            return False
 
     async def disconnect(self) -> None:
         """Close the WebSocket connection."""

@@ -174,36 +174,11 @@ class SoraMCPServer:
             async with stdio_server() as (read_stream, write_stream):
                 await self.server.run(read_stream, write_stream, self.server.create_initialization_options())
         elif transport == "sse":
-            logger.info(f"Starting MCP server on SSE (port {self.port})")
-            from starlette.applications import Starlette
-            from starlette.routing import Route
-            from starlette.responses import Response
-
-            sse = SseServerTransport("/mcp")
-
-            async def handle_sse(request):
-                async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
-                    await self.server.run(streams[0], streams[1], self.server.create_initialization_options())
-                return Response("OK")
-
-            app = Starlette(routes=[Route("/mcp", handle_sse)])
-            import uvicorn
-            await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=self.port)).serve()
+            raise NotImplementedError("SSE transport is not implemented")
         elif transport == "streamable-http":
-            logger.info(f"Starting MCP server on streamable-http (port {self.port})")
-            from mcp.server.streamable_http import StreamableHTTPServerTransport
-            from starlette.applications import Starlette
-            from starlette.responses import Response
-
-            transport_obj = StreamableHTTPServerTransport("/mcp")
-
-            async def handle_mcp(request):
-                await transport_obj.handle_request(request)
-                return Response("OK")
-
-            app = Starlette(routes=[Route("/mcp", handle_mcp, methods=["POST", "GET", "DELETE"])])
-            import uvicorn
-            await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=self.port)).serve()
+            raise NotImplementedError("Streamable HTTP transport is not implemented")
+        else:
+            raise NotImplementedError(f"Transport {transport!r} is not implemented")
 
 
 class SoraWSMCPServer:

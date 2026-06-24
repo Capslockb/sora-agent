@@ -19,6 +19,7 @@ from sora_logging import get_logger
 logger = get_logger(__name__)
 
 ULTRAVOX_API = "https://api.ultravox.ai/api"
+RECONNECT_BACKOFF = (1, 2, 4, 8, 16)
 
 
 @dataclass
@@ -80,11 +81,13 @@ class UltravoxClient:
         on_audio: Optional[Callable[[bytes, dict[str, Any]], Awaitable[None]]] = None,
         on_transcript: Optional[Callable[[str, dict[str, Any]], Awaitable[None]]] = None,
         on_error: Optional[Callable[[str], Awaitable[None]]] = None,
+        connection_timeout: float = 30,
     ) -> None:
         self.config = config
         self.on_audio = on_audio
         self.on_transcript = on_transcript
         self.on_error = on_error
+        self.connection_timeout = connection_timeout
         self.ws: Any = None
         self._receive_task: Optional[asyncio.Task] = None
         self._connected = False
@@ -97,14 +100,50 @@ class UltravoxClient:
         """Create Ultravox call and open WebSocket for audio streaming."""
         join_url = await create_ultravox_call(self.config)
 
-        self.ws = await websockets.connect(
-            join_url,
-            ping_interval=20,
-            ping_timeout=20,
-        )
-        self._connected = True
-        self._receive_task = asyncio.create_task(self._receive_loop())
-        logger.info("Ultravox session connected (model=%s)", self.config.model)
+        try:
+            self.ws = await websockets.connect(
+                join_url,
+                open_timeout=self.connection_timeout,
+                ping_interval=20,
+                ping_timeout=20,
+            )
+            self._connected = True
+            self._receive_task = asyncio.create_task(self._receive_loop())
+            logger.info("Ultravox session connected (model=%s)", self.config.model)
+        except Exception as exc:
+            self._connected = False
+            self.ws = None
+            logger.error("Ultravox WebSocket connection failed: %s", exc)
+            raise
+
+    async def reconnect(self) -> bool:
+        """Reconnect with bounded exponential backoff."""
+        await self.disconnect()
+        for attempt, delay in enumerate(RECONNECT_BACKOFF, start=1):
+            await asyncio.sleep(delay)
+            try:
+                await self.connect()
+                return True
+            except Exception as exc:
+                logger.error(
+                    "Ultravox reconnect attempt %d/%d failed: %s",
+                    attempt,
+                    len(RECONNECT_BACKOFF),
+                    exc,
+                )
+        return False
+
+    async def health_check(self) -> bool:
+        """Ping the active WebSocket and return whether it responds."""
+        if not self.is_connected:
+            return False
+        try:
+            pong_waiter = await self.ws.ping()
+            await asyncio.wait_for(pong_waiter, timeout=self.connection_timeout)
+            return True
+        except Exception as exc:
+            logger.error("Ultravox WebSocket health check failed: %s", exc)
+            return False
 
     async def disconnect(self) -> None:
         """Close the WebSocket connection."""

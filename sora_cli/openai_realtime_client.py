@@ -18,6 +18,7 @@ from sora_logging import get_logger
 logger = get_logger(__name__)
 
 OPENAI_REALTIME_SESSIONS = "https://api.openai.com/v1/realtime/sessions"
+RECONNECT_BACKOFF = (1, 2, 4, 8, 16)
 
 
 @dataclass
@@ -87,11 +88,13 @@ class OpenAIRealtimeClient:
         on_audio: Optional[Callable[[bytes, dict[str, Any]], Awaitable[None]]] = None,
         on_transcript: Optional[Callable[[str, dict[str, Any]], Awaitable[None]]] = None,
         on_error: Optional[Callable[[str], Awaitable[None]]] = None,
+        connection_timeout: float = 30,
     ) -> None:
         self.config = config
         self.on_audio = on_audio
         self.on_transcript = on_transcript
         self.on_error = on_error
+        self.connection_timeout = connection_timeout
         self.session_data: Optional[dict[str, Any]] = None
         self._connected = False
 
@@ -106,9 +109,39 @@ class OpenAIRealtimeClient:
         For headless/server usage, token minting alone is sufficient —
         the token can be passed to a browser-side WebRTC client.
         """
-        self.session_data = await create_ephemeral_token(self.config)
-        self._connected = True
-        logger.info("OpenAI Realtime session ready (token minted)")
+        try:
+            self.session_data = await asyncio.wait_for(
+                create_ephemeral_token(self.config),
+                timeout=self.connection_timeout,
+            )
+            self._connected = True
+            logger.info("OpenAI Realtime session ready (token minted)")
+        except Exception as exc:
+            self._connected = False
+            self.session_data = None
+            logger.error("OpenAI Realtime connection failed: %s", exc)
+            raise
+
+    async def reconnect(self) -> bool:
+        """Reconnect with bounded exponential backoff."""
+        await self.disconnect()
+        for attempt, delay in enumerate(RECONNECT_BACKOFF, start=1):
+            await asyncio.sleep(delay)
+            try:
+                await self.connect()
+                return True
+            except Exception as exc:
+                logger.error(
+                    "OpenAI Realtime reconnect attempt %d/%d failed: %s",
+                    attempt,
+                    len(RECONNECT_BACKOFF),
+                    exc,
+                )
+        return False
+
+    async def health_check(self) -> bool:
+        """Return whether the current session has a usable ephemeral key."""
+        return self._connected and bool(self.ephemeral_key())
 
     async def disconnect(self) -> None:
         """Mark session as disconnected."""

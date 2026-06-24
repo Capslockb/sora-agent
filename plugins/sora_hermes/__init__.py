@@ -155,143 +155,93 @@ def register(ctx):
 
 
 # Tool handlers (these call out to the sora CLI or direct implementation)
-async def _sora_voice_live_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> str:
-    import json
+def _run_cli(cmd: list[str]) -> str:
     import subprocess
-    import sys
 
-    guild_id = args.get("guild_id") if args else None
-    channel_id = args.get("channel_id") if args else None
-    user_id = args.get("user_id") if args else None
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"Command failed with exit code {result.returncode}")
+    return result.stdout.strip()
 
-    cmd = [sys.executable, "-m", "sora_cli.main", "voice", "live"]
-    if guild_id:
-        cmd.extend(["--guild", guild_id])
-    if channel_id:
-        cmd.extend(["--channel", channel_id])
-    if user_id:
-        cmd.extend(["--user", user_id])
 
+async def _sora_voice_live_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            return json.dumps({"status": "error", "message": result.stderr.strip()})
-    except subprocess.TimeoutExpired:
-        return json.dumps({"status": "error", "message": "Command timed out"})
+        import sys
+
+        cmd = [sys.executable, "-m", "sora_cli.main", "voice", "live"]
+        for flag, key in (("--guild", "guild_id"), ("--channel", "channel_id"), ("--user", "user_id")):
+            value = args.get(key) if args else None
+            if value:
+                cmd.extend([flag, value])
+        return _run_cli(cmd)
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"error": str(e)}
 
 
-async def _sora_voice_vapi_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> str:
-    import json
-    import subprocess
-    import sys
-
-    guild_id = args.get("guild_id") if args else None
-    channel_id = args.get("channel_id") if args else None
-    user_id = args.get("user_id") if args else None
-
-    cmd = [sys.executable, "-m", "sora_cli.main", "voice", "vapi"]
-    if guild_id:
-        cmd.extend(["--guild", guild_id])
-    if channel_id:
-        cmd.extend(["--channel", channel_id])
-    if user_id:
-        cmd.extend(["--user", user_id])
-
+async def _sora_voice_vapi_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            return json.dumps({"status": "error", "message": result.stderr.strip()})
-    except subprocess.TimeoutExpired:
-        return json.dumps({"status": "error", "message": "Command timed out"})
+        import sys
+
+        cmd = [sys.executable, "-m", "sora_cli.main", "voice", "vapi"]
+        for flag, key in (("--guild", "guild_id"), ("--channel", "channel_id"), ("--user", "user_id")):
+            value = args.get(key) if args else None
+            if value:
+                cmd.extend([flag, value])
+        return _run_cli(cmd)
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"error": str(e)}
 
 
-async def _sora_voice_leave_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> str:
-    import json
-    import subprocess
-    import sys
-
-    guild_id = args.get("guild_id") if args else None
-
-    if not guild_id:
-        return json.dumps({"status": "error", "message": "guild_id is required"})
-
-    cmd = [sys.executable, "-m", "sora_cli.main", "voice", "leave", "--guild", guild_id]
-
+async def _sora_voice_leave_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            return json.dumps({"status": "error", "message": result.stderr.strip()})
-    except subprocess.TimeoutExpired:
-        return json.dumps({"status": "error", "message": "Command timed out"})
+        import sys
+
+        guild_id = args.get("guild_id") if args else None
+        if not guild_id:
+            raise ValueError("guild_id is required")
+        return _run_cli(
+            [sys.executable, "-m", "sora_cli.main", "voice", "leave", "--guild", guild_id]
+        )
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"error": str(e)}
 
 
-async def _sora_voice_status_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> str:
-    import json
-    import subprocess
-    import sys
-
-    cmd = [sys.executable, "-m", "sora_cli.main", "voice", "status"]
-
+async def _sora_voice_status_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            return json.dumps({"status": "error", "message": result.stderr.strip()})
-    except subprocess.TimeoutExpired:
-        return json.dumps({"status": "error", "message": "Command timed out"})
+        import sys
+
+        return _run_cli([sys.executable, "-m", "sora_cli.main", "voice", "status"])
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"error": str(e)}
 
 
-async def _sora_mcp_start_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> str:
-    import json
-    import subprocess
-    import sys
-
-    port = args.get("port", 3000) if args else 3000
-    transport = args.get("transport", "stdio") if args else "stdio"
-
-    cmd = [sys.executable, "-m", "sora_cli.main", "mcp", "start", "--port", str(port), "--transport", transport]
-
+async def _sora_mcp_start_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            return json.dumps({"status": "error", "message": result.stderr.strip()})
-    except subprocess.TimeoutExpired:
-        return json.dumps({"status": "error", "message": "Command timed out"})
+        import sys
+
+        port = args.get("port", 3000) if args else 3000
+        transport = args.get("transport", "stdio") if args else "stdio"
+        return _run_cli(
+            [
+                sys.executable,
+                "-m",
+                "sora_cli.main",
+                "mcp",
+                "start",
+                "--port",
+                str(port),
+                "--transport",
+                transport,
+            ]
+        )
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"error": str(e)}
 
 
-async def _sora_mcp_status_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> str:
-    import json
-    import subprocess
-    import sys
-
-    cmd = [sys.executable, "-m", "sora_cli.main", "mcp", "status"]
-
+async def _sora_mcp_status_handler(args: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            return json.dumps({"status": "error", "message": result.stderr.strip()})
-    except subprocess.TimeoutExpired:
-        return json.dumps({"status": "error", "message": "Command timed out"})
+        import sys
+
+        return _run_cli([sys.executable, "-m", "sora_cli.main", "mcp", "status"])
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"error": str(e)}

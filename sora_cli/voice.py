@@ -228,19 +228,44 @@ async def start_gemini_live(
     if not discord_token:
         return {"status": "error", "message": "DISCORD_BOT_TOKEN not set"}
 
-    # Import and start the bridge
     try:
-        # This would use the discord-voice plugin's bridge logic
-        # For now, return a placeholder indicating the bridge would start
+        import discord
+        import discord.voice_client
+        import google.generativeai
+        import nacl
+
+        enabled_plugins = config.get("plugins", {}).get("enabled", [])
+        if "discord-voice" not in enabled_plugins:
+            return {
+                "status": "error",
+                "message": "Hermes discord-voice plugin is not enabled",
+            }
+        if not getattr(discord, "__version__", None):
+            return {"status": "error", "message": "discord.py voice runtime is unavailable"}
+        if not getattr(nacl, "__version__", None):
+            return {"status": "error", "message": "PyNaCl voice dependency is unavailable"}
+
         return {
             "status": "success",
-            "message": f"Gemini Live bridge starting for guild {guild_id}, channel {channel_id}",
+            "message": f"Gemini Live prerequisites verified for guild {guild_id}, channel {channel_id}",
             "bridge_type": "gemini_live",
             "guild_id": guild_id,
             "channel_id": channel_id,
+            "user_id": user_id,
+            "runtime": "hermes-discord-voice",
+            "checks": {
+                "gemini_api_key": True,
+                "discord_bot_token": True,
+                "discord_voice_plugin": True,
+                "discord_py_voice": True,
+                "pynacl": True,
+                "google_generativeai": True,
+            },
         }
+    except ImportError as e:
+        return {"status": "error", "message": f"Gemini Live dependency missing: {e}"}
     except Exception as e:
-        return {"status": "error", "message": f"Failed to start Gemini Live bridge: {e}"}
+        return {"status": "error", "message": f"Gemini Live prerequisite check failed: {e}"}
 
 
 async def start_vapi(

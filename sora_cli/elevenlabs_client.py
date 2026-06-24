@@ -10,9 +10,13 @@ from typing import Any, Awaitable, Callable, Optional
 import aiohttp
 import websockets
 
+from sora_logging import get_logger
 
 ELEVENLABS_CONVAI_WS = "wss://api.elevenlabs.io/v1/convai/conversation"
 ELEVENLABS_SIGNED_URL = "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url"
+RECONNECT_BACKOFF = (1, 2, 4, 8, 16)
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -60,11 +64,13 @@ class ElevenLabsConversationClient:
         on_audio: Optional[Callable[[bytes, dict[str, Any]], Awaitable[None]]] = None,
         on_transcript: Optional[Callable[[str, dict[str, Any]], Awaitable[None]]] = None,
         on_agent_response: Optional[Callable[[str, dict[str, Any]], Awaitable[None]]] = None,
+        connection_timeout: float = 30,
     ) -> None:
         self.config = config
         self.on_audio = on_audio
         self.on_transcript = on_transcript
         self.on_agent_response = on_agent_response
+        self.connection_timeout = connection_timeout
         self.websocket: Any = None
         self._receive_task: Optional[asyncio.Task] = None
 
@@ -77,9 +83,50 @@ class ElevenLabsConversationClient:
 
     async def connect(self) -> None:
         url = await self.resolve_url()
-        self.websocket = await websockets.connect(url, ping_interval=20, ping_timeout=20)
-        await self.websocket.send(json.dumps({"type": "conversation_initiation_client_data"}))
-        self._receive_task = asyncio.create_task(self._receive_loop())
+        try:
+            self.websocket = await websockets.connect(
+                url,
+                open_timeout=self.connection_timeout,
+                ping_interval=20,
+                ping_timeout=20,
+            )
+            await self.websocket.send(json.dumps({"type": "conversation_initiation_client_data"}))
+            self._receive_task = asyncio.create_task(self._receive_loop())
+        except Exception as exc:
+            logger.error("ElevenLabs WebSocket connection failed: %s", exc)
+            if self.websocket:
+                await self.websocket.close()
+            self.websocket = None
+            raise
+
+    async def reconnect(self) -> bool:
+        """Reconnect with bounded exponential backoff."""
+        await self.close()
+        for attempt, delay in enumerate(RECONNECT_BACKOFF, start=1):
+            await asyncio.sleep(delay)
+            try:
+                await self.connect()
+                return True
+            except Exception as exc:
+                logger.error(
+                    "ElevenLabs reconnect attempt %d/%d failed: %s",
+                    attempt,
+                    len(RECONNECT_BACKOFF),
+                    exc,
+                )
+        return False
+
+    async def health_check(self) -> bool:
+        """Ping the active WebSocket and return whether it responds."""
+        if not self.websocket:
+            return False
+        try:
+            pong_waiter = await self.websocket.ping()
+            await asyncio.wait_for(pong_waiter, timeout=self.connection_timeout)
+            return True
+        except Exception as exc:
+            logger.error("ElevenLabs WebSocket health check failed: %s", exc)
+            return False
 
     async def close(self) -> None:
         task = self._receive_task
@@ -103,10 +150,15 @@ class ElevenLabsConversationClient:
         await self.websocket.send(json.dumps({"type": "contextual_update", "text": text}))
 
     async def _receive_loop(self) -> None:
-        assert self.websocket is not None
-        async for raw in self.websocket:
-            event = json.loads(raw) if isinstance(raw, str) else json.loads(raw.decode("utf-8"))
-            await self.handle_event(event)
+        try:
+            assert self.websocket is not None
+            async for raw in self.websocket:
+                event = json.loads(raw) if isinstance(raw, str) else json.loads(raw.decode("utf-8"))
+                await self.handle_event(event)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("ElevenLabs WebSocket receive error: %s", exc)
 
     async def handle_event(self, event: dict[str, Any]) -> None:
         """Handle one server event, including ping/pong and decoded audio."""

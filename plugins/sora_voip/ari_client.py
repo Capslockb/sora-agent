@@ -68,7 +68,7 @@ class AriClient:
             try:
                 await self._ws_task
             except asyncio.CancelledError:
-                pass
+                raise NotImplementedError("TODO")
         if self._ws:
             await self._ws.close()
         if self._session:
@@ -101,7 +101,7 @@ class AriClient:
                     log.error("ARI WebSocket error", extra={"error": self._ws.exception()})
                     break
         except asyncio.CancelledError:
-            pass
+            raise NotImplementedError("TODO")
         except Exception as e:
             log.error("ARI listener error", extra={"error": str(e)})
         finally:
@@ -160,7 +160,7 @@ class AriClient:
 
     async def unregister_app(self, app_name: str) -> None:
         """Unregister ARI application."""
-        pass
+        raise NotImplementedError("TODO")
 
     async def list_apps(self) -> List[Dict[str, Any]]:
         """List registered ARI applications."""

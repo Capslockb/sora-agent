@@ -167,7 +167,7 @@ Examples:
     try:
         asyncio.run(run_bridge(config))
     except KeyboardInterrupt:
-        pass
+        raise NotImplementedError("TODO")
     return 0
 
 

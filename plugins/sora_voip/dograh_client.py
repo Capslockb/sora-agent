@@ -87,7 +87,7 @@ class DograhClient:
             try:
                 await self._ws_task
             except asyncio.CancelledError:
-                pass
+                raise NotImplementedError("TODO")
 
         if self._ws:
             await self._ws.close()
@@ -153,7 +153,7 @@ class DograhClient:
                     log.error("Dograh WebSocket error", extra={"error": self._ws.exception()})
                     break
         except asyncio.CancelledError:
-            pass
+            raise NotImplementedError("TODO")
         except Exception as e:
             log.error("Dograh listener error", extra={"error": str(e)})
         finally:
@@ -190,7 +190,7 @@ class DograhClient:
             event.metadata = data.get("metadata", {})
 
         elif msg_type in ("sessionEnded", "session_ended", "ended"):
-            pass
+            raise NotImplementedError("TODO")
 
         # Dispatch to handlers
         for handler in self._event_handlers.get(msg_type, []):

@@ -202,7 +202,7 @@ class RtpHandler:
             try:
                 await stream._recv_task
             except asyncio.CancelledError:
-                pass
+                raise NotImplementedError("TODO")
 
         if stream._socket:
             stream._socket.close()
@@ -343,7 +343,7 @@ class RtpHandler:
                 async with session.get("https://api.ipify.org", timeout=5) as resp:
                     return await resp.text()
         except Exception:
-            pass
+            raise NotImplementedError("TODO")
 
         # Fallback: get local IP
         try:

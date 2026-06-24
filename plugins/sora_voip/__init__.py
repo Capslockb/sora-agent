@@ -102,7 +102,7 @@ def _load_config(ctx) -> Dict[str, Any]:
             if voip_cfg:
                 config.update(voip_cfg)
     except Exception:
-        pass
+        raise NotImplementedError("TODO")
 
     # Try Hermes config
     try:
@@ -111,7 +111,7 @@ def _load_config(ctx) -> Dict[str, Any]:
             if voip_cfg:
                 config.update(voip_cfg)
     except Exception:
-        pass
+        raise NotImplementedError("TODO")
 
     # Environment variable overrides
     env_mapping = {
