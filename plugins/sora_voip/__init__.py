@@ -95,23 +95,23 @@ def _load_config(ctx) -> Dict[str, Any]:
     """Load config from Sora/Hermes config system."""
     config = {}
 
-    # Try Sora config first
+    # Try Sora config first (optional source: failure must not abort loading)
     try:
         if hasattr(ctx, "config") and ctx.config:
             voip_cfg = ctx.config.get("voip", {})
             if voip_cfg:
                 config.update(voip_cfg)
-    except Exception:
-        raise NotImplementedError("TODO")
+    except Exception as e:
+        log.warning("Failed to read Sora voip config, trying next source", extra={"error": str(e)})
 
-    # Try Hermes config
+    # Try Hermes config (optional source: failure must not abort loading)
     try:
         if hasattr(ctx, "hermes_config") and ctx.hermes_config:
             voip_cfg = ctx.hermes_config.get("plugins", {}).get("sora-voip", {})
             if voip_cfg:
                 config.update(voip_cfg)
-    except Exception:
-        raise NotImplementedError("TODO")
+    except Exception as e:
+        log.warning("Failed to read Hermes voip config, falling back to env/defaults", extra={"error": str(e)})
 
     # Environment variable overrides
     env_mapping = {
