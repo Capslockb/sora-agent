@@ -202,7 +202,9 @@ class RtpHandler:
             try:
                 await stream._recv_task
             except asyncio.CancelledError:
-                raise NotImplementedError("TODO")
+                # Expected: we cancelled the receive task ourselves. This is
+                # the shutdown boundary, so swallow it and finish cleanup.
+                pass
 
         if stream._socket:
             stream._socket.close()
@@ -342,8 +344,10 @@ class RtpHandler:
             async with aiohttp.ClientSession() as session:
                 async with session.get("https://api.ipify.org", timeout=5) as resp:
                     return await resp.text()
-        except Exception:
-            raise NotImplementedError("TODO")
+        except Exception as e:
+            # Public-IP lookup failed (offline, blocked, DNS). Not fatal:
+            # fall through to local-IP and loopback fallbacks below.
+            log.warning("Public IP lookup failed, falling back to local IP", extra={"error": str(e)})
 
         # Fallback: get local IP
         try:

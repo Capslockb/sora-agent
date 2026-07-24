@@ -87,7 +87,9 @@ class DograhClient:
             try:
                 await self._ws_task
             except asyncio.CancelledError:
-                raise NotImplementedError("TODO")
+                # Expected: we cancelled the listener ourselves. This is the
+                # shutdown boundary, so swallow it and continue cleanup.
+                pass
 
         if self._ws:
             await self._ws.close()
@@ -153,7 +155,8 @@ class DograhClient:
                     log.error("Dograh WebSocket error", extra={"error": self._ws.exception()})
                     break
         except asyncio.CancelledError:
-            raise NotImplementedError("TODO")
+            # Propagate cancellation; the owner (disconnect) handles it.
+            raise
         except Exception as e:
             log.error("Dograh listener error", extra={"error": str(e)})
         finally:
@@ -190,7 +193,10 @@ class DograhClient:
             event.metadata = data.get("metadata", {})
 
         elif msg_type in ("sessionEnded", "session_ended", "ended"):
-            raise NotImplementedError("TODO")
+            # Normal session end: mark it and drop from active sessions, then
+            # let the event dispatch to registered handlers below.
+            if session_id and session_id in self._sessions:
+                self._sessions.pop(session_id, None)
 
         # Dispatch to handlers
         for handler in self._event_handlers.get(msg_type, []):

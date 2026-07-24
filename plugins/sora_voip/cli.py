@@ -167,7 +167,8 @@ Examples:
     try:
         asyncio.run(run_bridge(config))
     except KeyboardInterrupt:
-        raise NotImplementedError("TODO")
+        # Ctrl+C at the outer boundary: exit cleanly, not with an error.
+        print("\nShutting down...")
     return 0
 
 
