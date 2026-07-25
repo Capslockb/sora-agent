@@ -25,10 +25,10 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 | VOIP | Intended Asterisk ARI + Dograh path | **PARTIAL — BLOCKED**: both startup entrypoints fail during local bridge construction before PBX connection; see Issue #14 |
 | MCP | stdio server; HTTP/SSE/WebSocket scaffolding | **PARTIAL** |
 | Memory | Honcho / Hermes passthrough detection | **PARTIAL** |
-| Web dashboard | FastAPI dashboard and control API, port 8080 | **PARTIAL** — routes run, but authentication, secret redaction, constrained CORS, and a safe bind default are unresolved |
+| Web dashboard | FastAPI dashboard and control API, port 8080 | **PARTIAL** — routes run, but authentication, secret redaction, constrained CORS, and safe defaults for both listeners are unresolved |
 | TUI | Planned Ink/React interface | **PLANNED** |
 
-> The dashboard currently defaults to all interfaces and exposes sensitive unauthenticated routes. Keep it bound to `127.0.0.1` and do not publish it to a LAN, tunnel, container host interface, or the internet; see [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
+> The dashboard control API defaults to all interfaces, while `--host` does not constrain the separately launched UI preview. Treat the whole dashboard as a trusted-local-development surface: do not run it on a shared or network-reachable host, and do not publish either listener through a LAN, tunnel, container port, reverse proxy, or the internet. See [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
 ## Quick comparison
 
@@ -38,7 +38,7 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 | Discord voice runtime | `discord-voice` plugin | Same `discord-voice` plugin (S0RA configures it) |
 | Provider toggle | No | **Yes — WORKING** |
 | MCP | Yes | stdio **WORKING**, WebSocket/HTTP **PARTIAL** |
-| Web dashboard | No | **Yes — PARTIAL**; loopback-only until the control API is authenticated and secrets are redacted |
+| Web dashboard | No | **Yes — PARTIAL**; trusted-local-development only until both listeners are constrained and the control API is authenticated and redacted |
 | TUI | No | **PLANNED** |
 | ACP server | No | **RESEARCH** |
 
