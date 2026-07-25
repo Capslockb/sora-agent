@@ -1,6 +1,10 @@
 # VOIP Call Commands
 
-## Outbound Call
+> **Runtime status — startup blocked:** The command surfaces below exist, but they require a successfully initialized `sora-voip` bridge instance. The checked-in `sora voip start` and standalone `sora-voip-bridge` entrypoints cannot currently construct that runtime. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+
+Do not treat successful argument parsing or displayed command help as proof that call placement, media bridging, or lifecycle handling works on the current `main` head.
+
+## Outbound call surface
 
 ```bash
 sora voice call "+155****4567" [--caller-id "Name"] [--auto-answer] [--record]
@@ -8,34 +12,42 @@ sora voice call "+155****4567" [--caller-id "Name"] [--auto-answer] [--record]
 
 | Flag | Description |
 |------|-------------|
-| `--caller-id` | Caller ID to present (default: "Sora") |
-| `--auto-answer` | Auto-answer when connected |
-| `--record` | Record call to `~/.sora/recordings/` |
+| `--caller-id` | Caller ID to request (default behavior is determined by the bridge/PBX configuration) |
+| `--auto-answer` | Request auto-answer when connected |
+| `--record` | Request call recording using the configured recording directory |
 
-## Hangup
+The command returns `VOIP bridge not initialized` when no bridge instance is available. It is not a workaround for the startup defect in Issue #14.
+
+## Hangup surfaces
 
 ```bash
-# Hangup specific channel
+# Hang up a specific channel
 sora voice hangup --channel <CHANNEL_ID>
 
-# Hangup all active calls
+# Hang up all active calls
 sora voice hangup --all
 ```
 
-## Status
+These commands also require an initialized bridge and active ARI call state.
+
+## Status surfaces
 
 ```bash
-# Full VOIP status
+# Full VOIP status surface
 sora voice voip-status
 
-# SIP status
+# SIP status surface
 sora voice sip status
 
-# ARI status
+# ARI status surface
 sora voice ari status
 ```
 
-## Call Details (from voip-status)
+A status response only describes the available in-process bridge state. It does not validate construction of the documented startup entrypoints, PBX reachability, RTP flow, Dograh media exchange, or end-to-end call lifecycle.
+
+## Illustrative call details
+
+A detailed status response is intended to expose call information resembling the following schema after the bridge is repaired and running:
 
 ```json
 {
@@ -56,7 +68,9 @@ sora voice ari status
 }
 ```
 
-## Recording
+This example is illustrative documentation, not exact-head runtime evidence.
+
+## Recording configuration
 
 ```yaml
 voip:
@@ -64,4 +78,4 @@ voip:
   recording_dir: "~/.sora/recordings"
 ```
 
-Recordings saved as WAV (48kHz, mono, mixed).
+The intended output is a mixed mono WAV stream at the configured sample rate. Recording behavior must be validated with the repaired bridge and exact-head lifecycle/media tests before it is treated as release-ready.
