@@ -4,14 +4,23 @@ S0RA can integrate with an Asterisk PBX to bridge phone calls to voice AI provid
 
 ## Status
 
-**PARTIAL** — plugin and CLI commands exist, but a live PBX is required.
+**PARTIAL — startup currently blocked.** Configuration, status, and management command surfaces exist, but the checked-in `sora voip start` and standalone `sora-voip-bridge` entrypoints do not currently construct the bridge runtime successfully. Both import a `VoipConfig` symbol that is not defined in `plugins/sora_voip/bridge.py`, and both call `VoipBridge` with a single configuration object even though the current constructor requires an `AriClient`, `RtpHandler`, `DograhClient`, and configuration mapping. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+
+A live PBX and valid credentials are still required after the local lifecycle blocker is repaired, but they do not resolve the current construction mismatch.
 
 ## What is supported
 
 - Asterisk ARI connection configuration.
 - SIP endpoint registration state display.
-- Outbound call placement via `sora voice call`.
-- Dograh WebSocket gateway for Gemini Live audio.
+- VOIP configuration and status command surfaces.
+- Dograh WebSocket configuration for Gemini Live audio.
+
+## What is not currently verified
+
+- Starting the full bridge through `sora voip start`.
+- Starting the standalone `sora-voip-bridge` entrypoint.
+- End-to-end outbound call placement and media bridging from the current `main` head.
+- Detached startup preserving the complete resolved runtime configuration without exposing secrets through command-line arguments.
 
 ## What is required externally
 
@@ -29,16 +38,22 @@ SORA_DOGRAH_WS_URL=ws://dograh.local:8080/ws
 SORA_DOGRAH_API_KEY=***
 ```
 
+Store secrets in protected environment or configuration sources. Do not place real credentials in ordinary command-line arguments.
+
 ## Commands
 
+The following commands expose management or configuration surfaces. They are not proof that the full VOIP bridge startup path is currently runnable.
+
 ```bash
-sora voice sip          # Manage SIP registration
-sora voice ari          # Manage ARI connection
-sora voice call         # Place outbound call
-sora voice hangup       # Hang up active calls
+sora voice sip          # Manage SIP registration state/information
+sora voice ari          # Manage ARI connection state/information
+sora voice call         # Outbound-call command surface
+sora voice hangup       # Hang-up command surface
 sora voice voip-status  # Show VOIP bridge status
 sora voice voip-config  # Manage VOIP configuration
 ```
+
+Do not use `sora voip start` or `sora-voip-bridge` as release verification until Issue #14 is resolved and exact-head lifecycle tests pass.
 
 ## Verification
 
@@ -46,6 +61,8 @@ sora voice voip-config  # Manage VOIP configuration
 sora voice voip-status
 sora status --json
 ```
+
+These commands verify only the available status surfaces. They do not validate bridge construction, PBX connectivity, RTP media, or call lifecycle.
 
 ## See also
 
