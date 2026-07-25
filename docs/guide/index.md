@@ -4,7 +4,7 @@
 
 ## Supported providers (configuration + status)
 
-These providers can be configured, enabled, and queried from S0RA. Live audio requires the appropriate runtime.
+These providers can be configured, enabled, and queried from S0RA. Live audio requires the appropriate runtime. The checked-in VOIP entrypoints are additionally blocked by local construction errors before they can reach Asterisk or Dograh; see [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 - **Gemini Live** — Google's multimodal live API (Discord + VOIP) — **PARTIAL**
 - **Vapi.ai** — Managed conversational AI platform (Discord + Phone) — **PARTIAL**
@@ -22,7 +22,7 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 | Architecture | Mirrors Hermes constants/config/logging/profiles | **WORKING** |
 | Distribution | `pipx install git+https://...` | **WORKING** |
 | Provider toggle | Enable/disable TTS/STT/LLM-voice at runtime | **WORKING** |
-| VOIP | Asterisk ARI + Dograh (needs PBX) | **PARTIAL** |
+| VOIP | Intended Asterisk ARI + Dograh path | **PARTIAL — BLOCKED**: both startup entrypoints fail during local bridge construction before PBX connection; see Issue #14 |
 | MCP | stdio server; HTTP/SSE/WebSocket scaffolding | **PARTIAL** |
 | Memory | Honcho / Hermes passthrough detection | **PARTIAL** |
 | Web dashboard | FastAPI dashboard and control API, port 8080 | **PARTIAL** — routes run, but authentication, secret redaction, constrained CORS, and a safe bind default are unresolved |
@@ -45,7 +45,7 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 ## Who is it for?
 
 - Hermes users who want a dedicated CLI for voice/provider configuration.
-- Self-hosters with an Asterisk + Dograh PBX who want phone-call AI.
+- Self-hosters evaluating an Asterisk + Dograh phone bridge after the startup blocker in Issue #14 is resolved.
 - Anyone building a companion agent layer that shares Hermes conventions.
 
 Read the full status table in [`release-readiness.md`](../release-readiness.md).
