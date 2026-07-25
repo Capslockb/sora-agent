@@ -31,7 +31,7 @@ This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin 
 
 | Area | Status | Truthful scope |
 |---|---|---|
-| CLI entry (`sora --help`, `sora status`, `sora doctor`) | **WORKING** | Verified commands. 17 pytest tests pass. |
+| CLI entry (`sora --help`, `sora status`, `sora doctor`) | **WORKING** | Commands are implemented. Last recorded local suite: 24/24 on PR #5; current `main` is not CI-verified. |
 | Setup wizard (`sora setup`) | **WORKING** | Interactive provider/API-key configuration. |
 | Provider registry (`sora voice providers`) | **WORKING** | List/enable/disable TTS/STT/LLM-voice providers. |
 | ElevenLabs signed URLs / WebSocket targets | **WORKING** | URL generation and bridge prep implemented. |
@@ -123,6 +123,8 @@ sora voice status
 sora mcp status
 python -m pytest tests/ -q
 ```
+
+> These are manual verification steps until the staged pytest workflow is activated; see [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
 
 See [`docs/guide/quick-start.md`](docs/guide/quick-start.md) for install pitfalls and next steps.
 
