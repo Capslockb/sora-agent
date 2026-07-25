@@ -3,7 +3,8 @@
 ## Status
 
 **WORKING** for install, setup, status, and provider management.  
-**PARTIAL** for starting live voice bridges (requires Hermes `discord-voice`).
+**PARTIAL** for starting live voice bridges (requires Hermes `discord-voice`).  
+**PARTIAL** for the dashboard control API: routes are implemented, but authentication and safe network defaults are still tracked in [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
 ## 1. Install
 
@@ -78,11 +79,11 @@ sora mcp status      # MCP servers
 ## 7. Launch web dashboard
 
 ```bash
-sora dashboard start --port 8080
-# Open http://localhost:8080/health
+sora dashboard start --host 127.0.0.1 --api-port 8080
+# Open http://127.0.0.1:8080/health
 ```
 
-Default port is `8080` (configurable with `SORA_API_PORT`).
+The API port defaults to `8080`. The current CLI default host is `0.0.0.0`, so pass `--host 127.0.0.1` explicitly until Issue #13 is resolved. The dashboard has sensitive read and mutation routes without authentication; do not expose it to a LAN, tunnel, container-published interface, or the public internet.
 
 ## 8. Launch TUI
 
@@ -102,12 +103,15 @@ sora mcp status
 python -m pytest tests/ -q
 ```
 
+These are manual verification steps until the staged pytest workflow is activated; see [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
+
 ## Pitfalls
 
 - **No audio?** Check that Hermes `discord-voice` is installed, not just S0RA.
 - **Provider unavailable?** Add the matching API key via `sora setup --provider <name>`.
 - **TUI is a stub.** Do not demo it as a finished product.
-- **Dashboard port mismatch.** Default is `8080`; some older docs may mention `3000`.
+- **Dashboard command flags.** `dashboard start` accepts `--host` and `--api-port`; it does not accept `--port`.
+- **Dashboard exposure.** Keep it on `127.0.0.1` until authentication and secret redaction are implemented.
 
 ## Next steps
 
