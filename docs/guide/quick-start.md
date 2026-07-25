@@ -79,11 +79,14 @@ sora mcp status      # MCP servers
 ## 7. Launch web dashboard
 
 ```bash
-sora dashboard start --host 127.0.0.1 --api-port 8080
-# Open http://127.0.0.1:8080/health
+sora dashboard start --host 127.0.0.1 --port 3000 --api-port 8080
+# UI preview: http://127.0.0.1:3000
+# API health: http://127.0.0.1:8080/health
 ```
 
-The API port defaults to `8080`. The current CLI default host is `0.0.0.0`, so pass `--host 127.0.0.1` explicitly until Issue #13 is resolved. The dashboard has sensitive read and mutation routes without authentication; do not expose it to a LAN, tunnel, container-published interface, or the public internet.
+`--port` controls the UI preview port and `--api-port` controls the FastAPI control API; the ports must be different. `--host` currently applies only to the API server. The UI is launched separately through `npx serve`, and the CLI does not forward an explicit UI bind host.
+
+Use `dashboard start` only on a trusted local machine until Issue #13 is resolved. The control API has sensitive read and mutation routes without authentication; do not run the current dashboard on a shared or network-exposed host, and do not publish either listener through a LAN, tunnel, container port, reverse proxy, or the public internet.
 
 ## 8. Launch TUI
 
@@ -110,8 +113,8 @@ These are manual verification steps until the staged pytest workflow is activate
 - **No audio?** Check that Hermes `discord-voice` is installed, not just S0RA.
 - **Provider unavailable?** Add the matching API key via `sora setup --provider <name>`.
 - **TUI is a stub.** Do not demo it as a finished product.
-- **Dashboard command flags.** `dashboard start` accepts `--host` and `--api-port`; it does not accept `--port`.
-- **Dashboard exposure.** Keep it on `127.0.0.1` until authentication and secret redaction are implemented.
+- **Dashboard command flags.** `dashboard start` accepts `--host`, `--port`, and `--api-port`. `--port` is the UI preview port; `--api-port` is the control API port.
+- **Dashboard bind scope.** `--host` constrains the API server only. The current command does not expose an explicit UI bind-host option, so treat the whole dashboard as local-development-only.
 
 ## Next steps
 
