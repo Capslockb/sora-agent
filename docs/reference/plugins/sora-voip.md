@@ -8,7 +8,7 @@ Asterisk ARI + Dograh/Gemini Live for phone call AI.
 - **RTP Media** — externalMedia/snoopChannel, port allocation
 - **Dograh Bridge** — WebSocket to Dograh/Gemini Live
 - **Call Recording** — WAV format, mixed audio
-- **SIP Management** — Status, info (config via pjsip.conf)
+- **SIP Management** — Status and information only; registration remains in `pjsip.conf`
 
 ## Installation
 
@@ -37,10 +37,12 @@ voip:
   recording_dir: "~/.sora/recordings"
 ```
 
+Store passwords and API keys in a protected configuration or environment source. Until Issue #7 is resolved, do not pass secrets through `sora voice voip-config set`: the value is accepted as an ordinary process argument and repeated in command output.
+
 ## CLI Commands
 
 ```bash
-# SIP
+# SIP endpoint status; registration changes remain in pjsip.conf
 sora voice sip status
 
 # ARI
@@ -55,10 +57,12 @@ sora voice hangup --all
 # Status
 sora voice voip-status
 
-# Config
+# Non-secret config values only
 sora voice voip-config show
 sora voice voip-config set dograh_ws_url "wss://..."
 ```
+
+The current `sora voice sip register` and `sora voice sip unregister` commands do not create, remove, or reload Asterisk registrations. Do not supply real credentials to their `--password` arguments; the bridge does not use those values, while command-line arguments may be visible in shell history and process listings.
 
 ## Architecture
 
