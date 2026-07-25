@@ -1,24 +1,25 @@
 # SORA Bridge status
 
-This page describes what the SORA bridge code currently does, what is still scaffolding, and which repo to use for live Gemini Discord voice.
+This page describes what the SORA bridge code currently does, what remains a control or preparation path, and which repository provides the live Gemini Discord voice runtime.
 
-It is based on the current `sora_cli/voice.py`, `sora_api.py`, `plugins/sora_hermes/`, `sora_cli/main.py`, `sora_cli/config.py`, `sora_constants.py`, and `pyproject.toml`.
+It is grounded in the current `sora_cli/voice.py`, provider client modules, `sora_api.py`, `plugins/sora_hermes/`, `sora_cli/main.py`, `sora_cli/config.py`, `sora_constants.py`, and `pyproject.toml`.
 
 ## Plain-language summary
 
-SORA Agent is the new control layer and future bridge home. It already has useful CLI, profile, API, MCP, Hermes-plugin, TUI, and VOIP surfaces.
+SORA Agent is a multi-provider control layer and future bridge home. It already has useful CLI, profile, API, MCP, Hermes-plugin, TUI, provider-preparation, and VOIP surfaces.
 
-It is **not yet a complete replacement** for `Capslockb/gemini-live-discord-bridge`.
+It is **not yet a complete standalone replacement** for `Capslockb/gemini-live-discord-bridge` or the Hermes `discord-voice` runtime.
 
-Use the older Gemini bridge repo when you need the working live Discord/Gemini audio runtime today. Use this repo when you are configuring SORA, using SORA tools, or building the future SORA-owned bridge layer.
+Use the Gemini bridge repository when you need the currently documented live Discord/Gemini audio loop. Use this repository when configuring SORA, exercising provider preparation paths, using SORA tools, or building the future SORA-owned media bridge.
 
 ## Current source of truth
 
 | Area | Source of truth |
 |---|---|
-| Working Discord/Gemini voice runtime | `Capslockb/gemini-live-discord-bridge` |
+| Working Discord/Gemini voice runtime | `Capslockb/gemini-live-discord-bridge` and Hermes `discord-voice` |
 | SORA CLI and command parser | `sora_cli/main.py` |
 | Voice command handlers | `sora_cli/voice.py` |
+| Provider-specific preparation/API clients | `sora_cli/*_client.py` |
 | Configuration defaults/helpers | `sora_cli/config.py`, `sora_constants.py` |
 | FastAPI backend | `sora_api.py` |
 | Hermes SORA plugin | `plugins/sora_hermes/` |
@@ -36,31 +37,56 @@ Use the older Gemini bridge repo when you need the working live Discord/Gemini a
 | `sora mcp ...` | MCP command surface. |
 | `sora-api` | FastAPI backend with health/status/config/voice/MCP endpoints. |
 | `sora voice providers ...` | Provider enable/disable/list/config mutations. |
+| `sora voice live/vapi/elevenlabs/openai/xai/ultravox/retell` | Provider validation or preparation paths; behavior differs by provider and does not itself prove a durable Discord media bridge. |
 | `sora voice sip/ari/call/hangup/voip-*` | VOIP/Asterisk/Dograh-oriented command surface. |
 | `plugins/sora_hermes` | Registers Hermes tools that call the SORA CLI. |
 
-## What is still scaffolded
+## Provider command reality
 
 ### `sora voice live`
 
-The `start_gemini_live()` handler currently:
+The Gemini handler currently:
 
 1. loads SORA config;
-2. resolves Discord guild/user defaults;
+2. resolves Discord guild/user/channel defaults;
 3. requires `guild_id` and `channel_id`;
 4. checks `GEMINI_API_KEY` or `GOOGLE_API_KEY`;
 5. checks `DISCORD_BOT_TOKEN`;
-6. returns a success/status object saying the Gemini Live bridge is starting.
+6. checks the `discord-voice` plugin flag and required Python voice dependencies;
+7. returns a structured **prerequisites verified** result.
 
-It does **not** currently start the full long-running Discord receive/playback + Gemini WebSocket bridge from the Gemini bridge repo.
+It does **not** start the long-running Discord receive/playback and Gemini WebSocket loop by itself.
 
 ### `sora voice vapi`
 
-The `start_vapi()` handler currently checks config/env and returns a start-status object. Treat it as a control path until the durable Vapi runtime is hardened.
+The Vapi handler checks Discord targeting, `VAPI_API_KEY`, and `DISCORD_BOT_TOKEN`, then returns a start-status object. It does not create or supervise a durable Discord media session.
 
 ### `sora voice elevenlabs`
 
-The `start_elevenlabs()` handler currently checks config/env and returns a start-status object. Treat it as a control path until a durable runtime is connected.
+The ElevenLabs handler:
+
+- resolves Discord targeting;
+- requires an agent ID and Discord token;
+- uses a public conversation URL or requests a signed URL when an API key is available;
+- returns redacted WebSocket target and protocol metadata.
+
+This is useful bridge preparation, but the handler does not run the Discord audio capture/playback loop.
+
+### `sora voice openai`
+
+The OpenAI Realtime handler creates a provider client, connects briefly to obtain an ephemeral key, disconnects, and returns a redacted readiness result. It does not keep a Realtime session alive or bridge Discord audio.
+
+### `sora voice xai`
+
+The xAI handler validates the API key, builds provider configuration, instantiates the client, and reports readiness. It does not connect a persistent voice stream or bridge Discord media.
+
+### `sora voice ultravox`
+
+The Ultravox handler creates a provider-side call and returns a shortened join URL. It does not connect that call to Discord audio or supervise its lifecycle.
+
+### `sora voice retell`
+
+The Retell handler creates a provider-side web call and returns its call ID. It does not connect the call to Discord audio or supervise the media lifecycle.
 
 ### `sora voice status`
 
@@ -74,15 +100,15 @@ The status handler currently returns:
 }
 ```
 
-That means there is not yet an active bridge process registry behind it.
+There is no active bridge-process registry behind this response yet.
 
 ### `sora voice leave`
 
-The stop handler returns a stop-status message. Durable process shutdown depends on the future runtime integration.
+The stop handler returns a stop-status message. Durable process shutdown depends on future runtime integration.
 
 ## API backend reality
 
-`sora-api` exposes a FastAPI server. The important groups are:
+`sora-api` exposes a FastAPI server. Important route groups include:
 
 - `/health`
 - `/api/status`
@@ -103,7 +129,7 @@ The stop handler returns a stop-status message. Durable process shutdown depends
 - `/api/mcp/ws/start`
 - `/api/mcp/ws/stop`
 
-Important: `/api/voice/start` saves intended provider/config and returns a status response. It does not currently launch a long-running Gemini/Vapi/ElevenLabs bridge process.
+Important: `/api/voice/start` saves intended provider/config and returns a status response. It does not prove that a long-running provider-to-Discord media process started.
 
 `/api/mcp/start` and `/api/mcp/ws/start` also save intended config and return `starting`; process lifecycle still belongs to CLI/runtime work.
 
@@ -118,20 +144,20 @@ Important: `/api/voice/start` saves intended provider/config and returns a statu
 - `sora_mcp_start`
 - `sora_mcp_status`
 
-The tool handlers call the SORA CLI through a subprocess. Because the underlying SORA voice live/vapi commands are still scaffold/control paths, the Hermes tools are not yet production voice runtime launchers.
+The tool handlers call the SORA CLI through a subprocess. Because the underlying live and Vapi commands are still validation/control paths, these tools are not standalone production voice-runtime launchers.
 
 The plugin also registers slash commands:
 
 - `sora-voice-live`
 - `sora-voice-vapi`
 
-Those slash handlers currently return guidance telling users to use the older dedicated Discord voice plugins.
+Those slash handlers currently direct users toward the dedicated Discord voice plugins.
 
 ## Correct user flows today
 
 ### I want working live Gemini voice in Discord
 
-Use the Gemini bridge repo:
+Use the Gemini bridge repository:
 
 ```bash
 git clone https://github.com/Capslockb/gemini-live-discord-bridge.git
@@ -146,21 +172,30 @@ Then in Discord:
 /voice-live
 ```
 
-### I want to configure SORA or use the SORA control layer
+### I want to configure SORA or inspect provider preparation
 
-Use this repo:
+Use this repository:
 
 ```bash
 pipx install git+https://github.com/Capslockb/sora-agent
 sora setup
 sora status
 sora doctor
+sora voice providers list
 sora-api
 ```
 
+Provider commands may validate credentials, prepare provider resources, or return provider-side identifiers. Do not treat a successful CLI response as proof of a live Discord audio bridge unless the media runtime is separately observed.
+
 ### I want to work on the migration
 
-Use this repo for provider registry, config, API/TUI, Hermes tool surface, MCP, and VOIP work. Use `gemini-live-discord-bridge` as the implementation reference for the current production Gemini Live Discord runtime.
+Use this repository for provider registry, config, API/TUI, Hermes tool surface, MCP, provider clients, and VOIP work. Use `gemini-live-discord-bridge` as the implementation reference for the current live Gemini Discord runtime.
+
+## Validation boundary
+
+The last recorded local pytest result was 24/24 on PR #5. The staged workflow is not active, so current `main` and pull requests are not automatically pytest-verified. See Issue #12.
+
+Security-sensitive CLI and deterministic-build remediation remains tracked in Issue #7. Documentation must not present those findings as resolved until an exact-head fix is reviewed and tested.
 
 ## Migration target
 
@@ -169,7 +204,8 @@ The expected end state is:
 1. SORA owns provider selection and config.
 2. SORA owns API/TUI controls.
 3. SORA owns Hermes tool integration.
-4. The working Gemini Discord voice runtime is transplanted or cleanly wrapped.
-5. The older Gemini bridge repo becomes either a stable runtime package, compatibility shim, or retired documentation reference.
+4. SORA owns a durable media-session registry and lifecycle.
+5. Provider preparation paths connect to a tested Discord capture/playback bridge.
+6. The older Gemini bridge repository becomes a stable runtime package, compatibility shim, or retired documentation reference.
 
-Until step 4 is done, docs must keep saying that `gemini-live-discord-bridge` is the working live runtime.
+Until steps 4 and 5 are complete, documentation must distinguish provider-side readiness from an active Discord voice bridge.
