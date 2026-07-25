@@ -1,23 +1,27 @@
 # ARI Configuration
 
-ARI (Asterisk REST Interface) is the control channel for call management.
+ARI (Asterisk REST Interface) is the intended control channel for VOIP call management.
 
-## Connection
+> **Runtime status — startup blocked:** The ARI command surfaces require an initialized `sora-voip` bridge. The checked-in `sora voip start` and standalone `sora-voip-bridge` entrypoints cannot currently construct that runtime. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+
+## Connection management surfaces
 
 ```bash
-# Connect ARI app
+# Request connection for an already initialized bridge
 sora voice ari connect --app sora-bridge
 
-# Check status
+# Inspect in-process ARI status
 sora voice ari status
 
-# List registered apps
+# Request the registered application list
 sora voice ari apps
 ```
 
-## App Registration
+These commands do not create the missing bridge instance. When the plugin is not initialized they return an error rather than establishing an independent ARI connection. Do not use them as startup or release verification while Issue #14 remains open.
 
-The `sora-bridge` app is registered when the bridge starts. In `ari.conf`:
+## App registration
+
+The intended bridge registers the `sora-bridge` Stasis application after a repaired runtime starts successfully. Configure the ARI user in `ari.conf`:
 
 ```ini
 [general]
@@ -29,7 +33,9 @@ read_only = no
 password = secure-password
 ```
 
-## Event Flow
+Protect the ARI credential and do not place it in ordinary command-line arguments, issue reports, logs, or committed example files.
+
+## Intended event flow
 
 ```
 Inbound Call
@@ -56,13 +62,18 @@ Hangup / StasisEnd
 Cleanup (RTP stop, Dograh sessionEnd)
 ```
 
-## Outbound Calls
+This is the designed flow, not exact-head evidence that the current entrypoints complete it.
+
+## Outbound call surface
 
 ```bash
 sora voice call "+155****4567" --caller-id "Sora" --auto-answer --record
 ```
 
-Flow:
-1. ARI `originate` to `PJSIP/+155****4567`
-2. Channel enters `sora-bridge` app (with `outbound,callId` args)
-3. Same flow as inbound
+After the runtime construction path is repaired, the intended flow is:
+
+1. ARI originates a channel to `PJSIP/+155****4567`.
+2. The channel enters the `sora-bridge` Stasis application with outbound call arguments.
+3. The bridge follows the same media and cleanup path as an inbound call.
+
+Outbound origination and media flow remain unverified on the current `main` head and require exact-head lifecycle and integration validation.
