@@ -1,74 +1,84 @@
-# Provider Toggle
+# Provider Management
 
-S0RA includes a unified provider system for **TTS**, **STT**, and **LLM Voice**.
+S0RA contains provider definitions for **TTS**, **STT**, and **LLM voice**, but provider management is not currently unified.
 
-## Provider Types
+## Status
 
-| Type | Providers | Use Case |
-|------|-----------|----------|
-| `llm_voice` | Gemini Live, Vapi, ElevenLabs, OpenAI Realtime, xAI Grok, Ultravox, Retell AI | Full duplex conversation |
-| `voice_platform` | Vapi, ElevenLabs | Managed conversation platforms |
-| `tts` | Edge TTS, OpenAI TTS, ElevenLabs, Gemini TTS, MiniMax TTS, Mistral TTS | Text → Speech |
-| `stt` | Faster Whisper, OpenAI Whisper, Gemini STT | Speech → Text |
+**EXPERIMENTAL — two divergent command surfaces.**
 
-## CLI Management
+The repository exposes both:
 
 ```bash
-# List all providers
-sora voice providers list
+sora providers ...
+sora voice providers ...
+```
 
-# Enable/disable
+They use different registries, configuration shapes, and disable semantics. A change made through one surface may not be reflected by the other, the setup wizard, dashboard/API, or runtime consumers. See [Issue #15](https://github.com/Capslockb/sora-agent/issues/15).
+
+## Declared provider catalog
+
+The broader top-level registry declares these categories:
+
+| Type | Providers |
+|------|-----------|
+| `llm_voice` | Gemini Live, Vapi, ElevenLabs, OpenAI Realtime, xAI Grok, Ultravox, Retell AI |
+| `tts` | Edge TTS, OpenAI TTS, ElevenLabs TTS, Gemini TTS, MiniMax TTS, Mistral TTS |
+| `stt` | Faster Whisper, OpenAI Whisper, Gemini STT |
+
+This catalog is not proof that every provider is enabled, configured, or connected to a working live bridge.
+
+## Top-level commands
+
+```bash
+sora providers list
+sora providers status
+sora providers enable gemini-live
+sora providers disable llm_voice
+sora providers config edge-tts
+```
+
+Current behavior:
+
+- `enable` selects a provider for its category.
+- `disable` resets an entire category, not an individual provider.
+- `config` runs the interactive provider configuration flow.
+- TTS and STT selection use category paths such as `voice.tts.provider` and `voice.stt.provider`.
+- LLM-voice selection and display currently use inconsistent configuration paths, so list/status output may not reflect the last enable operation.
+
+## Nested voice commands
+
+```bash
+sora voice providers list
 sora voice providers enable gemini-live
 sora voice providers disable vapi
-sora voice providers enable openai-realtime
-sora voice providers enable xai-grok
-sora voice providers enable ultravox
-sora voice providers enable retell
-
-# Configure (interactive)
 sora voice providers config edge-tts
-sora voice providers config openai-realtime
-
-# Quick-setup via setup wizard
-sora setup --provider openai-realtime
 ```
 
-## Configuration
+Current behavior:
 
-```yaml
-voice:
-  providers:
-    gemini_live:      { enabled: true,  configured: true,  type: llm_voice, model: gemini-3.1-flash-live-preview }
-    vapi:             { enabled: false, configured: false, type: voice_platform }
-    elevenlabs:       { enabled: false, configured: false, type: tts }
-    openai_realtime:  { enabled: false, configured: false, type: llm_voice }
-    xai_grok:         { enabled: false, configured: false, type: llm_voice }
-    ultravox:         { enabled: false, configured: false, type: llm_voice }
-    retell:           { enabled: false, configured: false, type: llm_voice }
-    edge_tts:         { enabled: true,  configured: true,  type: tts }
-    openai_tts:       { enabled: false, configured: false, type: tts }
-    whisper:          { enabled: false, configured: false, type: stt }
-```
+- This surface toggles entries under `voice.providers` rather than selecting the category paths used by the top-level command.
+- Its default registry contains only Gemini Live, Vapi, ElevenLabs, Edge TTS, OpenAI TTS, and Whisper.
+- Providers advertised by the parser, including OpenAI Realtime, xAI, Ultravox, and Retell, can be rejected as unknown unless they already exist in `voice.providers`.
+- `config` is a placeholder that directs the operator to `sora setup`; it does not configure the provider.
+- This surface has no `status` subcommand.
 
-## Runtime Switching
+## Safe operator guidance
 
-```python
-# In chat, switch TTS provider
-/tts edge-tts
+Until Issue #15 is resolved:
 
-# Switch STT
-/stt whisper
+1. Use `sora setup` or `sora setup --provider <name>` for initial configuration.
+2. Treat both provider command families as experimental management surfaces.
+3. Do not assume an enable/disable result proves that the runtime, dashboard, or the other command family selected the same provider.
+4. Inspect the resulting non-secret configuration and run provider-specific validation before starting a bridge.
+5. Keep API keys in protected environment or configuration sources; do not place secrets in ordinary command arguments or shared logs.
 
-# Switch LLM Voice
-/voice gemini-live
-/voice openai-realtime
-/voice xai-grok
-```
+## Required validation before unified status
 
-## Web Dashboard
+Provider management should be described as unified only after:
 
-The dashboard's **Providers** panel shows:
-- All providers with enable/disable toggles
-- Configuration status
-- Real-time provider health
-- One-click switching
+- one canonical provider registry and configuration schema is selected;
+- both command paths are true aliases or one is explicitly deprecated;
+- list, status, enable, disable, and configure have consistent semantics;
+- setup, dashboard/API, Hermes tools, and runtime consumers read the same state;
+- existing configuration is migrated without losing settings or credentials;
+- exact-head tests pass after pytest CI is activated under Issue #12.
