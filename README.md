@@ -21,7 +21,7 @@
 
 S0RA Agent is a **voice companion layer** for Hermes-style agents. It keeps the useful CLI and plugin pieces for real-time voice, MCP, and VOIP control without pretending to be a separate isolated chat assistant.
 
-This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin (`sora-hermes`), a VOIP plugin (`sora-voip`), and scaffolding for seven voice providers. The live Discord voice bridge is **not spawned by this repo alone** — it is provided by the separate Hermes `discord-voice` plugin, which S0RA can configure, query, and extend.
+This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin (`sora-hermes`), VOIP component and management surfaces under `sora-voip`, and scaffolding for seven voice providers. The checked-in VOIP startup entrypoints are currently blocked by local construction errors before they can connect to Asterisk or Dograh; see [Issue #14](https://github.com/Capslockb/sora-agent/issues/14). The live Discord voice bridge is **not spawned by this repo alone** — it is provided by the separate Hermes `discord-voice` plugin, which S0RA can configure, query, and extend.
 
 > **Relationship to the Gemini bridge:** S0RA shares the same bridge-element philosophy as [`gemini-live-discord-bridge`](https://github.com/Capslockb/gemini-live-discord-bridge) — operator-facing tools, a sidecar health surface, status truth-tagging, and a public docs/site. It is a **separate product/runtime**: Gemini bridge is a single Discord voice bridge; S0RA is a multi-provider companion CLI and plugin registry.
 
@@ -39,7 +39,7 @@ This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin 
 | Hermes plugin (`sora-hermes`) | **WORKING** | Registers `sora_voice_*` and `sora_mcp_*` tools. |
 | Discord voice bridges (`sora voice live/vapi/…`) | **PARTIAL** | CLI validates config and prepares bridge args. Live bridging requires the Hermes `discord-voice` plugin runtime. |
 | MCP server management | **PARTIAL** | Start/status/catalog CLI works; WebSocket/SSE paths are scaffolding. |
-| VOIP Asterisk + Dograh bridge (`sora-voip`) | **PARTIAL** | Plugin and ARI/SIP commands exist. Needs Asterisk/Dograh runtime. |
+| VOIP Asterisk + Dograh bridge (`sora-voip`) | **PARTIAL — BLOCKED** | Component and ARI/SIP management surfaces exist, but both startup entrypoints fail during local bridge construction before any PBX connection; see Issue #14. |
 | TUI mode (`sora tui`) | **PLANNED** | Stub falls back to REPL. Not a real Ink/React TUI yet. |
 | Interactive cron creation (`sora cron`) | **PLANNED** | List/show works; create/run are stubs. |
 | Skill search/browse/audit (`sora skills`) | **PLANNED** | Commands exist but operations are not implemented. |
@@ -86,6 +86,8 @@ See [`docs/release-readiness.md`](docs/release-readiness.md) for the full truth 
 │ runtime       │      │ runtime       │      │                       │
 └───────────────┘      └───────────────┘      └───────────────────────┘
 ```
+
+The VOIP branch in this diagram is the intended architecture. It is not currently reachable through either checked-in VOIP startup entrypoint; see [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 Read the full design in [`docs/guide/architecture.md`](docs/guide/architecture.md).
 
@@ -160,7 +162,7 @@ Read the deep doc in [`docs/bridge-elements.md`](docs/bridge-elements.md).
 | FastAPI dashboard | **PARTIAL** | [`reference/cli.md`](docs/reference/cli.md) | Routes run, but authentication, redaction, and safe bind defaults are unresolved. |
 | Hermes plugin tools | **WORKING** | [`reference/plugins/sora-hermes.md`](docs/reference/plugins/sora-hermes.md) | Requires `discord-voice` for live audio. |
 | Discord voice bridges | **PARTIAL** | [`guide/voice/gemini-live.md`](docs/guide/voice/gemini-live.md) | Live runtime in Hermes `discord-voice`. |
-| VOIP Asterisk/Dograh | **PARTIAL** | [`voip/setup.md`](docs/voip/setup.md) | Needs PBX runtime. |
+| VOIP Asterisk/Dograh | **PARTIAL — BLOCKED** | [`voip/setup.md`](docs/voip/setup.md) | Local startup construction is broken before PBX connection; see Issue #14. |
 | MCP server | **PARTIAL** | [`guide/mcp/servers.md`](docs/guide/mcp/servers.md) | stdio works; WS/HTTP scaffolding. |
 | TUI | **PLANNED** | [`reference/cli/tui.md`](docs/reference/cli/tui.md) | Stub only. |
 | Cron | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
@@ -208,7 +210,8 @@ Full route list in [`docs/bridge-elements.md`](docs/bridge-elements.md).
 To prevent over-promising:
 
 - **A standalone live Discord voice bridge.** The audio path lives in the Hermes `discord-voice` plugin. S0RA configures and queries it.
-- **A hosted phone service.** VOIP requires your own Asterisk PBX and Dograh gateway.
+- **A runnable phone bridge.** The repository contains VOIP components and management surfaces, but the startup path is blocked before it can use your Asterisk PBX and Dograh gateway; see Issue #14.
+- **A hosted phone service.** After the local startup path is repaired, VOIP will still require your own Asterisk PBX and Dograh gateway.
 - **A cloud transcription API.** S0RA can point at external Whisper endpoints, but does not host one.
 - **A finished TUI.** `sora tui` is a stub.
 - **A finished ACP server.** `sora acp` is a research stub.
