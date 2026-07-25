@@ -5,3 +5,7 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 .DS_Store
+
+# Build output
+/dist/
+**/dist/

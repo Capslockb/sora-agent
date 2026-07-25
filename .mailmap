@@ -1,0 +1,7 @@
+# Canonicalize author identities for git shortlog / ownership audits.
+# Format: Canonical Name <canonical@email> Alias Name <alias@email>
+
+Capslockb <138304505+Capslockb@users.noreply.github.com> Capslockb <captain@capslock.nl>
+Capslockb <138304505+Capslockb@users.noreply.github.com> Capslockb <caps@homelab>
+Capslockb <138304505+Capslockb@users.noreply.github.com> CAPSLOCKB <138304505+Capslockb@users.noreply.github.com>
+Hermes Agent <hermes@capslockb.dev> hermes <hermes@capslockb.local>
