@@ -2,16 +2,16 @@
 
 SIP registration is managed via Asterisk `pjsip.conf`, not dynamically via ARI.
 
-## Configuration
+## CLI Boundary
 
 ```bash
-# Shows SIP status
+# Queries the initialized VOIP bridge for Asterisk endpoint status
 sora voice sip status
-
-# Informational — registration via pjsip.conf
-sora voice sip register --username sora --password pass --domain asterisk.local
-sora voice sip unregister
 ```
+
+The current `sora voice sip register` and `sora voice sip unregister` commands are informational compatibility paths. They do not create, remove, or reload Asterisk registrations, and credentials supplied through `--password` are not used by the bridge.
+
+Do not pass real SIP credentials through those command-line arguments. Ordinary process arguments may be visible in shell history and process listings. Configure registrations in `pjsip.conf` and use the status command or the Asterisk CLI to verify them. Runtime removal of the unused credential arguments is tracked in Issue #7.
 
 ## pjsip.conf Registration
 
