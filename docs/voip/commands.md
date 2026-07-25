@@ -1,6 +1,6 @@
 # VOIP Call Commands
 
-> **Runtime status — startup blocked:** The command surfaces below exist, but they require a successfully initialized `sora-voip` bridge instance. The checked-in `sora voip start` and standalone `sora-voip-bridge` entrypoints cannot currently construct that runtime. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+> **Runtime status — startup blocked:** The command surfaces below exist, but they require a successfully initialized `sora-voip` bridge instance. The checked-in `sora voip start` command and installed standalone `sora-voip` entrypoint cannot currently construct that runtime. The standalone implementation still contains stale `sora-voip-bridge` help examples, but that console script is not exposed by `pyproject.toml`. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 Do not treat successful argument parsing or displayed command help as proof that call placement, media bridging, or lifecycle handling works on the current `main` head.
 
