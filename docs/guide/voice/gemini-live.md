@@ -51,10 +51,14 @@ This command delegates the live connection to the Hermes `discord-voice` plugin.
 ## Web dashboard
 
 ```bash
-sora dashboard start --port 8080
-# Open http://localhost:8080
-# See /api/status for voice connection state
+sora dashboard start --host 127.0.0.1 --port 3000 --api-port 8080
+# UI preview: http://127.0.0.1:3000
+# Voice status API: http://127.0.0.1:8080/api/status
 ```
+
+`--port` controls the UI preview and `--api-port` controls the FastAPI control API; do not assign the same port to both. `--host` currently constrains only the API server. The UI preview is launched separately through `npx serve`, and the CLI does not forward an explicit UI bind host.
+
+The control API is unauthenticated and can expose or mutate sensitive configuration. Use the dashboard only on a trusted local machine, and do not publish either listener through a LAN, tunnel, container port, reverse proxy, or the public internet while [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) remains open.
 
 ## Troubleshooting
 
