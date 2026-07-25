@@ -19,6 +19,11 @@ This page collects the current truth table, release-blocking rules, and the end-
 4. **No screenshots of unreleased UIs.** The TUI is `PLANNED`; do not show it as shipped.
 5. **API routes must match code.** The sidecar API table is generated from `sora_api.py`.
 6. **Docs-site must build without dead links.** Run `npm run docs:build` before release.
+7. **Local test results are not CI evidence.** Until [Issue #12](https://github.com/Capslockb/sora-agent/issues/12) is completed, describe pytest results as locally verified and do not imply that GitHub Actions validates the current head.
+
+## Current validation boundary
+
+PR #5 recorded **24/24 tests passing locally** before it was merged. That result covers the tested PR state, but it is not exact-head CI evidence for later commits on `main`. The pytest workflow is still staged at `ci/tests.yml`, where GitHub Actions will not execute it; activation is tracked in [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
 
 ## Truth table
 
@@ -70,6 +75,7 @@ hermes tools list | grep sora_
 
 | Gap | Severity | Next step |
 |---|---|---|
+| Pytest workflow is staged but inactive | Medium | Complete [Issue #12](https://github.com/Capslockb/sora-agent/issues/12), then attach the first exact-head Actions result |
 | TUI is a stub | Medium | Decide whether to implement or hide behind `PLANNED` |
 | `sora voice live` cannot start live audio without Hermes `discord-voice` | Medium | Document clearly as `PARTIAL`; add setup guide |
 | `sora mcp start` HTTP/SSE not wired | Medium | Downgrade docs or implement transport selection |
