@@ -35,7 +35,7 @@ Options:
 | `uninstall` | Uninstall S0RA | **WORKING** |
 | `acp` | Run as ACP server | **RESEARCH** |
 | `tui` | Launch Terminal UI | **PLANNED** |
-| `dashboard` | Web dashboard; keep loopback-only pending Issue #13 | **PARTIAL** |
+| `dashboard` | Trusted-local-development dashboard; `--host` constrains the API only, not the separately launched UI preview. See Issue #13. | **PARTIAL** |
 | `providers` | Provider management | **WORKING** |
 | `benchmark` | Performance benchmark | **WORKING** |
 
@@ -52,16 +52,18 @@ Discord Bridges:
   leave         Stop voice bridge (PARTIAL)
 
 VOIP (Asterisk + Dograh):
-  sip           Manage SIP registration (PARTIAL)
-  ari           Manage ARI connection (PARTIAL)
-  call          Place outbound call (PARTIAL)
-  hangup        Hang up active call(s) (PARTIAL)
-  voip-status   Show VOIP bridge status (PARTIAL)
-  voip-config   Manage VOIP configuration (PARTIAL)
+  sip           SIP compatibility/configuration surface (PARTIAL; dynamic registration is not working)
+  ari           Manage ARI configuration/status (PARTIAL; active operations require an initialized bridge)
+  call          Place outbound call (BLOCKED by Issue #14)
+  hangup        Hang up active call(s) (BLOCKED by Issue #14)
+  voip-status   Show VOIP bridge status (BLOCKED unless a compatible bridge is already running)
+  voip-config   Manage VOIP configuration (PARTIAL; do not pass secrets positionally; see Issue #7)
 
 Providers:
   providers     Manage TTS/STT/LLM Voice providers (WORKING)
 ```
+
+The checked-in VOIP startup entrypoints cannot currently construct `VoipBridge`, so command presence is not evidence of a runnable phone bridge. Track the lifecycle repair in [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 ### MCP subcommands
 
