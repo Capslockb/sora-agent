@@ -35,7 +35,7 @@ This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin 
 | Setup wizard (`sora setup`) | **WORKING** | Interactive provider/API-key configuration. |
 | Provider registry (`sora voice providers`) | **WORKING** | List/enable/disable TTS/STT/LLM-voice providers. |
 | ElevenLabs signed URLs / WebSocket targets | **WORKING** | URL generation and bridge prep implemented. |
-| FastAPI dashboard (`/health`, `/api/status`) | **PARTIAL** | Routes run on port `8080`, but the control API is unauthenticated and the CLI defaults to `0.0.0.0`; keep it loopback-only pending Issue #13. |
+| FastAPI dashboard (`/health`, `/api/status`) | **PARTIAL** | The API routes run on port `8080`, but the API is unauthenticated and defaults to `0.0.0.0`. The UI preview is launched separately, and `--host` does not constrain its bind address; treat the whole dashboard as trusted-local-development only pending Issue #13. |
 | Hermes plugin (`sora-hermes`) | **WORKING** | Registers `sora_voice_*` and `sora_mcp_*` tools. |
 | Discord voice bridges (`sora voice live/vapi/…`) | **PARTIAL** | CLI validates config and prepares bridge args. Live bridging requires the Hermes `discord-voice` plugin runtime. |
 | MCP server management | **PARTIAL** | Start/status/catalog CLI works; WebSocket/SSE paths are scaffolding. |
@@ -111,12 +111,12 @@ sora status
 # 4. Check provider state
 sora voice providers list
 
-# 5. Start the dashboard on loopback only (optional)
-sora dashboard start --host 127.0.0.1 --api-port 8080
-# Open http://127.0.0.1:8080/health
+# 5. Start the dashboard for local development (optional)
+sora dashboard start --host 127.0.0.1 --port 3000 --api-port 8080
+# API health: http://127.0.0.1:8080/health
 ```
 
-> The dashboard currently has unauthenticated sensitive routes. Do not expose it to a LAN, tunnel, published container interface, or the public internet; see [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
+> `--host 127.0.0.1` constrains the FastAPI control API only. The UI preview is launched separately, and the current CLI does not pass it an explicit bind host. The dashboard also has unauthenticated sensitive routes. Run it only on a trusted local machine, and do not publish either listener through a LAN, tunnel, container port, reverse proxy, or the public internet; see [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
 ### Verification commands
 
@@ -190,7 +190,7 @@ See [`docs/env-vars.md`](docs/env-vars.md) for the exhaustive grouped reference.
 
 ## Sidecar HTTP control API
 
-The S0RA dashboard exposes control endpoints on the configured API port (default `8080`). The current API has sensitive unauthenticated read and mutation routes, so run it on `127.0.0.1` only until Issue #13 is resolved:
+The S0RA dashboard exposes control endpoints on the configured API port (default `8080`). The current API has sensitive unauthenticated read and mutation routes. Use `--host 127.0.0.1` to constrain the API listener until Issue #13 is resolved; this flag does not constrain the separately launched UI preview:
 
 | Method | Path | Description | Status |
 |---|---|---|---|
