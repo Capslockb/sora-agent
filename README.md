@@ -11,7 +11,7 @@
 [![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge)]()
 [![Hermes](https://img.shields.io/badge/Hermes-Aligned-915eff?style=for-the-badge)](https://hermes-agent.nousresearch.com)
 
-[**Website**](website/) · [**Install**](#install) · [**Quick Start**](#quick-start) · [**Architecture**](#architecture) · [**Bridge Elements**](#s0ra-bridge-elements) · [**Release Readiness**](docs/release-readiness.md)
+[**Website**](website/) · [**Install**](#quick-start) · [**Quick Start**](#quick-start) · [**Architecture**](#architecture) · [**Bridge Elements**](#s0ra-bridge-elements) · [**Release Readiness**](docs/release-readiness.md)
 
 </div>
 
@@ -155,17 +155,17 @@ Read the deep doc in [`docs/bridge-elements.md`](docs/bridge-elements.md).
 | Setup wizard | **WORKING** | [`reference/cli/setup.md`](docs/reference/cli/setup.md) | — |
 | Provider enable/disable | **WORKING** | [`guide/voice/providers.md`](docs/guide/voice/providers.md) | — |
 | ElevenLabs URL signing | **WORKING** | [`guide/voice/elevenlabs.md`](docs/guide/voice/elevenlabs.md) | — |
-| FastAPI dashboard | **WORKING** | [`reference/cli/dashboard.md`](docs/reference/cli.md) | Default port `8080`. |
+| FastAPI dashboard | **WORKING** | [`reference/cli.md`](docs/reference/cli.md) | Default port `8080`. |
 | Hermes plugin tools | **WORKING** | [`reference/plugins/sora-hermes.md`](docs/reference/plugins/sora-hermes.md) | Requires `discord-voice` for live audio. |
 | Discord voice bridges | **PARTIAL** | [`guide/voice/gemini-live.md`](docs/guide/voice/gemini-live.md) | Live runtime in Hermes `discord-voice`. |
 | VOIP Asterisk/Dograh | **PARTIAL** | [`voip/setup.md`](docs/voip/setup.md) | Needs PBX runtime. |
 | MCP server | **PARTIAL** | [`guide/mcp/servers.md`](docs/guide/mcp/servers.md) | stdio works; WS/HTTP scaffolding. |
 | TUI | **PLANNED** | [`reference/cli/tui.md`](docs/reference/cli/tui.md) | Stub only. |
-| Cron | **PLANNED** | [`reference/cli/cron.md`](docs/reference/cli.md) | Partial. |
-| Skills | **PLANNED** | [`reference/cli/skills.md`](docs/reference/cli.md) | Partial. |
-| Logs | **PLANNED** | [`reference/cli/logs.md`](docs/reference/cli.md) | Partial. |
+| Cron | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
+| Skills | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
+| Logs | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
 | Doctor auto-fix | **PLANNED** | [`reference/cli/doctor.md`](docs/reference/cli/doctor.md) | Partial. |
-| ACP adapter | **RESEARCH** | [`reference/cli/acp.md`](docs/reference/cli.md) | Stub only. |
+| ACP adapter | **RESEARCH** | [`reference/cli.md`](docs/reference/cli.md) | Stub only. |
 
 ---
 
