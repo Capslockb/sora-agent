@@ -4,7 +4,7 @@ S0RA can integrate with an Asterisk PBX to bridge phone calls to voice AI provid
 
 ## Status
 
-**PARTIAL — startup currently blocked.** Configuration, status, and management command surfaces exist, but the checked-in `sora voip start` and standalone `sora-voip-bridge` entrypoints do not currently construct the bridge runtime successfully. Both import a `VoipConfig` symbol that is not defined in `plugins/sora_voip/bridge.py`, and both call `VoipBridge` with a single configuration object even though the current constructor requires an `AriClient`, `RtpHandler`, `DograhClient`, and configuration mapping. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+**PARTIAL — startup currently blocked.** Configuration, status, and management command surfaces exist, but the checked-in `sora voip start` command and installed standalone `sora-voip` entrypoint do not currently construct the bridge runtime successfully. Both import a `VoipConfig` symbol that is not defined in `plugins/sora_voip/bridge.py`, and both call `VoipBridge` with a single configuration object even though the current constructor requires an `AriClient`, `RtpHandler`, `DograhClient`, and configuration mapping. The standalone implementation also contains stale `sora-voip-bridge` help examples even though that console script is not exposed by `pyproject.toml`. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 A live PBX and valid credentials are still required after the local lifecycle blocker is repaired, but they do not resolve the current construction mismatch.
 
@@ -18,7 +18,7 @@ A live PBX and valid credentials are still required after the local lifecycle bl
 ## What is not currently verified
 
 - Starting the full bridge through `sora voip start`.
-- Starting the standalone `sora-voip-bridge` entrypoint.
+- Starting the installed standalone `sora-voip` entrypoint.
 - End-to-end outbound call placement and media bridging from the current `main` head.
 - Detached startup preserving the complete resolved runtime configuration without exposing secrets through command-line arguments.
 
@@ -53,7 +53,7 @@ sora voice voip-status  # Show VOIP bridge status
 sora voice voip-config  # Manage VOIP configuration
 ```
 
-Do not use `sora voip start` or `sora-voip-bridge` as release verification until Issue #14 is resolved and exact-head lifecycle tests pass.
+Do not use `sora voip start` or `sora-voip` as release verification until Issue #14 is resolved and exact-head lifecycle tests pass.
 
 ## Verification
 
