@@ -89,18 +89,33 @@ Status: **PARTIAL** — plugin and commands exist; needs PBX runtime.
 User / Browser
        │
        ▼
-┌──────────────────┐
-│ FastAPI (8080)   │
-│ /health          │
-│ /api/status      │
-│ /api/visualizer/state │
-└──────────────────┘
-       │
-       ▼
-S0RA state + config
+┌────────────────────────────┐
+│ FastAPI control API (8080) │
+│ /health                    │
+│ /api/status                │
+│ /api/config                │
+│ /api/config/env            │
+│ voice/provider/MCP routes  │
+└─────────────┬──────────────┘
+              │
+              ▼
+       S0RA state + config
 ```
 
-Status: **WORKING**.
+Status: **PARTIAL**. The dashboard and routes run, but the current control surface is not safe for network exposure:
+
+- `sora dashboard start` defaults to `0.0.0.0:8080`;
+- sensitive read and mutation routes have no authentication or authorization;
+- CORS permits all origins, methods, and headers;
+- configuration endpoints can return or modify stored configuration and environment values, including credentials.
+
+Until [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) is resolved, start it explicitly on loopback:
+
+```bash
+sora dashboard start --host 127.0.0.1 --api-port 8080
+```
+
+Do not expose the listener to a LAN, public tunnel, published container interface, or the internet.
 
 ## Integration boundaries
 
@@ -110,6 +125,7 @@ Status: **WORKING**.
 | Phone audio | Config + ARI commands | Asterisk + Dograh |
 | LLM inference | Provider selection | External API endpoints |
 | MCP runtime | stdio start/status | Client (Hermes, Claude Desktop, etc.) |
+| Dashboard control API | Local UI, status, and configuration control | Operator must keep the listener loopback-only until authentication and redaction are implemented |
 
 ## Key files
 
@@ -118,7 +134,7 @@ Status: **WORKING**.
 | `sora_bootstrap.py` | UTF-8 stdio setup (Windows) |
 | `sora_constants.py` | Profile-aware paths |
 | `sora_logging.py` | Centralized logging |
-| `sora_api.py` | FastAPI dashboard |
+| `sora_api.py` | FastAPI dashboard and control API |
 | `sora_cli/main.py` | CLI entry point |
 | `sora_cli/setup.py` | Interactive wizard |
 | `sora_cli/voice.py` | Voice/provider management |
