@@ -41,7 +41,7 @@ Documentation-only commits after PR #5 have no attached Actions evidence. Runtim
 | Hermes plugin (`sora-hermes`) | **WORKING** | `plugins/sora_hermes/plugin.yaml`; six registered tools |
 | Discord voice bridges (`sora voice live/vapi/…`) | **PARTIAL** | CLI prepares bridge state; live audio requires the external Hermes voice runtime |
 | MCP server management (`sora mcp start/status/catalog`) | **PARTIAL** | stdio CLI path exists; HTTP/SSE/WebSocket control remains scaffolded or configuration-only |
-| VOIP Asterisk + Dograh (`sora-voip`) | **PARTIAL** | Management/configuration surfaces exist, but `sora voip start` and `sora-voip-bridge` import a nonexistent `VoipConfig` and do not match the current `VoipBridge` constructor; external PBX work and Issue #7 also remain; see Issue #14 |
+| VOIP Asterisk + Dograh (`sora-voip`) | **PARTIAL** | Management/configuration surfaces exist, but `sora voip start` and the installed `sora-voip` entrypoint import a nonexistent `VoipConfig` and do not match the current `VoipBridge` constructor. The standalone implementation also contains stale `sora-voip-bridge` help examples for a console script that `pyproject.toml` does not expose. External PBX work and Issue #7 also remain; see Issue #14 |
 | TUI mode (`sora tui`) | **PLANNED** | `sora_cli/tui.py` is a stub/repl |
 | Cron job management (`sora cron`) | **PLANNED** | Commands exist; create/run not implemented |
 | Skill management (`sora skills`) | **PLANNED** | Commands exist; operations not implemented |
@@ -77,7 +77,7 @@ hermes tools list | grep sora_
 
 Do not use `/api/config`, `/api/config/env`, or mutation routes as routine release smoke tests while Issue #13 remains open.
 
-Do not add `sora voip start` or `sora-voip-bridge` to the release smoke checklist until Issue #14 is fixed and exact-head lifecycle validation passes.
+Do not add `sora voip start` or `sora-voip` to the release smoke checklist until Issue #14 is fixed and exact-head lifecycle validation passes.
 
 ## Release-blocking gaps
 
