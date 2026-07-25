@@ -61,6 +61,8 @@ Status: S0RA tooling **WORKING**; live audio **PARTIAL** (requires `discord-voic
 
 ### VOIP Bridge (Asterisk + Dograh)
 
+The diagram below describes the intended data path, not a currently runnable startup path.
+
 ```
 Asterisk (SIP/RTP)          Dograh/Gemini Live
        │                          │
@@ -74,7 +76,7 @@ Asterisk (SIP/RTP)          Dograh/Gemini Live
 └──────────────────────────────────────────┘
 ```
 
-Status: **PARTIAL** — plugin and commands exist; needs PBX runtime.
+Status: **PARTIAL — STARTUP BLOCKED**. The component classes and management commands exist, but both checked-in VOIP entrypoints fail during local configuration and bridge construction before they reach Asterisk or Dograh. Supplying a PBX and credentials is not sufficient. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 ## MCP Layer
 
@@ -122,7 +124,7 @@ Do not expose the listener to a LAN, public tunnel, published container interfac
 | Boundary | S0RA responsibility | External responsibility |
 |---|---|---|
 | Discord audio | Config + tools | Hermes `discord-voice` plugin |
-| Phone audio | Config + ARI commands | Asterisk + Dograh |
+| Phone audio | Intended config, ARI, RTP, and Dograh components; startup remains blocked by Issue #14 | Asterisk + Dograh after the local construction path is repaired |
 | LLM inference | Provider selection | External API endpoints |
 | MCP runtime | stdio start/status | Client (Hermes, Claude Desktop, etc.) |
 | Dashboard control API | Local UI, status, and configuration control | Operator must keep the listener loopback-only until authentication and redaction are implemented |
