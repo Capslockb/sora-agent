@@ -106,18 +106,19 @@ User / Browser
 
 Status: **PARTIAL**. The dashboard and routes run, but the current control surface is not safe for network exposure:
 
-- `sora dashboard start` defaults to `0.0.0.0:8080`;
+- `sora dashboard start` defaults the API to `0.0.0.0:8080`;
+- `--host` is forwarded to the API server only, while the UI preview is launched separately without an explicit bind-host argument;
 - sensitive read and mutation routes have no authentication or authorization;
 - CORS permits all origins, methods, and headers;
 - configuration endpoints can return or modify stored configuration and environment values, including credentials.
 
-Until [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) is resolved, start it explicitly on loopback:
+The command below constrains the API listener only; it does not prove that the separately launched UI preview is loopback-bound:
 
 ```bash
-sora dashboard start --host 127.0.0.1 --api-port 8080
+sora dashboard start --host 127.0.0.1 --port 3000 --api-port 8080
 ```
 
-Do not expose the listener to a LAN, public tunnel, published container interface, or the internet.
+Until [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) is resolved, run the dashboard only on a trusted local machine. Do not publish either listener through a LAN, public tunnel, reverse proxy, Tailscale Serve/Funnel, or a container port.
 
 ## Integration boundaries
 
@@ -127,7 +128,7 @@ Do not expose the listener to a LAN, public tunnel, published container interfac
 | Phone audio | Intended config, ARI, RTP, and Dograh components; startup remains blocked by Issue #14 | Asterisk + Dograh after the local construction path is repaired |
 | LLM inference | Provider selection | External API endpoints |
 | MCP runtime | stdio start/status | Client (Hermes, Claude Desktop, etc.) |
-| Dashboard control API | Local UI, status, and configuration control | Operator must keep the listener loopback-only until authentication and redaction are implemented |
+| Dashboard control API | Local UI, status, and configuration control | Operator must constrain the API listener, avoid shared/network-reachable hosts, and not publish either dashboard listener until authentication, redaction, and UI bind control are implemented |
 
 ## Key files
 
