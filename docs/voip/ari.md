@@ -2,7 +2,7 @@
 
 ARI (Asterisk REST Interface) is the intended control channel for VOIP call management.
 
-> **Runtime status — startup blocked:** The ARI command surfaces require an initialized `sora-voip` bridge. The checked-in `sora voip start` and standalone `sora-voip-bridge` entrypoints cannot currently construct that runtime. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+> **Runtime status — startup blocked:** The ARI command surfaces require an initialized `sora-voip` bridge. The checked-in `sora voip start` command and installed standalone `sora-voip` entrypoint cannot currently construct that runtime. The standalone implementation still contains stale `sora-voip-bridge` help examples, but that console script is not exposed by `pyproject.toml`. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 ## Connection management surfaces
 
