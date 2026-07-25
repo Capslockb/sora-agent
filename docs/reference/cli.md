@@ -35,7 +35,7 @@ Options:
 | `uninstall` | Uninstall S0RA | **WORKING** |
 | `acp` | Run as ACP server | **RESEARCH** |
 | `tui` | Launch Terminal UI | **PLANNED** |
-| `dashboard` | Web dashboard | **WORKING** |
+| `dashboard` | Web dashboard; keep loopback-only pending Issue #13 | **PARTIAL** |
 | `providers` | Provider management | **WORKING** |
 | `benchmark` | Performance benchmark | **WORKING** |
 
