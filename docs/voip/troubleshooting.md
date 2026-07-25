@@ -36,7 +36,7 @@ asterisk -rx "module show like res_ari"
 
 Review the configured ARI URL, application name, username, and network reachability without placing credentials in shell history. A direct ARI request may require authentication; avoid embedding credentials in a command that will be retained by the shell.
 
-` s o r a voice ari status ` is bridge-dependent. On the current startup path, an uninitialized-bridge response is expected and does not distinguish an Asterisk failure from the local lifecycle blocker.
+`sora voice ari status` is bridge-dependent. On the current startup path, an uninitialized-bridge response is expected and does not distinguish an Asterisk failure from the local lifecycle blocker.
 
 ## External Dograh checks
 
