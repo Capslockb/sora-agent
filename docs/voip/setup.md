@@ -1,6 +1,6 @@
 # VOIP Setup
 
-> **Runtime status — startup blocked:** This page documents the intended topology and configuration preparation. The checked-in `sora voip start` and standalone `sora-voip-bridge` entrypoints cannot currently construct the bridge runtime. A live PBX and valid credentials do not bypass that local lifecycle defect. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+> **Runtime status — startup blocked:** This page documents the intended topology and configuration preparation. The checked-in `sora voip start` command and installed standalone `sora-voip` entrypoint cannot currently construct the bridge runtime. The standalone implementation still contains stale `sora-voip-bridge` help examples, but that console script is not exposed by `pyproject.toml`. A live PBX and valid credentials do not bypass that local lifecycle defect. See [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 Prepare a self-hosted Asterisk PBX and Dograh configuration for S0RA voice calls after the runtime construction path is repaired and validated.
 
