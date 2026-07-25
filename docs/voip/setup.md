@@ -78,4 +78,4 @@ sora voice sip status
 
 These commands require a successfully initialized bridge instance. On the current documented startup paths they may report that the VOIP bridge is not initialized. They do not validate bridge construction, PBX connectivity, RTP media, or end-to-end call lifecycle.
 
-`sudo voice ari connect` is not a startup workaround: the command also depends on an existing bridge instance. Do not use these status or management commands as release evidence until Issue #14 is resolved and exact-head lifecycle tests pass.
+`sora voice ari connect` is not a startup workaround: the command also depends on an existing bridge instance. Do not use these status or management commands as release evidence until Issue #14 is resolved and exact-head lifecycle tests pass.
