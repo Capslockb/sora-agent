@@ -25,8 +25,10 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 | VOIP | Asterisk ARI + Dograh (needs PBX) | **PARTIAL** |
 | MCP | stdio server; HTTP/SSE/WebSocket scaffolding | **PARTIAL** |
 | Memory | Honcho / Hermes passthrough detection | **PARTIAL** |
-| Web dashboard | FastAPI dashboard, port 8080 | **WORKING** |
+| Web dashboard | FastAPI dashboard and control API, port 8080 | **PARTIAL** — routes run, but authentication, secret redaction, constrained CORS, and a safe bind default are unresolved |
 | TUI | Planned Ink/React interface | **PLANNED** |
+
+> The dashboard currently defaults to all interfaces and exposes sensitive unauthenticated routes. Keep it bound to `127.0.0.1` and do not publish it to a LAN, tunnel, container host interface, or the internet; see [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
 ## Quick comparison
 
@@ -36,7 +38,7 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 | Discord voice runtime | `discord-voice` plugin | Same `discord-voice` plugin (S0RA configures it) |
 | Provider toggle | No | **Yes — WORKING** |
 | MCP | Yes | stdio **WORKING**, WebSocket/HTTP **PARTIAL** |
-| Web dashboard | No | **Yes — WORKING** |
+| Web dashboard | No | **Yes — PARTIAL**; loopback-only until the control API is authenticated and secrets are redacted |
 | TUI | No | **PLANNED** |
 | ACP server | No | **RESEARCH** |
 
