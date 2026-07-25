@@ -49,10 +49,13 @@ Expected — auto-fix is **PLANNED**. `sora doctor` reports issues; manual fixes
 
 ### Dashboard port already in use
 
+The dashboard UI and control API use separate ports. Change the occupied port explicitly and keep both listeners bound to loopback while Issue #13 remains open:
+
 ```bash
-sora dashboard start --port 8081
-# or set SORA_API_PORT=8081
+sora dashboard start --host 127.0.0.1 --port 3001 --api-port 8081
 ```
+
+`--port` controls the dashboard UI port (default `3000`), while `--api-port` controls the API port (default `8080`). Do not bind the current unauthenticated control API to `0.0.0.0`, a LAN interface, a tunnel, or a public endpoint.
 
 ### MCP server starts but Hermes cannot see it
 
