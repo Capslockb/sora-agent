@@ -60,6 +60,8 @@ jobs:
   public-docs-safety:
     name: public-docs-safety
     runs-on: ubuntu-latest
+    env:
+      PUBLIC_DOCS_BASE_SHA: ${{ github.event.before }}
     steps:
       - uses: actions/checkout@v4
         with:
