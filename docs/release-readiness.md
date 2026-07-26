@@ -23,6 +23,7 @@ This page collects the current truth table, release-blocking rules, and the end-
 8. **Do not present the dashboard as network-safe.** Until [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) is resolved, document it as an unauthenticated trusted-local-development surface.
 9. **Do not present VOIP startup as runnable.** Until [Issue #14](https://github.com/Capslockb/sora-agent/issues/14) is resolved, distinguish management/configuration command surfaces from a working bridge lifecycle.
 10. **Do not present setup or provider management as one reliable control surface.** Until [Issue #15](https://github.com/Capslockb/sora-agent/issues/15) is resolved, distinguish `sora setup`, `sora setup --provider`, `sora providers`, `sora voice providers`, and the dashboard/API. Quick setup mainly stores credential or identifier values; it does not prove selection, enablement, reachability, or agreement with another surface.
+11. **Do not present MCP network transports or discovery as operational.** Until [Issue #16](https://github.com/Capslockb/sora-agent/issues/16) is resolved, state that `sora mcp start` implements stdio only, the custom WebSocket path is incomplete and unauthenticated, and setup/status detection is heuristic rather than protocol-verified.
 
 ## Current validation boundary
 
@@ -41,7 +42,7 @@ Documentation-only commits after PR #5 have no attached Actions evidence. Runtim
 | FastAPI dashboard (`/health`, `/api/status`) | **PARTIAL** | Routes run, but the API defaults to `0.0.0.0`, has no authentication, broad CORS, and sensitive config/env routes; see Issue #13 |
 | Hermes plugin (`sora-hermes`) | **WORKING** | `plugins/sora_hermes/plugin.yaml`; six registered tools |
 | Discord voice bridges (`sora voice live/vapi/…`) | **PARTIAL** | CLI prepares bridge state; live audio requires the external Hermes voice runtime |
-| MCP server management (`sora mcp start/status/catalog`) | **PARTIAL** | stdio CLI path exists; HTTP/SSE/WebSocket control remains scaffolded or configuration-only |
+| MCP server management (`sora mcp`) | **PARTIAL** | The built-in server implements stdio only. SSE and streamable HTTP raise `NotImplementedError`; the custom WebSocket path is unauthenticated, incomplete, and cannot complete tool calls as written. Setup/status detection uses unverified port/process heuristics; see Issue #16. |
 | VOIP Asterisk + Dograh (`sora-voip`) | **PARTIAL** | Management/configuration surfaces exist, but `sora voip start` and the installed `sora-voip` entrypoint import a nonexistent `VoipConfig` and do not match the current `VoipBridge` constructor. The standalone implementation also contains stale `sora-voip-bridge` help examples for a console script that `pyproject.toml` does not expose. External PBX work and Issue #7 also remain; see Issue #14 |
 | TUI mode (`sora tui`) | **PLANNED** | `sora_cli/tui.py` is a stub/repl |
 | Cron job management (`sora cron`) | **PLANNED** | Commands exist; create/run not implemented |
@@ -61,10 +62,11 @@ sora --version
 sora status
 sora doctor
 
-# Provider diagnostics and MCP smoke (no external keys needed)
+# Provider and MCP diagnostics (no external keys needed)
 sora providers list
 sora voice providers list
 sora mcp catalog
+sora mcp status
 
 # API smoke — bind or firewall the API for loopback-only use
 curl -s http://127.0.0.1:8080/health
@@ -79,6 +81,8 @@ hermes tools list | grep sora_
 
 The setup and provider commands are diagnostics while Issue #15 remains open. Differences between their stored or reported state are evidence of the known split, not proof that one view is canonical. Never paste or print secret values as part of release evidence.
 
+`sora mcp catalog` is static metadata and `sora mcp status` uses listener/process heuristics. Neither proves an MCP transport or tool server is healthy. Do not add SSE, streamable HTTP, or the custom WebSocket listener to release smoke checks until Issue #16 is resolved and exact-head lifecycle/security validation passes.
+
 Do not use `/api/config`, `/api/config/env`, or mutation routes as routine release smoke tests while Issue #13 remains open.
 
 Do not add `sora voip start` or `sora-voip` to the release smoke checklist until Issue #14 is fixed and exact-head lifecycle validation passes.
@@ -91,10 +95,10 @@ Do not add `sora voip start` or `sora-voip` to the release smoke checklist until
 | VOIP entrypoints cannot construct the checked-in bridge runtime | **High** | Complete [Issue #14](https://github.com/Capslockb/sora-agent/issues/14) through a focused, separately reviewed lifecycle PR |
 | CLI secret handling and nondeterministic local execution remain open | **High** | Complete [Issue #7](https://github.com/Capslockb/sora-agent/issues/7) |
 | Setup quick paths and provider controls do not share truthful selection or credential semantics | **High** | Complete [Issue #15](https://github.com/Capslockb/sora-agent/issues/15), including the ElevenLabs variable mapping and reversible enable/disable behavior |
+| MCP network transports and discovery are incomplete, unauthenticated, or heuristic | **High** | Complete [Issue #16](https://github.com/Capslockb/sora-agent/issues/16) through a focused transport/discovery PR with exact-head tests |
 | Pytest workflow is staged but inactive | Medium | Complete [Issue #12](https://github.com/Capslockb/sora-agent/issues/12), then attach the first exact-head Actions result |
 | TUI is a stub | Medium | Decide whether to implement or keep clearly labeled `PLANNED` |
 | `sora voice live` cannot start live audio without the external Hermes voice runtime | Medium | Keep documented as `PARTIAL`; add verified runtime setup guidance |
-| `sora mcp start` HTTP/SSE/WebSocket paths are not supervised runtimes | Medium | Downgrade claims or implement transport lifecycle |
 | `sora doctor --fix` not implemented | Low | Keep documented as `PLANNED` |
 | `sora acp` is a stub | Low | Keep documented as `RESEARCH` |
 | VOIP docs need a live PBX example after the local startup path is repaired | Medium | First complete Issue #14, then add a validated Asterisk/Dograh example |
@@ -107,6 +111,8 @@ S0RA does **not** currently ship:
 - A currently runnable end-to-end VOIP bridge entrypoint.
 - A hosted VOIP service.
 - A secured network dashboard/control API.
+- A production SSE, streamable-HTTP, or WebSocket MCP server.
+- Protocol-verified MCP auto-discovery or supervised lifecycle management for saved MCP commands.
 - A complete seven-provider setup wizard or a quick path that selects and enables every accepted provider.
 - One unified, authoritative provider-management state across setup, both CLI command families, and the dashboard/API.
 - A production TUI.
