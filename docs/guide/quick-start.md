@@ -5,7 +5,8 @@
 **WORKING** for installation and the basic CLI entry points.  
 **PARTIAL** for setup and provider management: the setup wizard, both provider command families, and the dashboard/API do not share one complete provider-state contract; see [Issue #15](https://github.com/Capslockb/sora-agent/issues/15).  
 **PARTIAL** for starting live voice bridges because live Discord audio requires Hermes `discord-voice`.  
-**PARTIAL** for the dashboard control API because authentication and safe network defaults remain open under [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
+**PARTIAL** for the dashboard control API because authentication and safe network defaults remain open under [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).  
+**PARTIAL — PROTOTYPE** for `sora tui`: it requires a local build and currently renders simulated, fixed, random, or display-only data; see [Issue #17](https://github.com/Capslockb/sora-agent/issues/17).
 
 ## 1. Install
 
@@ -94,13 +95,17 @@ sora dashboard start --host 127.0.0.1 --port 3000 --api-port 8080
 
 Use `dashboard start` only on a trusted local machine until Issue #13 is resolved. The control API has sensitive read and mutation routes without authentication; do not run the current dashboard on a shared or network-exposed host, and do not publish either listener through a LAN, tunnel, container port, reverse proxy, or the public internet.
 
-## 8. Launch TUI
+## 8. Preview the TUI prototype
 
 ```bash
 sora tui
+# If the local bundle is missing:
+sora tui --build
 ```
 
-**PLANNED** — currently falls back to a chat REPL.
+**PARTIAL — PROTOTYPE.** Plain `sora tui` requires `ui-tui/dist/cli.js`; it does not fall back to the chat REPL. The built Ink/React interface currently uses simulated voice actions, hard-coded status and provider values, fixed doctor output, random benchmark values, display-only setup/configuration, and an MCP panel that does not match the verified command and transport contract.
+
+Do not use the TUI as a management, configuration, benchmark, doctor, or health surface. Do not enter real credentials. Track the build and state-integration correction in [Issue #17](https://github.com/Capslockb/sora-agent/issues/17).
 
 ## Verification commands
 
@@ -120,7 +125,8 @@ These are manual verification steps until the staged pytest workflow is activate
 - **ElevenLabs quick setup is miswired.** Do not paste an API key into its current first prompt; configure `ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID` separately.
 - **Provider views disagree.** `sora providers`, `sora voice providers`, setup, and the dashboard/API do not share one canonical provider state.
 - **No audio?** Check that Hermes `discord-voice` is installed, not just S0RA.
-- **TUI is a stub.** Do not demo it as a finished product.
+- **TUI values are not live evidence.** The current Ink/React application is a prototype with simulated, hard-coded, fixed, random, or display-only behavior.
+- **TUI build is not deterministic yet.** The Python path uses `npm install` and `npx esbuild` despite a lockfile; see Issues #7 and #17.
 - **Dashboard command flags.** `dashboard start` accepts `--host`, `--port`, and `--api-port`. `--port` is the UI preview port; `--api-port` is the control API port.
 - **Dashboard bind scope.** `--host` constrains the API server only. The current command does not expose an explicit UI bind-host option, so treat the whole dashboard as local-development-only.
 
