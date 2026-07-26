@@ -33,11 +33,11 @@ The FastAPI dashboard is implemented in `sora_api.py`. Its host and port come fr
 
 | Method | Path | Status | Current behavior |
 |---|---|---|---|
-| GET | `/health` | **WORKING** | Returns API liveness metadata |
-| GET | `/api/status` | **WORKING** | Returns configured voice, MCP, VOIP, and system state |
-| GET | `/api/dashboard/stats` | **WORKING** | Returns host CPU, memory, and uptime data |
-| GET | `/api/dashboard/calls` | **WORKING** | Returns an empty call list in the current implementation |
-| GET | `/api/visualizer/state` | **WORKING** | Returns a synthetic/configuration-derived visualizer snapshot |
+| GET | `/health` | **WORKING** | Returns API-process liveness metadata only |
+| GET | `/api/status` | **PARTIAL** | Derives voice, MCP, and VOIP labels from saved configuration and environment presence; it does not inspect bridge processes, media sessions, calls, or MCP protocol liveness |
+| GET | `/api/dashboard/stats` | **WORKING** | Returns host CPU and memory values; the field named `uptime` currently contains the host boot-time epoch rather than an elapsed uptime duration |
+| GET | `/api/dashboard/calls` | **PLANNED** | Placeholder route that always returns an empty list; no call-history backend is connected |
+| GET | `/api/visualizer/state` | **PARTIAL** | Returns a configuration-derived pipeline plus fixed nonzero audio levels whenever a provider is configured; it does not sample live audio or prove an active bridge |
 
 ### Configuration routes
 
