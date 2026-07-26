@@ -40,7 +40,7 @@ This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin 
 | Discord voice bridges (`sora voice live/vapi/…`) | **PARTIAL** | CLI validates config and prepares bridge args. Live bridging requires the Hermes `discord-voice` plugin runtime. |
 | MCP server management | **PARTIAL** | Start/status/catalog CLI works; WebSocket/SSE paths are scaffolding. |
 | VOIP Asterisk + Dograh bridge (`sora-voip`) | **PARTIAL — BLOCKED** | Component and ARI/SIP management surfaces exist, but both startup entrypoints fail during local bridge construction before any PBX connection; see Issue #14. |
-| TUI mode (`sora tui`) | **PLANNED** | Stub falls back to REPL. Not a real Ink/React TUI yet. |
+| TUI mode (`sora tui`) | **PARTIAL — PROTOTYPE** | Launches the checked-in Ink/React application only after a local build. Current voice, status, provider, doctor, benchmark, setup, configuration, and MCP panels use simulated, hard-coded, fixed, random, or display-only data; see Issue #17. |
 | Interactive cron creation (`sora cron`) | **PLANNED** | List/show works; create/run are stubs. |
 | Skill search/browse/audit (`sora skills`) | **PLANNED** | Commands exist but operations are not implemented. |
 | Session log filtering (`sora logs`) | **PLANNED** | View works; filtering is not implemented. |
@@ -121,6 +121,8 @@ sora dashboard start --host 127.0.0.1 --port 3000 --api-port 8080
 
 > `--host 127.0.0.1` constrains the FastAPI control API only. The UI preview is launched separately, and the current CLI does not pass it an explicit bind host. The dashboard also has unauthenticated sensitive routes. Run it only on a trusted local machine, and do not publish either listener through a LAN, tunnel, container port, reverse proxy, or the public internet; see [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
+> `sora tui` is a separately built Ink/React prototype, not a REPL fallback or live control surface. Its current operational panels use simulated, hard-coded, fixed, random, or display-only data. Do not enter real credentials or use TUI output as provider, health, doctor, benchmark, voice, setup, configuration, or MCP evidence; see [Issue #17](https://github.com/Capslockb/sora-agent/issues/17).
+
 ### Verification commands
 
 ```bash
@@ -167,7 +169,7 @@ Read the deep doc in [`docs/bridge-elements.md`](docs/bridge-elements.md).
 | Discord voice bridges | **PARTIAL** | [`guide/voice/gemini-live.md`](docs/guide/voice/gemini-live.md) | Live runtime in Hermes `discord-voice`. |
 | VOIP Asterisk/Dograh | **PARTIAL — BLOCKED** | [`voip/setup.md`](docs/voip/setup.md) | Local startup construction is broken before PBX connection; see Issue #14. |
 | MCP server | **PARTIAL** | [`guide/mcp/servers.md`](docs/guide/mcp/servers.md) | stdio works; WS/HTTP scaffolding. |
-| TUI | **PLANNED** | [`reference/cli/tui.md`](docs/reference/cli/tui.md) | Stub only. |
+| TUI | **PARTIAL — PROTOTYPE** | [`reference/cli/tui.md`](docs/reference/cli/tui.md) | Requires a local build and currently presents simulated or non-canonical values; see Issue #17. |
 | Cron | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
 | Skills | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
 | Logs | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
@@ -218,7 +220,7 @@ To prevent over-promising:
 - **A complete seven-provider setup wizard.** Full setup directly configures Gemini Live and Vapi, and quick setup does not select or enable every accepted provider.
 - **One unified provider-management state.** `sora setup`, `sora providers`, `sora voice providers`, and the dashboard/API do not currently share one canonical schema or command contract; see Issue #15.
 - **A cloud transcription API.** S0RA can point at external Whisper endpoints, but does not host one.
-- **A finished TUI.** `sora tui` is a stub.
+- **A finished or state-backed TUI.** `sora tui` launches a locally built Ink/React prototype whose current operational panels use simulated, hard-coded, fixed, random, or display-only data; see Issue #17.
 - **A finished ACP server.** `sora acp` is a research stub.
 - **Auto-fix diagnostics.** `sora doctor --fix` is not implemented.
 
