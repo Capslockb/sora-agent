@@ -1,34 +1,38 @@
-# MCP Auto-Discovery
+# MCP Detection Heuristics
 
-S0RA automatically detects running MCP servers on your machine.
+S0RA does **not** currently perform protocol-verified MCP auto-discovery.
 
-## Detection Methods
+## What setup checks
 
-| Method | Ports/Paths | Examples |
-|--------|-------------|----------|
-| HTTP Scan | 3000-3010 | MCP servers on localhost |
-| Stdio Scan | Process list | `npx @modelcontextprotocol/server-*` |
-| Config Files | `~/.mcp.json`, `.mcp.json` | Project-local servers |
+During the MCP section of `sora setup`, the wizard:
 
-## Setup Wizard Integration
+- attempts TCP connections to `127.0.0.1` ports 3000–3010;
+- assigns a fixed MCP server name to each open port without an MCP handshake;
+- on Unix-like systems, uses `pgrep` and `ps` to look for a small set of command-name fragments;
+- may offer to save the resulting heuristic record.
 
-During `sora setup`:
+It does not inspect `~/.mcp.json` or project `.mcp.json` files, and it does not prove server identity, protocol compatibility, tool availability, authentication, or health.
 
-```
-Scanning for running MCP servers...
-✓ Found running MCP servers: filesystem, github
-  • filesystem: File operations (port 3001)
-  • github: GitHub API (port 3002)
-  Add filesystem to Sora config? [Y/n]
-  Add github to Sora config? [Y/n]
-```
+Any unrelated application listening on a mapped port can be reported as a named MCP server. Process detection is platform-dependent and can silently produce no results where `pgrep` or `ps` is unavailable.
 
-## Manual Trigger
+## Persistence warning
+
+A port-derived result can lack the command and argument fields used by normal stdio server records. Do not accept a detected entry until you have independently identified the process and can reconstruct a complete, least-privilege configuration.
+
+Prefer adding a reviewed command explicitly:
 
 ```bash
-# Re-scan
-sora mcp discover
-
-# Add discovered server
-sora mcp add filesystem --port 3001
+sora mcp add filesystem \
+  --command npx \
+  --args -y @modelcontextprotocol/server-filesystem /absolute/allowed/path
 ```
+
+## Manual inspection
+
+```bash
+sora mcp status
+```
+
+This command uses similar process/listener heuristics and must not be treated as a protocol health check.
+
+There is no registered `sora mcp discover` command. Verified discovery, cross-platform behavior, and safe persistence are tracked in [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
