@@ -1,31 +1,7 @@
 name: public-docs-safety
 
 on:
-  pull_request:
-    paths:
-      - README.md
-      - '**/README.md'
-      - SECURITY.md
-      - '**/SECURITY.md'
-      - CONTRIBUTING.md
-      - '**/CONTRIBUTING.md'
-      - AGENTS.md
-      - '**/AGENTS.md'
-      - docs/**
-      - '**/docs/**'
-      - doc/**
-      - '**/doc/**'
-      - site/**
-      - '**/site/**'
-      - website/**
-      - '**/website/**'
-      - public/**
-      - '**/public/**'
-      - .github/CODEOWNERS
-      - .github/workflows/public-docs-safety.yml
-      - scripts/public_docs_safety.py
-      - tests/test_public_docs_safety.py
-      - tests/fixtures/public-docs/**
+  pull_request: {}
   push:
     branches: [main, master, release/**]
     paths:
