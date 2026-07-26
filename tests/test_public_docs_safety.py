@@ -81,7 +81,7 @@ class PublicDocsSafetyTests(unittest.TestCase):
             },
             clear=True,
         ):
-            self.assertEqual(scanner.comparison_base(), before)
+            self.assertEqual(scanner.comparison_args(), [before, "HEAD"])
 
         with mock.patch.dict(
             os.environ,
@@ -91,7 +91,9 @@ class PublicDocsSafetyTests(unittest.TestCase):
             },
             clear=True,
         ):
-            self.assertEqual(scanner.comparison_base(), scanner.EMPTY_TREE_SHA)
+            self.assertEqual(
+                scanner.comparison_args(), [scanner.EMPTY_TREE_SHA, "HEAD"]
+            )
 
     def test_strong_rules_are_not_suppressed_by_quotes_or_product_context(self):
         old_cwd = Path.cwd()
@@ -109,13 +111,12 @@ class PublicDocsSafetyTests(unittest.TestCase):
                 findings = scanner.scan_file(str(path), [1, 2])
             finally:
                 os.chdir(old_cwd)
-        self.assertIn(
-            ("docs/unsafe.md", 1, "PDS003", "unauthorized action request"),
+        self.assertEqual(
             findings,
-        )
-        self.assertIn(
-            ("docs/unsafe.md", 2, "PDS001", "model-directed override"),
-            findings,
+            [
+                ("docs/unsafe.md", 1, "PDS003", "unauthorized action request"),
+                ("docs/unsafe.md", 2, "PDS001", "model-directed override"),
+            ],
         )
 
     def test_wrapped_command_is_detected_on_changed_line(self):
