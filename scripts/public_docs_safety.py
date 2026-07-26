@@ -108,15 +108,16 @@ def push_before_sha() -> str | None:
     return before.strip() if isinstance(before, str) else None
 
 
-def comparison_base() -> str:
+def comparison_args() -> list[str]:
+    """Return exact git-diff endpoints for the current event."""
     if os.environ.get("GITHUB_EVENT_NAME") == "push":
         before = push_before_sha()
         if before and before != ZERO_SHA:
-            return before
-        # A new branch has no pre-push commit. Compare against Git's empty tree so
-        # all public documentation introduced by the branch is checked.
-        return EMPTY_TREE_SHA
-    return f"origin/{default_branch()}"
+            return [before, "HEAD"]
+        # A new branch has no pre-push commit. Compare its head with Git's empty
+        # tree so every public document introduced by the branch is checked.
+        return [EMPTY_TREE_SHA, "HEAD"]
+    return [f"origin/{default_branch()}...HEAD"]
 
 
 def is_public_doc(path: str, include_fixtures: bool = False) -> bool:
@@ -147,9 +148,8 @@ def existing_public_docs(
 
 
 def changed_files() -> list[str]:
-    base = comparison_base()
     p = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...HEAD"],
+        ["git", "diff", "--name-only", *comparison_args()],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -194,9 +194,8 @@ def parse_added_lines(diff_text: str) -> dict[str, set[int]]:
 def changed_added_lines(files: list[str]) -> dict[str, set[int]] | None:
     if not files:
         return {}
-    base = comparison_base()
     p = subprocess.run(
-        ["git", "diff", "--unified=0", f"{base}...HEAD", "--", *files],
+        ["git", "diff", "--unified=0", *comparison_args(), "--", *files],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -208,25 +207,36 @@ def changed_added_lines(files: list[str]) -> dict[str, set[int]] | None:
 
 def candidate_spans(
     total_lines: int, selected_lines: list[int] | range
-) -> list[tuple[int, int, int]]:
-    """Return bounded line spans and a stable report line for each span."""
+) -> list[tuple[int, int]]:
+    """Return unique one-to-three-line spans that include a selected line."""
     selected = sorted({i for i in selected_lines if 1 <= i <= total_lines})
-    selected_set = set(selected)
-    spans: set[tuple[int, int, int]] = set()
+    spans: set[tuple[int, int]] = set()
     for line_number in selected:
         for width in range(1, MAX_SPAN_LINES + 1):
             for offset in range(width):
                 start = line_number - offset
                 end = start + width - 1
-                if start < 1 or end > total_lines:
-                    continue
-                report_line = min(
-                    selected_line
-                    for selected_line in selected_set
-                    if start <= selected_line <= end
-                )
-                spans.add((start, end, report_line))
+                if 1 <= start <= end <= total_lines:
+                    spans.add((start, end))
     return sorted(spans)
+
+
+def matched_lines(
+    lines: list[str], start: int, end: int, match: re.Match[str]
+) -> set[int]:
+    """Map a match in a space-joined span back to repository line numbers."""
+    cursor = 0
+    match_start = match.start()
+    match_end = max(match.end() - 1, match_start)
+    result: set[int] = set()
+    for line_number in range(start, end + 1):
+        text = lines[line_number - 1]
+        line_start = cursor
+        line_end = cursor + len(text) - 1
+        if text and line_start <= match_end and line_end >= match_start:
+            result.add(line_number)
+        cursor += len(text) + 1
+    return result
 
 
 def scan_file(
@@ -237,16 +247,44 @@ def scan_file(
     except Exception:
         return [(path, 1, "PDS900", "document read failure")]
 
-    findings: set[tuple[str, int, str, str]] = set()
-    for start, end, report_line in candidate_spans(len(lines), line_numbers):
+    selected = {i for i in line_numbers if 1 <= i <= len(lines)}
+    internal_findings: set[tuple[int, str, str, int, int]] = set()
+    for start, end in candidate_spans(len(lines), sorted(selected)):
         text = " ".join(lines[start - 1 : end])
         for rule_id, category, rx in PATTERNS:
-            if rx.search(text):
-                findings.add((path, report_line, rule_id, category))
-        if UNCERTAIN.search(text) and not BENIGN_UNCERTAIN.search(text):
-            findings.add(
-                (path, report_line, "PDS100", "uncertain automation-directed prose")
-            )
+            for match in rx.finditer(text):
+                match_lines = matched_lines(lines, start, end, match)
+                selected_match_lines = sorted(selected & match_lines)
+                if selected_match_lines:
+                    internal_findings.add(
+                        (
+                            selected_match_lines[0],
+                            rule_id,
+                            category,
+                            min(match_lines),
+                            max(match_lines),
+                        )
+                    )
+        for match in UNCERTAIN.finditer(text):
+            if BENIGN_UNCERTAIN.search(match.group(0)):
+                continue
+            match_lines = matched_lines(lines, start, end, match)
+            selected_match_lines = sorted(selected & match_lines)
+            if selected_match_lines:
+                internal_findings.add(
+                    (
+                        selected_match_lines[0],
+                        "PDS100",
+                        "uncertain automation-directed prose",
+                        min(match_lines),
+                        max(match_lines),
+                    )
+                )
+
+    findings = {
+        (path, report_line, rule_id, category)
+        for report_line, rule_id, category, _match_start, _match_end in internal_findings
+    }
     return sorted(findings, key=lambda item: (item[1], item[2], item[3]))
 
 
