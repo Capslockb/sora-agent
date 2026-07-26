@@ -22,7 +22,13 @@ DOC_EXTS = {".md", ".mdx", ".rst", ".txt"}
 EXCLUDE_PARTS = {"i18n", "CHANGELOG.md", "sessions", "vendor", "node_modules", ".git"}
 ZERO_SHA = "0" * 40
 EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-MAX_SPAN_LINES = 3
+
+FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+HEADING_RE = re.compile(r"^\s{0,3}#{1,6}(?:\s|$)")
+LIST_ITEM_RE = re.compile(r"^\s{0,3}(?:[-+*]|\d+[.)])\s+")
+BLOCKQUOTE_RE = re.compile(r"^\s{0,3}>\s?")
+HORIZONTAL_RULE_RE = re.compile(r"^\s{0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$")
+INDENTED_CODE_RE = re.compile(r"^(?: {4}|\t)\S")
 
 
 class ComparisonError(RuntimeError):
@@ -213,20 +219,103 @@ def changed_added_lines(files: list[str]) -> dict[str, set[int]] | None:
     return parse_added_lines(p.stdout)
 
 
-def candidate_spans(
-    total_lines: int, selected_lines: list[int] | range
-) -> list[tuple[int, int]]:
-    """Return unique one-to-three-line spans that include a selected line."""
-    selected = sorted({i for i in selected_lines if 1 <= i <= total_lines})
-    spans: set[tuple[int, int]] = set()
-    for line_number in selected:
-        for width in range(1, MAX_SPAN_LINES + 1):
-            for offset in range(width):
-                start = line_number - offset
-                end = start + width - 1
-                if 1 <= start <= end <= total_lines:
-                    spans.add((start, end))
-    return sorted(spans)
+def is_table_row(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 2
+
+
+def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
+    """Split Markdown into records without joining unrelated structural entries.
+
+    Prose paragraphs, block quotes, and list-item continuations may wrap across
+    any number of physical lines. Fenced-code entries, tables, headings, and
+    indented command/help rows stay independent so adjacent records cannot form
+    an artificial rule match.
+    """
+    spans: list[tuple[int, int]] = []
+    i = 0
+    fence_marker: str | None = None
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        fence = FENCE_RE.match(line)
+
+        if not stripped:
+            i += 1
+            continue
+
+        if fence:
+            marker = fence.group(1)[0]
+            spans.append((i + 1, i + 1))
+            fence_marker = None if fence_marker == marker else marker
+            i += 1
+            continue
+
+        if fence_marker is not None:
+            spans.append((i + 1, i + 1))
+            i += 1
+            continue
+
+        if (
+            HEADING_RE.match(line)
+            or HORIZONTAL_RULE_RE.match(line)
+            or is_table_row(line)
+            or INDENTED_CODE_RE.match(line)
+        ):
+            spans.append((i + 1, i + 1))
+            i += 1
+            continue
+
+        if LIST_ITEM_RE.match(line):
+            start = i
+            i += 1
+            while i < len(lines):
+                candidate = lines[i]
+                if not candidate.strip():
+                    break
+                if (
+                    FENCE_RE.match(candidate)
+                    or HEADING_RE.match(candidate)
+                    or HORIZONTAL_RULE_RE.match(candidate)
+                    or is_table_row(candidate)
+                    or LIST_ITEM_RE.match(candidate)
+                    or BLOCKQUOTE_RE.match(candidate)
+                    or INDENTED_CODE_RE.match(candidate)
+                ):
+                    break
+                i += 1
+            spans.append((start + 1, i))
+            continue
+
+        if BLOCKQUOTE_RE.match(line):
+            start = i
+            i += 1
+            while i < len(lines) and lines[i].strip() and BLOCKQUOTE_RE.match(lines[i]):
+                i += 1
+            spans.append((start + 1, i))
+            continue
+
+        start = i
+        i += 1
+        while i < len(lines):
+            candidate = lines[i]
+            if not candidate.strip():
+                break
+            if (
+                FENCE_RE.match(candidate)
+                or HEADING_RE.match(candidate)
+                or HORIZONTAL_RULE_RE.match(candidate)
+                or is_table_row(candidate)
+                or LIST_ITEM_RE.match(candidate)
+                or BLOCKQUOTE_RE.match(candidate)
+                or INDENTED_CODE_RE.match(candidate)
+            ):
+                break
+            i += 1
+        spans.append((start + 1, i))
+
+    return spans
 
 
 def matched_lines(
@@ -257,7 +346,9 @@ def scan_file(
 
     selected = {i for i in line_numbers if 1 <= i <= len(lines)}
     internal_findings: set[tuple[int, str, str, int, int]] = set()
-    for start, end in candidate_spans(len(lines), sorted(selected)):
+    for start, end in logical_spans(lines):
+        if not any(start <= line_number <= end for line_number in selected):
+            continue
         text = " ".join(lines[start - 1 : end])
         for rule_id, category, rx in PATTERNS:
             for match in rx.finditer(text):
