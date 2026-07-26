@@ -1,0 +1,73 @@
+name: public-docs-safety
+
+on:
+  pull_request:
+    paths:
+      - README.md
+      - '**/README.md'
+      - SECURITY.md
+      - '**/SECURITY.md'
+      - CONTRIBUTING.md
+      - '**/CONTRIBUTING.md'
+      - AGENTS.md
+      - '**/AGENTS.md'
+      - docs/**
+      - '**/docs/**'
+      - doc/**
+      - '**/doc/**'
+      - site/**
+      - '**/site/**'
+      - website/**
+      - '**/website/**'
+      - public/**
+      - '**/public/**'
+      - .github/CODEOWNERS
+      - .github/workflows/public-docs-safety.yml
+      - scripts/public_docs_safety.py
+      - tests/test_public_docs_safety.py
+      - tests/fixtures/public-docs/**
+  push:
+    branches: [main, master, release/**]
+    paths:
+      - README.md
+      - '**/README.md'
+      - SECURITY.md
+      - '**/SECURITY.md'
+      - CONTRIBUTING.md
+      - '**/CONTRIBUTING.md'
+      - AGENTS.md
+      - '**/AGENTS.md'
+      - docs/**
+      - '**/docs/**'
+      - doc/**
+      - '**/doc/**'
+      - site/**
+      - '**/site/**'
+      - website/**
+      - '**/website/**'
+      - public/**
+      - '**/public/**'
+      - .github/CODEOWNERS
+      - .github/workflows/public-docs-safety.yml
+      - scripts/public_docs_safety.py
+      - tests/test_public_docs_safety.py
+      - tests/fixtures/public-docs/**
+
+permissions:
+  contents: read
+
+jobs:
+  public-docs-safety:
+    name: public-docs-safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: public-docs-safety
+        run: python3 scripts/public_docs_safety.py
+      - name: scanner regression tests
+        run: python3 tests/test_public_docs_safety.py

@@ -1,0 +1,8 @@
+README.md @Capslockb
+SECURITY.md @Capslockb
+CONTRIBUTING.md @Capslockb
+/docs/ @Capslockb
+/website/ @Capslockb
+.github/CODEOWNERS @Capslockb
+.github/workflows/public-docs-safety.yml @Capslockb
+scripts/public_docs_safety.py @Capslockb
