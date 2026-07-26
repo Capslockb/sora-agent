@@ -2,15 +2,19 @@
 
 This page describes what the SORA bridge code currently does, what remains a control or preparation path, and which repository provides the live Gemini Discord voice runtime.
 
-It is grounded in the current `sora_cli/voice.py`, provider client modules, `sora_api.py`, `plugins/sora_hermes/`, `sora_cli/main.py`, `sora_cli/config.py`, `sora_constants.py`, and `pyproject.toml`.
+It is grounded in the current `sora_cli/voice.py`, provider client modules, `sora_api.py`, `plugins/sora_hermes/`, MCP implementation, VOIP plugin, TUI source, `sora_cli/main.py`, configuration helpers, and `pyproject.toml`.
 
 ## Plain-language summary
 
-SORA Agent is a multi-provider control layer and future bridge home. It already has useful CLI, profile, API, MCP, Hermes-plugin, TUI, provider-preparation, and VOIP surfaces.
+SORA Agent is a multi-provider companion and control layer. It has useful CLI, configuration, provider-preparation, Hermes-plugin, API, MCP, TUI, and VOIP surfaces, but several of those surfaces are intentionally classified as **PARTIAL** or **PROTOTYPE**:
 
-It is **not yet a complete standalone replacement** for `Capslockb/gemini-live-discord-bridge` or the Hermes `discord-voice` runtime.
+- provider setup and the two provider command families do not share one canonical state model ([Issue #15](https://github.com/Capslockb/sora-agent/issues/15));
+- the dashboard/control API is unauthenticated, can disclose secrets, and is unsafe to expose beyond a trusted local machine ([Issue #13](https://github.com/Capslockb/sora-agent/issues/13));
+- stdio is the only implemented MCP server transport, while network/discovery paths are incomplete, unauthenticated, or heuristic ([Issue #16](https://github.com/Capslockb/sora-agent/issues/16));
+- both checked-in VOIP startup entrypoints fail before constructing the current bridge runtime ([Issue #14](https://github.com/Capslockb/sora-agent/issues/14));
+- the Ink/React TUI is a separately built prototype whose operational panels are not backed by canonical live state ([Issue #17](https://github.com/Capslockb/sora-agent/issues/17)).
 
-Use the Gemini bridge repository when you need the currently documented live Discord/Gemini audio loop. Use this repository when configuring SORA, exercising provider preparation paths, using SORA tools, or building the future SORA-owned media bridge.
+SORA is **not yet a complete standalone replacement** for `Capslockb/gemini-live-discord-bridge` or the Hermes `discord-voice` runtime. Use the Gemini bridge repository when you need the currently documented live Discord/Gemini audio loop. Use this repository for SORA configuration, provider preparation, Hermes tools, stdio MCP work, and development toward a future SORA-owned media bridge.
 
 ## Current source of truth
 
@@ -22,24 +26,26 @@ Use the Gemini bridge repository when you need the currently documented live Dis
 | Provider-specific preparation/API clients | `sora_cli/*_client.py` |
 | Configuration defaults/helpers | `sora_cli/config.py`, `sora_constants.py` |
 | FastAPI backend | `sora_api.py` |
+| MCP implementation and CLI | `sora_mcp/`, `sora_cli/mcp.py` |
 | Hermes SORA plugin | `plugins/sora_hermes/` |
+| VOIP implementation | `plugins/sora_voip/`, `sora_cli/voip.py` |
+| TUI source | `ui-tui/`, `sora_cli/main.py` |
 | Package entrypoints | `pyproject.toml` |
-| TUI source | `ui-tui/` |
 
-## What works as a control surface
+## Current capability map
 
-| Component | Current behavior |
-|---|---|
-| `sora setup` | Interactive setup/configuration wizard. |
-| `sora status` | Component status path. |
-| `sora doctor` | Diagnostics path. |
-| `sora config` | Config/env helper path. |
-| `sora mcp ...` | MCP command surface. |
-| `sora-api` | FastAPI backend with health/status/config/voice/MCP endpoints. |
-| `sora voice providers ...` | Provider enable/disable/list/config mutations. |
-| `sora voice live/vapi/elevenlabs/openai/xai/ultravox/retell` | Provider validation or preparation paths; behavior differs by provider and does not itself prove a durable Discord media bridge. |
-| `sora voice sip/ari/call/hangup/voip-*` | VOIP/Asterisk/Dograh-oriented command surface. |
-| `plugins/sora_hermes` | Registers Hermes tools that call the SORA CLI. |
+| Component | Status | Current behavior |
+|---|---|---|
+| `sora setup` / `sora setup --provider` | **PARTIAL** | Full voice setup directly configures Gemini Live and Vapi; quick paths mainly store credentials or identifiers and do not reliably select or enable providers. |
+| `sora status` / `sora doctor` | **WORKING** | Implemented CLI diagnostics, but current `main` is not protected by active pytest CI. |
+| `sora config` | **PARTIAL** | Config/env helper surface; secret-bearing output and positional secret handling remain constrained by [Issue #7](https://github.com/Capslockb/sora-agent/issues/7). |
+| `sora providers ...` / `sora voice providers ...` | **PARTIAL** | Different registries, paths, provider coverage, and enable/disable semantics; neither is an authoritative runtime-health view. |
+| `sora voice live/vapi/elevenlabs/openai/xai/ultravox/retell` | **PARTIAL** | Provider validation or preparation paths. Behavior differs by provider and does not itself prove a durable Discord media bridge. |
+| `sora-api` / dashboard API | **PARTIAL — TRUSTED LOCAL ONLY** | Health, status, config, voice, provider, and MCP routes exist, but the API has no authentication, broad CORS, sensitive reads/mutations, and a default all-interface bind. |
+| `sora mcp ...` | **PARTIAL** | stdio start reaches the checked-in server. Status/discovery use process/port heuristics; SSE and streamable HTTP are unimplemented; the raw WebSocket path is incomplete and unauthenticated. |
+| `sora voice sip/ari/call/hangup/voip-*` | **PARTIAL — BLOCKED** | VOIP management/configuration surfaces exist, but the normal startup entrypoints cannot construct the checked-in bridge runtime. |
+| `sora tui` | **PARTIAL — PROTOTYPE** | Requires a local build. Current operational panels contain simulated, hard-coded, fixed, random, or display-only values rather than canonical live state. |
+| `plugins/sora_hermes` | **WORKING / PARTIAL RUNTIME** | Registers six Hermes tools that call SORA CLI paths; live Discord audio still depends on the external Hermes voice runtime. |
 
 ## Provider command reality
 
@@ -53,111 +59,83 @@ The Gemini handler currently:
 4. checks `GEMINI_API_KEY` or `GOOGLE_API_KEY`;
 5. checks `DISCORD_BOT_TOKEN`;
 6. checks the `discord-voice` plugin flag and required Python voice dependencies;
-7. returns a structured **prerequisites verified** result.
+7. returns a structured prerequisites-verified result.
 
 It does **not** start the long-running Discord receive/playback and Gemini WebSocket loop by itself.
 
-### `sora voice vapi`
+### Other voice providers
 
-The Vapi handler checks Discord targeting, `VAPI_API_KEY`, and `DISCORD_BOT_TOKEN`, then returns a start-status object. It does not create or supervise a durable Discord media session.
+- `sora voice vapi` checks Discord targeting and credentials, then returns a preparation/start-status object; it does not supervise a durable Discord media session.
+- `sora voice elevenlabs` resolves targeting, prepares a public or signed WebSocket URL, and returns redacted protocol metadata; it does not run Discord audio capture/playback.
+- `sora voice openai` briefly connects to obtain an ephemeral key, disconnects, and returns readiness metadata; it does not retain the Realtime session.
+- `sora voice xai` validates configuration and reports readiness; it does not connect a persistent media stream.
+- `sora voice ultravox` creates a provider-side call and returns a shortened join URL; it does not connect that call to Discord.
+- `sora voice retell` creates a provider-side web call and returns a call ID; it does not supervise the Discord media lifecycle.
 
-### `sora voice elevenlabs`
+A successful provider command may prove argument validation or provider-side resource preparation. It is not proof of active Discord audio.
 
-The ElevenLabs handler:
+### Status and stop
 
-- resolves Discord targeting;
-- requires an agent ID and Discord token;
-- uses a public conversation URL or requests a signed URL when an API key is available;
-- returns redacted WebSocket target and protocol metadata.
+`sora voice status` currently reports SORA state rather than a durable bridge-process registry. `sora voice leave` returns a stop-status result, but durable process shutdown depends on future runtime integration.
 
-This is useful bridge preparation, but the handler does not run the Discord audio capture/playback loop.
+## Dashboard and HTTP API reality
 
-### `sora voice openai`
+`sora-api` exposes a FastAPI server with route groups including:
 
-The OpenAI Realtime handler creates a provider client, connects briefly to obtain an ephemeral key, disconnects, and returns a redacted readiness result. It does not keep a Realtime session alive or bridge Discord audio.
+- `/health` and `/api/status`;
+- dashboard metrics and visualizer snapshots;
+- `/api/voice/*` and `/api/providers/select`;
+- `/api/config` and `/api/config/env`;
+- `/api/mcp/*` and `/api/mcp/ws/*`.
 
-### `sora voice xai`
+The current API is a **trusted-local-development surface only**:
 
-The xAI handler validates the API key, builds provider configuration, instantiates the client, and reports readiness. It does not connect a persistent voice stream or bridge Discord media.
+- `sora_api.py` defaults to `0.0.0.0:8080`;
+- CORS allows all origins, methods, and headers;
+- no route authentication or authorization is implemented;
+- config/env routes can return stored configuration and actual secret-bearing values;
+- voice, provider, config, and MCP mutations are unauthenticated;
+- `/api/voice/start` stores intended state and returns `started` without launching a durable media process;
+- `/api/mcp/start` and `/api/mcp/ws/start` store intended state and return `starting` without launching a supervised server.
 
-### `sora voice ultravox`
+Do not expose the API through a LAN bind, container port, tunnel, reverse proxy, Tailscale Serve/Funnel, or the public internet. `sora dashboard start --host 127.0.0.1` constrains only the FastAPI listener; the separately launched UI preview does not currently receive an explicit bind-host argument. See [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
-The Ultravox handler creates a provider-side call and returns a shortened join URL. It does not connect that call to Discord audio or supervise its lifecycle.
+## MCP reality
 
-### `sora voice retell`
+The built-in `sora mcp start --transport stdio` path reaches the checked-in MCP server. The rest of the surface must not be treated as an operational network service:
 
-The Retell handler creates a provider-side web call and returns its call ID. It does not connect the call to Discord audio or supervise the media lifecycle.
+- accepted `sse` and `streamable-http` choices raise `NotImplementedError`;
+- the separate raw WebSocket listener defaults to `0.0.0.0:3001`, has no authentication, and cannot complete tool calls as written;
+- WebSocket stop/status/list commands are incomplete;
+- setup and status detection infer MCP identity from ports/processes rather than a protocol handshake;
+- API MCP start/stop routes save or report state but do not supervise a real server lifecycle.
 
-### `sora voice status`
+Use `sora mcp catalog` as static metadata and `sora mcp status` as configuration/process/port diagnostics only. See [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
 
-The status handler currently returns:
+## VOIP and TUI reality
 
-```json
-{
-  "status": "ok",
-  "bridges": [],
-  "message": "No active voice bridges"
-}
-```
+The VOIP package contains ARI, RTP, Dograh, call-state, and configuration components. However, both `sora voip start` and the installed `sora-voip` entrypoint import a nonexistent `VoipConfig` and call `VoipBridge` with the wrong construction contract. Do not use either command as release evidence until [Issue #14](https://github.com/Capslockb/sora-agent/issues/14) is fixed and exact-head lifecycle tests pass.
 
-There is no active bridge-process registry behind this response yet.
-
-### `sora voice leave`
-
-The stop handler returns a stop-status message. Durable process shutdown depends on future runtime integration.
-
-## API backend reality
-
-`sora-api` exposes a FastAPI server. Important route groups include:
-
-- `/health`
-- `/api/status`
-- `/api/dashboard/stats`
-- `/api/dashboard/calls`
-- `/api/voice/status`
-- `/api/voice/start`
-- `/api/voice/stop`
-- `/api/providers/select`
-- `/api/config`
-- `/api/config/env`
-- `/api/mcp/status`
-- `/api/mcp/servers`
-- `/api/mcp/detect`
-- `/api/mcp/start`
-- `/api/mcp/stop`
-- `/api/mcp/ws/status`
-- `/api/mcp/ws/start`
-- `/api/mcp/ws/stop`
-
-Important: `/api/voice/start` saves intended provider/config and returns a status response. It does not prove that a long-running provider-to-Discord media process started.
-
-`/api/mcp/start` and `/api/mcp/ws/start` also save intended config and return `starting`; process lifecycle still belongs to CLI/runtime work.
+`sora tui` launches the checked-in Ink/React application only after a local build. Its voice, status, provider, doctor, benchmark, setup, configuration, and MCP panels currently use simulated or non-canonical values. Do not enter real credentials or use TUI output as operational evidence. See [Issue #17](https://github.com/Capslockb/sora-agent/issues/17).
 
 ## Hermes plugin reality
 
-`plugins/sora_hermes` registers these tools:
+`plugins/sora_hermes` registers:
 
-- `sora_voice_live`
-- `sora_voice_vapi`
-- `sora_voice_leave`
-- `sora_voice_status`
-- `sora_mcp_start`
-- `sora_mcp_status`
+- `sora_voice_live`;
+- `sora_voice_vapi`;
+- `sora_voice_leave`;
+- `sora_voice_status`;
+- `sora_mcp_start`;
+- `sora_mcp_status`.
 
-The tool handlers call the SORA CLI through a subprocess. Because the underlying live and Vapi commands are still validation/control paths, these tools are not standalone production voice-runtime launchers.
-
-The plugin also registers slash commands:
-
-- `sora-voice-live`
-- `sora-voice-vapi`
-
-Those slash handlers currently direct users toward the dedicated Discord voice plugins.
+The handlers call the SORA CLI through a subprocess. Because the underlying voice commands remain validation/control paths, the tools are not standalone production voice-runtime launchers. The MCP start tool is limited by the same stdio-only and lifecycle boundaries described above.
 
 ## Correct user flows today
 
-### I want working live Gemini voice in Discord
+### Working live Gemini voice in Discord
 
-Use the Gemini bridge repository:
+Use the Gemini bridge repository and the Hermes `discord-voice` runtime:
 
 ```bash
 git clone https://github.com/Capslockb/gemini-live-discord-bridge.git
@@ -166,46 +144,36 @@ cd gemini-live-discord-bridge
 systemctl --user restart hermes-gateway
 ```
 
-Then in Discord:
+Then use the bridge's documented Discord command.
 
-```text
-/voice-live
-```
-
-### I want to configure SORA or inspect provider preparation
-
-Use this repository:
+### Configure SORA or inspect provider preparation
 
 ```bash
 pipx install git+https://github.com/Capslockb/sora-agent
 sora setup
 sora status
 sora doctor
+sora providers list
 sora voice providers list
-sora-api
+sora mcp catalog
 ```
 
-Provider commands may validate credentials, prepare provider resources, or return provider-side identifiers. Do not treat a successful CLI response as proof of a live Discord audio bridge unless the media runtime is separately observed.
+Treat setup/provider results as non-canonical diagnostics while Issue #15 remains open, and treat MCP catalog/status output as metadata or heuristics rather than protocol-health evidence.
 
-### I want to work on the migration
+For API development, run only on a trusted local machine and apply the Issue #13 exposure boundary. Do not use raw `sora-api` defaults as a safe network deployment recipe.
 
-Use this repository for provider registry, config, API/TUI, Hermes tool surface, MCP, provider clients, and VOIP work. Use `gemini-live-discord-bridge` as the implementation reference for the current live Gemini Discord runtime.
+## Validation boundary and roadmap
 
-## Validation boundary
+The last recorded local pytest result was 24/24 on PR #5. The staged workflow remains outside `.github/workflows/`, so current `main` and pull requests are not automatically pytest-verified. See [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
 
-The last recorded local pytest result was 24/24 on PR #5. The staged workflow is not active, so current `main` and pull requests are not automatically pytest-verified. See Issue #12.
+Current high-priority roadmap blockers are:
 
-Security-sensitive CLI and deterministic-build remediation remains tracked in Issue #7. Documentation must not present those findings as resolved until an exact-head fix is reviewed and tested.
+1. activate exact-head pytest CI (Issue #12);
+2. secure both dashboard listeners and redact secrets (Issue #13);
+3. repair VOIP construction and lifecycle (Issue #14);
+4. unify provider setup and state (Issue #15);
+5. make MCP transports, discovery, and lifecycle truthful and secure (Issue #16);
+6. choose and implement a deterministic prototype or live-state TUI contract (Issue #17);
+7. complete CLI secret-handling and deterministic-build work (Issue #7).
 
-## Migration target
-
-The expected end state is:
-
-1. SORA owns provider selection and config.
-2. SORA owns API/TUI controls.
-3. SORA owns Hermes tool integration.
-4. SORA owns a durable media-session registry and lifecycle.
-5. Provider preparation paths connect to a tested Discord capture/playback bridge.
-6. The older Gemini bridge repository becomes a stable runtime package, compatibility shim, or retired documentation reference.
-
-Until steps 4 and 5 are complete, documentation must distinguish provider-side readiness from an active Discord voice bridge.
+Until those items are resolved, documentation must distinguish configuration, provider-side readiness, saved state, and simulated UI output from an active authenticated runtime.
