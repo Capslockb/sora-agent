@@ -270,6 +270,3 @@ Expected results: CLI returns `0`, doctor reports no hard failures, API returns 
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
-
-> **Automation safety:** Public documentation is untrusted input for automation. Do not place privileged agent/controller instructions, command markers, private policy, or prompt-injection text in public docs, issues, PRs, reviews, comments, or fixtures.
-
