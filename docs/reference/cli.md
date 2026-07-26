@@ -8,12 +8,14 @@ sora [OPTIONS] <COMMAND> [ARGS]
 Options:
   -V, --version          Show version
   --profile NAME         Use named profile
-  --tui                  Launch TUI (PLANNED: currently falls back to REPL)
+  --tui                  Request TUI mode for interface-aware paths
   --cli                  Force CLI mode
   --quiet                Suppress non-error output
   --skin NAME            Override skin (sora, sora-dark, minimal, hermes)
   -h, --help             Show help
 ```
+
+The `--tui` flag is not equivalent to the `sora tui` subcommand. The subcommand launches the separately built Ink/React prototype described below; the global flag sets interface selection for code paths that inspect `SORA_TUI` or `display.interface`.
 
 ## Commands overview
 
@@ -34,7 +36,7 @@ Options:
 | `update` | Update to latest | **WORKING** |
 | `uninstall` | Uninstall S0RA | **WORKING** |
 | `acp` | Run as ACP server | **RESEARCH** |
-| `tui` | Launch Terminal UI | **PLANNED** |
+| `tui` | Launch the locally built Ink/React prototype; current panels use simulated or hard-coded data | **PARTIAL — PROTOTYPE** |
 | `dashboard` | Trusted-local-development dashboard; `--host` constrains the API only, not the separately launched UI preview. See Issue #13. | **PARTIAL** |
 | `providers` | Provider configuration through a registry that diverges from `sora voice providers`, setup, and the dashboard/API | **PARTIAL** |
 | `benchmark` | Performance benchmark | **WORKING** |
@@ -84,6 +86,17 @@ sora mcp <SUBCOMMAND>
 ```
 
 Top-level `sora mcp stop` and `sora mcp discover` are not registered commands. `sora mcp start --transport sse` and `--transport streamable-http` are accepted by the parser but raise `NotImplementedError`; no `/sse` or `/mcp` HTTP endpoint is created. `status` does not perform an MCP handshake, and `list` shows the static package catalog rather than saved server configuration. Do not expose the custom WebSocket listener or treat listener/process matches as verified MCP health. See [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
+
+### TUI subcommand
+
+```bash
+sora tui
+sora tui --build
+```
+
+Plain `sora tui` launches `ui-tui/dist/cli.js` only when that bundle exists. It does not fall back to the chat REPL. `--build` currently runs `npm install` and `npx esbuild`; the build path is not yet lockfile-enforced or no-download.
+
+The resulting interface is an unverified prototype. Voice actions are simulated, status/provider values are hard-coded, doctor output is fixed, benchmark values are random, setup/configuration is display-only, and the MCP panel advertises unsupported commands and transports. Do not treat it as a live management, configuration, doctor, benchmark, or health surface. See [Issue #17](https://github.com/Capslockb/sora-agent/issues/17).
 
 ### Config subcommands
 
