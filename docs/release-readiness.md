@@ -16,7 +16,7 @@ This page collects the current truth table, release-blocking rules, and the end-
 1. **No false claims.** Every feature in README and docs uses one of the four labels above.
 2. **Every `WORKING` feature must have a verification command.** Prefer commands that run without external API keys.
 3. **Every `PARTIAL` feature must state the missing runtime, lifecycle, state, or safety boundary.** Example: Discord voice bridges require the external Hermes voice runtime.
-4. **No screenshots of unreleased UIs.** The TUI is `PLANNED`; do not show it as shipped.
+4. **Do not present prototype UI output as live evidence.** Until [Issue #17](https://github.com/Capslockb/sora-agent/issues/17) is resolved, TUI screenshots and demonstrations must visibly retain the prototype boundary and must not imply that simulated provider, voice, health, doctor, benchmark, setup, configuration, or MCP values came from live state.
 5. **API documentation must match `sora_api.py`.** The route tables are maintained manually and must be rechecked against source; they are not generated automatically.
 6. **Docs-site must build without dead links.** Run `npm run docs:build` before release.
 7. **Local test results are not CI evidence.** Until [Issue #12](https://github.com/Capslockb/sora-agent/issues/12) is completed, describe pytest results as locally verified and do not imply that GitHub Actions validates the current head.
@@ -44,7 +44,7 @@ Documentation-only commits after PR #5 have no attached Actions evidence. Runtim
 | Discord voice bridges (`sora voice live/vapi/…`) | **PARTIAL** | CLI prepares bridge state; live audio requires the external Hermes voice runtime |
 | MCP server management (`sora mcp`) | **PARTIAL** | The built-in server implements stdio only. SSE and streamable HTTP raise `NotImplementedError`; the custom WebSocket path is unauthenticated, incomplete, and cannot complete tool calls as written. Setup/status detection uses unverified port/process heuristics; see Issue #16. |
 | VOIP Asterisk + Dograh (`sora-voip`) | **PARTIAL** | Management/configuration surfaces exist, but `sora voip start` and the installed `sora-voip` entrypoint import a nonexistent `VoipConfig` and do not match the current `VoipBridge` constructor. The standalone implementation also contains stale `sora-voip-bridge` help examples for a console script that `pyproject.toml` does not expose. External PBX work and Issue #7 also remain; see Issue #14 |
-| TUI mode (`sora tui`) | **PLANNED** | `sora_cli/tui.py` is a stub/repl |
+| TUI mode (`sora tui`) | **PARTIAL — PROTOTYPE** | The checked-in Ink/React application requires a local build. Its voice, status, provider, doctor, benchmark, setup, configuration, and MCP panels currently use simulated, hard-coded, fixed, random, or display-only data rather than canonical live state; see Issue #17. |
 | Cron job management (`sora cron`) | **PLANNED** | Commands exist; create/run not implemented |
 | Skill management (`sora skills`) | **PLANNED** | Commands exist; operations not implemented |
 | Log filtering (`sora logs`) | **PLANNED** | View works; filtering not implemented |
@@ -97,7 +97,7 @@ Do not add `sora voip start` or `sora-voip` to the release smoke checklist until
 | Setup quick paths and provider controls do not share truthful selection or credential semantics | **High** | Complete [Issue #15](https://github.com/Capslockb/sora-agent/issues/15), including the ElevenLabs variable mapping and reversible enable/disable behavior |
 | MCP network transports and discovery are incomplete, unauthenticated, or heuristic | **High** | Complete [Issue #16](https://github.com/Capslockb/sora-agent/issues/16) through a focused transport/discovery PR with exact-head tests |
 | Pytest workflow is staged but inactive | Medium | Complete [Issue #12](https://github.com/Capslockb/sora-agent/issues/12), then attach the first exact-head Actions result |
-| TUI is a stub | Medium | Decide whether to implement or keep clearly labeled `PLANNED` |
+| TUI build/runtime contract is inconsistent and operational panels are simulated | Medium | Complete [Issue #17](https://github.com/Capslockb/sora-agent/issues/17) through one focused build/runtime PR with deterministic tests |
 | `sora voice live` cannot start live audio without the external Hermes voice runtime | Medium | Keep documented as `PARTIAL`; add verified runtime setup guidance |
 | `sora doctor --fix` not implemented | Low | Keep documented as `PLANNED` |
 | `sora acp` is a stub | Low | Keep documented as `RESEARCH` |
