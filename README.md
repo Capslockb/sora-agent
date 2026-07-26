@@ -33,7 +33,7 @@ This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin 
 |---|---|---|
 | CLI entry (`sora --help`, `sora status`, `sora doctor`) | **WORKING** | Commands are implemented. Last recorded local suite: 24/24 on PR #5; current `main` is not CI-verified. |
 | Setup wizard (`sora setup`) | **WORKING** | Interactive provider/API-key configuration. |
-| Provider registry (`sora voice providers`) | **WORKING** | List/enable/disable TTS/STT/LLM-voice providers. |
+| Provider management (`sora providers`, `sora voice providers`) | **PARTIAL** | The two command families use different registries, configuration paths, provider coverage, and disable semantics; the dashboard/API reads another selection shape. Use `sora setup` for initial configuration and see Issue #15. |
 | ElevenLabs signed URLs / WebSocket targets | **WORKING** | URL generation and bridge prep implemented. |
 | FastAPI dashboard (`/health`, `/api/status`) | **PARTIAL** | The API routes run on port `8080`, but the API is unauthenticated and defaults to `0.0.0.0`. The UI preview is launched separately, and `--host` does not constrain its bind address; treat the whole dashboard as trusted-local-development only pending Issue #13. |
 | Hermes plugin (`sora-hermes`) | **WORKING** | Registers `sora_voice_*` and `sora_mcp_*` tools. |
@@ -69,7 +69,7 @@ See [`docs/release-readiness.md`](docs/release-readiness.md) for the full truth 
 ┌───────────────┐      ┌───────────────┐      ┌───────────────────────┐
 │ sora-hermes   │      │ sora-voip     │      │ built-in runtime      │
 │ plugin        │      │ plugin        │      │ (MCP scaffolds,       │
-│               │      │               │      │  provider registry,   │
+│               │      │               │      │  provider controls,   │
 │ Registers     │      │ Asterisk ARI  │      │  FastAPI dashboard)   │
 │ sora_voice_*  │      │ + Dograh      │      │                       │
 │ tools in      │      │ SIP/RTP       │      │                       │
@@ -108,13 +108,16 @@ sora --version
 sora doctor
 sora status
 
-# 4. Check provider state
+# 4. Inspect provider state (diagnostic only)
+sora providers list
 sora voice providers list
 
 # 5. Start the dashboard for local development (optional)
 sora dashboard start --host 127.0.0.1 --port 3000 --api-port 8080
 # API health: http://127.0.0.1:8080/health
 ```
+
+> Provider management is split between two command families and the dashboard/API. A successful list, enable, or disable result from one surface is not proof that the other surfaces or runtime selected the same provider. Use `sora setup` for initial configuration and see [Issue #15](https://github.com/Capslockb/sora-agent/issues/15).
 
 > `--host 127.0.0.1` constrains the FastAPI control API only. The UI preview is launched separately, and the current CLI does not pass it an explicit bind host. The dashboard also has unauthenticated sensitive routes. Run it only on a trusted local machine, and do not publish either listener through a LAN, tunnel, container port, reverse proxy, or the public internet; see [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
@@ -157,7 +160,7 @@ Read the deep doc in [`docs/bridge-elements.md`](docs/bridge-elements.md).
 |---|---|---|---|
 | CLI help/version/status/doctor | **WORKING** | [`reference/cli/sora.md`](docs/reference/cli/sora.md) | — |
 | Setup wizard | **WORKING** | [`reference/cli/setup.md`](docs/reference/cli/setup.md) | — |
-| Provider enable/disable | **WORKING** | [`guide/voice/providers.md`](docs/guide/voice/providers.md) | — |
+| Provider management | **PARTIAL** | [`guide/voice/providers.md`](docs/guide/voice/providers.md) | Two CLI surfaces and the dashboard/API do not share one canonical state; see Issue #15. |
 | ElevenLabs URL signing | **WORKING** | [`guide/voice/elevenlabs.md`](docs/guide/voice/elevenlabs.md) | — |
 | FastAPI dashboard | **PARTIAL** | [`reference/cli.md`](docs/reference/cli.md) | Routes run, but authentication, redaction, and safe bind defaults are unresolved. |
 | Hermes plugin tools | **WORKING** | [`reference/plugins/sora-hermes.md`](docs/reference/plugins/sora-hermes.md) | Requires `discord-voice` for live audio. |
@@ -212,6 +215,7 @@ To prevent over-promising:
 - **A standalone live Discord voice bridge.** The audio path lives in the Hermes `discord-voice` plugin. S0RA configures and queries it.
 - **A runnable phone bridge.** The repository contains VOIP components and management surfaces, but the startup path is blocked before it can use your Asterisk PBX and Dograh gateway; see Issue #14.
 - **A hosted phone service.** After the local startup path is repaired, VOIP will still require your own Asterisk PBX and Dograh gateway.
+- **One unified provider-management state.** `sora providers`, `sora voice providers`, and the dashboard/API do not currently share one canonical schema or command contract; see Issue #15.
 - **A cloud transcription API.** S0RA can point at external Whisper endpoints, but does not host one.
 - **A finished TUI.** `sora tui` is a stub.
 - **A finished ACP server.** `sora acp` is a research stub.
