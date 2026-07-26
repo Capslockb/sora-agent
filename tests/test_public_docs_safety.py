@@ -57,6 +57,19 @@ class PublicDocsSafetyTests(unittest.TestCase):
         self.assertTrue(scanner.is_public_doc("packages/demo/docs/guide.md"))
         self.assertFalse(scanner.is_public_doc("vendor/demo/docs/guide.md"))
 
+    def test_changed_line_parser_tracks_only_added_lines(self):
+        diff = """diff --git a/docs/guide.md b/docs/guide.md
+--- a/docs/guide.md
++++ b/docs/guide.md
+@@ -1,2 +1,3 @@
+ safe line
++new line
+ another line
+"""
+        self.assertEqual(
+            scanner.parse_added_lines(diff), {"docs/guide.md": {2}}
+        )
+
     def test_diagnostics_contain_rule_metadata_not_source_text(self):
         old_cwd = Path.cwd()
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -74,6 +87,22 @@ class PublicDocsSafetyTests(unittest.TestCase):
             findings,
             [("docs/unsafe.md", 1, "PDS001", "model-directed override")],
         )
+
+    def test_safe_product_documentation_has_no_findings(self):
+        old_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            try:
+                os.chdir(temp_dir)
+                path = Path("docs/safe.md")
+                path.parent.mkdir(parents=True)
+                path.write_text(
+                    "The dashboard is available only on localhost.",
+                    encoding="utf-8",
+                )
+                findings = scanner.scan_file(str(path), [1])
+            finally:
+                os.chdir(old_cwd)
+        self.assertEqual(findings, [])
 
 
 if __name__ == "__main__":
