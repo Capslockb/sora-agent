@@ -15,10 +15,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-DOC_NAMES = {"README.md", "SECURITY.md", "CONTRIBUTING.md", "AGENTS.md"}
+DOC_NAMES = {
+    "README.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "AGENTS.md",
+    "CODE_OF_CONDUCT.md",
+}
+SPECIAL_DOC_PATHS = {".github/CODEOWNERS"}
 DOC_DIR_PARTS = {"docs", "doc", "website", "site", "public"}
 FIXTURE_PARTS = {"tests", "fixtures", "public-docs"}
-DOC_EXTS = {".md", ".mdx", ".rst", ".txt"}
+DOC_EXTS = {".md", ".mdx", ".rst", ".txt", ".adoc", ".asciidoc", ".html", ".htm"}
 EXCLUDE_PARTS = {"i18n", "CHANGELOG.md", "sessions", "vendor", "node_modules", ".git"}
 ZERO_SHA = "0" * 40
 EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
@@ -133,9 +140,14 @@ def comparison_args() -> list[str]:
 
 def is_public_doc(path: str, include_fixtures: bool = False) -> bool:
     p = Path(path)
+    normalized = p.as_posix()
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
     parts = set(p.parts)
     if parts & EXCLUDE_PARTS:
         return False
+    if normalized in SPECIAL_DOC_PATHS:
+        return True
     if include_fixtures and FIXTURE_PARTS <= parts and p.suffix.lower() in DOC_EXTS:
         return True
     return p.name in DOC_NAMES or (

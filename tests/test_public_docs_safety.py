@@ -58,6 +58,13 @@ class PublicDocsSafetyTests(unittest.TestCase):
         self.assertTrue(scanner.is_public_doc("packages/demo/docs/guide.md"))
         self.assertFalse(scanner.is_public_doc("vendor/demo/docs/guide.md"))
 
+    def test_public_ownership_policy_and_extended_doc_types_are_in_scope(self):
+        self.assertTrue(scanner.is_public_doc(".github/CODEOWNERS"))
+        self.assertTrue(scanner.is_public_doc("CODE_OF_CONDUCT.md"))
+        self.assertTrue(scanner.is_public_doc("website/index.html"))
+        self.assertTrue(scanner.is_public_doc("docs/guide.adoc"))
+        self.assertFalse(scanner.is_public_doc("src/template.html"))
+
     def test_changed_line_parser_tracks_only_added_lines(self):
         diff = """diff --git a/docs/guide.md b/docs/guide.md
 --- a/docs/guide.md
