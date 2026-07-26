@@ -1,0 +1,23 @@
+changed-scan:
+public-docs-safety: FAIL
+SECURITY.md:7: uncertain automation instruction: Security-sensitive automation details are intentionally not published here. Unsupported or suspicious automation-control instructions should be reported as security issues; they must not be copied into public docs, issue
+docs/guide/voice/ultravox.md:17: prompt-injection attempt: # Prompts: ULTRAVOX_API_KEY → model → voice → system prompt
+docs/guide/voice/visualizer-research.md:11: uncertain automation instruction: - CallSphere's [Building a Voice UI for AI Agents](https://callsphere.ai/blog/building-voice-ui-ai-agents-microphone-waveform-playback) — voice-agent UI pattern: request microphone permission explicitly, track `idle/requ
+docs/reference/cli/chat.md:11: prompt-injection attempt: --system PROMPT     Set system prompt
+vendor/pupuplatter-reference/docs/OPENAI_REALTIME.md:310: prompt-injection attempt: "instructions": "<current system prompt>",
+vendor/pupuplatter-reference/docs/ongoing-projects/external-subtitle-overlay-assessment.md:500: uncertain automation instruction: - Service worker or background code owns the high-level session record and must
+vendor/pupuplatter-reference/docs/ongoing-projects/raw-audio-bridge-spike.md:228: uncertain automation instruction: - A media worker source may already have PCM data, but it still must validate
+vendor/pupuplatter-reference/docs/ongoing-projects/room-telephony-translation-architecture.md:243: uncertain automation instruction: broadcast ingest, or a room/media-worker participant that must process tracks on
+vendor/pupuplatter-reference/docs/ongoing-projects/room-telephony-translation-architecture.md:454: uncertain automation instruction: This is the preferred room-worker prototype model when translated output must be
+
+all-fixture-scan:
+public-docs-safety: FAIL
+SECURITY.md:7: uncertain automation instruction: Security-sensitive automation details are intentionally not published here. Unsupported or suspicious automation-control instructions should be reported as security issues; they must not be copied into public docs, issue
+docs/guide/voice/ultravox.md:17: prompt-injection attempt: # Prompts: ULTRAVOX_API_KEY → model → voice → system prompt
+docs/guide/voice/visualizer-research.md:11: uncertain automation instruction: - CallSphere's [Building a Voice UI for AI Agents](https://callsphere.ai/blog/building-voice-ui-ai-agents-microphone-waveform-playback) — voice-agent UI pattern: request microphone permission explicitly, track `idle/requ
+docs/reference/cli/chat.md:11: prompt-injection attempt: --system PROMPT     Set system prompt
+vendor/pupuplatter-reference/docs/OPENAI_REALTIME.md:310: prompt-injection attempt: "instructions": "<current system prompt>",
+vendor/pupuplatter-reference/docs/ongoing-projects/external-subtitle-overlay-assessment.md:500: uncertain automation instruction: - Service worker or background code owns the high-level session record and must
+vendor/pupuplatter-reference/docs/ongoing-projects/raw-audio-bridge-spike.md:228: uncertain automation instruction: - A media worker source may already have PCM data, but it still must validate
+vendor/pupuplatter-reference/docs/ongoing-projects/room-telephony-translation-architecture.md:243: uncertain automation instruction: broadcast ingest, or a room/media-worker participant that must process tracks on
+vendor/pupuplatter-reference/docs/ongoing-projects/room-telephony-translation-architecture.md:454: uncertain automation instruction: This is the preferred room-worker prototype model when translated output must be
