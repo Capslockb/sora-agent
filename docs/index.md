@@ -18,28 +18,28 @@ hero:
 features:
   - icon: 🎙️
     title: Multi-Provider Voice
-    details: Switch between Gemini Live, Vapi.ai, ElevenLabs, OpenAI Realtime, xAI Grok, Ultravox, Retell AI, Edge TTS, OpenAI TTS, Whisper STT with a single CLI command.
+    details: Provider adapters and CLI surfaces exist for multiple backends, but setup, provider commands, and the dashboard do not yet share one canonical selection state. See Issue #15 before treating them as interchangeable controls.
   - icon: 📞
     title: VOIP / Asterisk + Dograh
-    details: Connect your self-hosted PBX via Asterisk ARI. Route phone calls through Dograh to Gemini Live for AI conversations.
+    details: Intended self-hosted PBX architecture using Asterisk ARI and Dograh. The checked-in VOIP startup entrypoints are currently blocked before they can construct the bridge runtime; see Issue #14.
   - icon: 🔌
     title: MCP Integration
-    details: Auto-detects running MCP servers (stdio + HTTP). WebSocket MCP with CLI management. Works with Honcho, OpenClaw, Hermes memory.
+    details: stdio management paths exist. HTTP, SSE, and WebSocket lifecycle claims remain partial or scaffolded and require exact-runtime validation.
   - icon: 🎨
     title: Hermes DNA
-    details: Same config system, profiles, skins, plugin architecture, constants, logging as Hermes. Drop-in familiar experience.
+    details: Companion configuration, plugin, constants, and logging patterns aligned with Hermes rather than a separate isolated assistant runtime.
   - icon: 🌐
     title: Voice Visualizer Web UI
-    details: React + Vite visualizer with waveform, provider cards, voice pipeline state, MCP status, and real-time system monitoring.
+    details: React + Vite visualizer and a FastAPI control surface. The current API is unauthenticated and the separately launched UI preview has no explicit bind-host control; keep both local-only under Issue #13.
   - icon: 📦
     title: Install Anywhere
-    details: pipx install git+https://github.com/Capslockb/sora-agent. Git-based updates. OpenWakeWord "Hey Sora" support.
+    details: pipx install git+https://github.com/Capslockb/sora-agent. Setup is interactive and partial for provider selection; OpenWakeWord installation is optional.
   - icon: 🩺
     title: Doctor & Benchmark
-    details: Built-in health checks, dependency verification, latency benchmarks, and configuration validation.
+    details: Diagnostic and benchmark commands exist. Doctor auto-fix is a stub, local benchmark execution remains under Issue #7, and current main has no active pytest workflow.
   - icon: 🤖
-    title: ACP Server Mode
-    details: Run as ACP server for editor integration (VS Code, Cursor, etc.) with full tool access.
+    title: ACP Adapter
+    details: Research-stage entrypoint only. Do not present it as a production ACP server or full editor integration.
 ---
 
 <div class="vp-doc" style="text-align: center; margin-top: 2rem;">
@@ -59,20 +59,18 @@ pip install -e .
 ## First Commands
 
 ```bash
-sora setup           # Interactive wizard (Discord, Voice, MCP, VOIP, Memory, Providers)
-sora setup --provider openai-realtime  # Quick-setup any provider
-sora voice live      # Start Gemini Live bridge (Discord)
-sora voice vapi      # Start Vapi bridge (Discord)
-sora voice elevenlabs # Start ElevenLabs bridge (Discord)
-sora voice openai    # Start OpenAI Realtime bridge (WebRTC)
-sora voice xai       # Start xAI Grok bridge
-sora voice ultravox  # Start Ultravox bridge (managed pipeline)
-sora voice retell    # Start Retell AI bridge (telephony/web)
-sora voice providers # List/enable/disable TTS/STT/LLM providers
-sora mcp start       # Start MCP server
-sora voice voip-status # Check VOIP bridge (Asterisk + Dograh)
-sora doctor          # System health check
-sora tui --build     # Launch Terminal UI
+sora setup              # Partial interactive setup; see Issue #15
+sora status             # Local configuration/dependency snapshot
+sora providers list     # Diagnostic provider view
+sora voice providers list  # Separate diagnostic provider view
+sora voice live         # Prepare Gemini Live bridge; external Hermes runtime required
+sora voice vapi         # Prepare Vapi bridge; external Hermes runtime required
+sora mcp catalog        # Inspect MCP catalog
+sora voice voip-status  # Bridge-dependent status; VOIP startup is blocked
+sora doctor             # Diagnostics; --fix is not implemented
+sora tui                # Planned stub that falls back to the REPL
 ```
+
+The full setup wizard directly configures Gemini Live and Vapi only. `sora setup --provider` mainly stores credentials or identifiers and does not prove selection or enablement; the current ElevenLabs quick path does not collect `ELEVENLABS_API_KEY`. See [Issue #15](https://github.com/Capslockb/sora-agent/issues/15).
 
 </div>
