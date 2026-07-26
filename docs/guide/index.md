@@ -4,7 +4,7 @@
 
 ## Supported providers (configuration + status)
 
-These providers can be configured, enabled, and queried from S0RA. Live audio requires the appropriate runtime. The checked-in VOIP entrypoints are additionally blocked by local construction errors before they can reach Asterisk or Dograh; see [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+S0RA contains preparation and configuration paths for the providers below. Provider management is currently **PARTIAL** because `sora providers` and `sora voice providers` use different registries, configuration shapes, provider coverage, and disable semantics; the dashboard/API reads another selection shape. Use `sora setup` for initial configuration and treat provider-command results as diagnostic until [Issue #15](https://github.com/Capslockb/sora-agent/issues/15) is resolved. Live audio also requires the appropriate runtime. The checked-in VOIP entrypoints are additionally blocked by local construction errors before they can reach Asterisk or Dograh; see [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
 
 - **Gemini Live** — Google's multimodal live API (Discord + VOIP) — **PARTIAL**
 - **Vapi.ai** — Managed conversational AI platform (Discord + Phone) — **PARTIAL**
@@ -13,7 +13,7 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 - **xAI Grok** — Real-time voice via Grok models — **PARTIAL**
 - **Ultravox** — Managed STT/LLM/TTS pipeline — **PARTIAL**
 - **Retell AI** — Voice agent platform — **PARTIAL**
-- **Edge TTS / OpenAI TTS / Whisper** — TTS/STT fallback providers — **WORKING** for enable/disable
+- **Edge TTS / OpenAI TTS / Whisper** — TTS/STT fallback definitions — **PARTIAL** through the split provider-management surfaces
 
 ## Key philosophy
 
@@ -21,7 +21,7 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 |---|---|---|
 | Architecture | Mirrors Hermes constants/config/logging/profiles | **WORKING** |
 | Distribution | `pipx install git+https://...` | **WORKING** |
-| Provider toggle | Enable/disable TTS/STT/LLM-voice at runtime | **WORKING** |
+| Provider management | Configure with `sora setup`; inspect or mutate through two divergent CLI surfaces | **PARTIAL** — not one authoritative state model; see Issue #15 |
 | VOIP | Intended Asterisk ARI + Dograh path | **PARTIAL — BLOCKED**: both startup entrypoints fail during local bridge construction before PBX connection; see Issue #14 |
 | MCP | stdio server; HTTP/SSE/WebSocket scaffolding | **PARTIAL** |
 | Memory | Honcho / Hermes passthrough detection | **PARTIAL** |
@@ -36,7 +36,7 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 |---|---|---|
 | Primary interface | Text chat | **CLI + sidecar API** |
 | Discord voice runtime | `discord-voice` plugin | Same `discord-voice` plugin (S0RA configures it) |
-| Provider toggle | No | **Yes — WORKING** |
+| Provider management | No | **Yes — PARTIAL**; two command families and the dashboard/API do not yet share one canonical state |
 | MCP | Yes | stdio **WORKING**, WebSocket/HTTP **PARTIAL** |
 | Web dashboard | No | **Yes — PARTIAL**; trusted-local-development only until both listeners are constrained and the control API is authenticated and redacted |
 | TUI | No | **PLANNED** |
@@ -44,7 +44,7 @@ These providers can be configured, enabled, and queried from S0RA. Live audio re
 
 ## Who is it for?
 
-- Hermes users who want a dedicated CLI for voice/provider configuration.
+- Hermes users who want a dedicated CLI for voice/provider configuration and can work within the current provider-state limitation.
 - Self-hosters evaluating an Asterisk + Dograh phone bridge after the startup blocker in Issue #14 is resolved.
 - Anyone building a companion agent layer that shares Hermes conventions.
 
