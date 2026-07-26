@@ -20,9 +20,9 @@ Options:
 | Command | Description | Status |
 |---|---|---|
 | `chat` | Interactive chat (REPL) | **WORKING** |
-| `setup` | Interactive configuration wizard | **WORKING** |
+| `setup` | Interactive configuration wizard; provider setup is incomplete and does not share one canonical state model | **PARTIAL** |
 | `voice` | Voice bridge management | **PARTIAL** |
-| `mcp` | MCP server management | **PARTIAL** |
+| `mcp` | MCP configuration and experimental server surfaces | **PARTIAL** |
 | `status` | System status | **WORKING** |
 | `cron` | Cron job management | **PLANNED** |
 | `doctor` | Health check | **WORKING** (auto-fix **PLANNED**) |
@@ -36,7 +36,7 @@ Options:
 | `acp` | Run as ACP server | **RESEARCH** |
 | `tui` | Launch Terminal UI | **PLANNED** |
 | `dashboard` | Trusted-local-development dashboard; `--host` constrains the API only, not the separately launched UI preview. See Issue #13. | **PARTIAL** |
-| `providers` | Provider management | **WORKING** |
+| `providers` | Provider configuration through a registry that diverges from `sora voice providers`, setup, and the dashboard/API | **PARTIAL** |
 | `benchmark` | Performance benchmark | **WORKING** |
 
 ### Voice subcommands
@@ -60,22 +60,30 @@ VOIP (Asterisk + Dograh):
   voip-config   Manage VOIP configuration (PARTIAL; do not pass secrets positionally; see Issue #7)
 
 Providers:
-  providers     Manage TTS/STT/LLM Voice providers (WORKING)
+  providers     Manage a nested provider registry (PARTIAL; not equivalent to top-level `sora providers`)
 ```
 
 The checked-in VOIP startup entrypoints cannot currently construct `VoipBridge`, so command presence is not evidence of a runnable phone bridge. Track the lifecycle repair in [Issue #14](https://github.com/Capslockb/sora-agent/issues/14).
+
+The top-level `sora providers`, nested `sora voice providers`, setup wizard, and dashboard/API do not currently share one canonical provider schema or selection contract. Treat their output as surface-specific configuration state, not authoritative provider health. Track unification in [Issue #15](https://github.com/Capslockb/sora-agent/issues/15).
 
 ### MCP subcommands
 
 ```bash
 sora mcp <SUBCOMMAND>
-  start         Start MCP server (PARTIAL: stdio works, HTTP/SSE scaffolded)
-  status        Show MCP status (WORKING)
-  stop          Stop MCP server (PARTIAL)
-  list          List configured servers (WORKING)
-  catalog       Browse available servers (WORKING)
-  discover      Auto-discover running servers (PARTIAL)
+  start             Start the built-in server (PARTIAL: stdio only)
+  status            Show saved records plus heuristic listener/process detection (PARTIAL)
+  list              Print the built-in package catalog
+  catalog           Alias of list
+  add                Save a command-based server record
+  remove             Remove a saved server record
+  enable / disable   Toggle a saved record
+  ws start           Start the incomplete unauthenticated WebSocket listener (EXPERIMENTAL)
+  ws stop/status/list
+                    Parser-visible stubs that return not implemented
 ```
+
+Top-level `sora mcp stop` and `sora mcp discover` are not registered commands. `sora mcp start --transport sse` and `--transport streamable-http` are accepted by the parser but raise `NotImplementedError`; no `/sse` or `/mcp` HTTP endpoint is created. `status` does not perform an MCP handshake, and `list` shows the static package catalog rather than saved server configuration. Do not expose the custom WebSocket listener or treat listener/process matches as verified MCP health. See [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
 
 ### Config subcommands
 
