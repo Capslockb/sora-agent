@@ -20,8 +20,8 @@ When `plugins/sora_hermes/` is enabled in Hermes, these tools become available t
 | `sora_voice_vapi` | **PARTIAL** | `guild_id`, `channel_id`, optional `user_id` | Runs the S0RA Vapi bridge-preparation CLI; live media still depends on the Hermes voice runtime |
 | `sora_voice_leave` | **PARTIAL** | `guild_id` | Runs the S0RA leave command; effective shutdown depends on the external bridge runtime |
 | `sora_voice_status` | **WORKING** | — | Returns S0RA's configured voice status |
-| `sora_mcp_start` | **PARTIAL** | `transport`, `port` | Runs the MCP start command; non-stdio transports remain scaffolded |
-| `sora_mcp_status` | **WORKING** | — | Returns configured MCP status |
+| `sora_mcp_start` | **PARTIAL** | `transport`, `port` | Runs the MCP start command; only stdio is implemented. SSE and streamable HTTP are unimplemented, while the separate raw WebSocket path is incomplete and unauthenticated. |
+| `sora_mcp_status` | **PARTIAL** | — | Returns configuration-, process-, and port-derived MCP status; it does not prove a successful MCP handshake or live tool session. |
 
 ## Sidecar HTTP API
 
@@ -58,10 +58,10 @@ The older `/api/env` paths and `POST /api/config` method are not implemented.
 | GET | `/api/voice/status` | **WORKING** | Returns configuration-derived voice status; it does not prove a live media session |
 | POST | `/api/voice/start` | **PARTIAL** | Saves provider and bridge configuration; it does not start the external live-audio runtime |
 | POST | `/api/voice/stop` | **PARTIAL** | Clears the configured provider; it does not supervise an external bridge process |
-| GET | `/api/mcp/status` | **WORKING** | Returns configuration-derived MCP status |
+| GET | `/api/mcp/status` | **PARTIAL** | Returns configuration-derived MCP state; it does not perform a protocol handshake or prove a live server |
 | GET | `/api/mcp/servers` | **WORKING** | Returns configured MCP server entries |
 | PUT | `/api/mcp/servers` | **WORKING — SENSITIVE** | Replaces configured MCP server entries |
-| GET | `/api/mcp/detect` | **PARTIAL** | Scans local processes and common ports for possible MCP servers |
+| GET | `/api/mcp/detect` | **PARTIAL** | Scans local processes and common ports for possible MCP servers without proving protocol identity |
 | POST | `/api/mcp/start` | **PARTIAL** | Records requested transport and port; it does not launch the server in this route |
 | POST | `/api/mcp/stop` | **PARTIAL** | Returns a stopped response without supervising a process |
 | GET | `/api/mcp/ws/status` | **PARTIAL** | Returns configuration-derived WebSocket status |
@@ -105,6 +105,8 @@ curl -s http://127.0.0.1:8080/api/status | python3 -m json.tool
 hermes tools list | grep sora_
 ```
 
+Treat MCP status and discovery output as configuration or heuristic diagnostics, not proof of a successful MCP handshake. The separate raw WebSocket listener is not safe to expose; track remediation in [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
+
 Do not use the sensitive configuration routes as casual smoke tests: the current implementation returns real values and has no access control.
 
 ## Safety contract
@@ -112,4 +114,5 @@ Do not use the sensitive configuration routes as casual smoke tests: the current
 - S0RA does not implement the live Discord audio loop in this repository; it prepares or queries the external bridge runtime.
 - The dashboard API is currently a trusted-local-development surface, not a secured service boundary.
 - Secret handling is not yet safe across all CLI and HTTP paths. Track CLI remediation in [Issue #7](https://github.com/Capslockb/sora-agent/issues/7) and API remediation in [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
+- MCP support is stdio-first. Network transports, WebSocket handling, and discovery remain partial and security-sensitive under [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
 - Treat configuration-derived status as configuration state, not proof that an external process or media session is alive.
