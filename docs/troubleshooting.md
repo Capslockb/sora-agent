@@ -39,9 +39,17 @@ hermes tools list | grep sora_voice
 
 If `discord-voice` is not installed, install and enable it first.
 
-### `sora tui` shows a REPL, not a TUI
+### `sora tui` says the TUI is not built
 
-Expected — the TUI is **PLANNED**. `sora tui` currently falls back to a chat REPL.
+Plain `sora tui` launches `ui-tui/dist/cli.js` only when that local bundle exists. It does not fall back to the chat REPL.
+
+```bash
+sora tui --build
+```
+
+The current build path runs `npm install` and `npx esbuild`; it is not yet the lockfile-enforced, no-download build required by Issue #7. The resulting Ink/React interface is also a prototype: voice activity is simulated, status/provider values are hard-coded, doctor output is fixed, benchmark values are random, setup is display-only, and the MCP panel contains unsupported commands and transports.
+
+Use the current interface only as an explicitly labeled prototype preview. Do not treat any panel as live operational evidence and do not enter real credentials. Track correction in [Issue #17](https://github.com/Capslockb/sora-agent/issues/17).
 
 ### `sora doctor --fix` does nothing
 
