@@ -38,7 +38,7 @@ This release ships a working CLI (`sora`), a FastAPI dashboard, a Hermes plugin 
 | FastAPI dashboard (`/health`, `/api/status`) | **PARTIAL** | The API routes run on port `8080`, but the API is unauthenticated and defaults to `0.0.0.0`. The UI preview is launched separately, and `--host` does not constrain its bind address; treat the whole dashboard as trusted-local-development only pending Issue #13. |
 | Hermes plugin (`sora-hermes`) | **WORKING** | Registers `sora_voice_*` and `sora_mcp_*` tools. |
 | Discord voice bridges (`sora voice live/vapi/…`) | **PARTIAL** | CLI validates config and prepares bridge args. Live bridging requires the Hermes `discord-voice` plugin runtime. |
-| MCP server management | **PARTIAL** | Start/status/catalog CLI works; WebSocket/SSE paths are scaffolding. |
+| MCP server management | **PARTIAL** | stdio start reaches the checked-in implementation. Status and discovery are configuration/process/port heuristics; SSE and streamable HTTP are unimplemented, and the separate raw WebSocket path is incomplete and unauthenticated. See Issue #16. |
 | VOIP Asterisk + Dograh bridge (`sora-voip`) | **PARTIAL — BLOCKED** | Component and ARI/SIP management surfaces exist, but both startup entrypoints fail during local bridge construction before any PBX connection; see Issue #14. |
 | TUI mode (`sora tui`) | **PARTIAL — PROTOTYPE** | Launches the checked-in Ink/React application only after a local build. Current voice, status, provider, doctor, benchmark, setup, configuration, and MCP panels use simulated, hard-coded, fixed, random, or display-only data; see Issue #17. |
 | Interactive cron creation (`sora cron`) | **PLANNED** | List/show works; create/run are stubs. |
@@ -133,7 +133,7 @@ sora mcp status
 python -m pytest tests/ -q
 ```
 
-> These are manual verification steps until the staged pytest workflow is activated; see [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
+> These are manual verification steps until the staged pytest workflow is activated; see [Issue #12](https://github.com/Capslockb/sora-agent/issues/12). Treat `sora mcp status` as configuration/process/port diagnostics, not proof of a successful MCP handshake; see [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
 
 See [`docs/guide/quick-start.md`](docs/guide/quick-start.md) for install pitfalls and next steps.
 
@@ -149,8 +149,8 @@ S0RA exposes a small operator-friendly tool surface. When the `sora-hermes` plug
 | `sora_voice_vapi` | **PARTIAL** | Prepare/start Vapi Discord bridge args. Runtime provided by Hermes `discord-voice`. |
 | `sora_voice_leave` | **PARTIAL** | Stop active voice bridge via Hermes `discord-voice`. |
 | `sora_voice_status` | **WORKING** | Return structured voice bridge status from S0RA state. |
-| `sora_mcp_start` | **PARTIAL** | Start MCP server (stdio supported; HTTP/SSE scaffolding). |
-| `sora_mcp_status` | **WORKING** | Return MCP server status. |
+| `sora_mcp_start` | **PARTIAL** | Start MCP over stdio. SSE and streamable HTTP are unimplemented; the separate raw WebSocket path is incomplete and unauthenticated. |
+| `sora_mcp_status` | **PARTIAL** | Return configuration-, process-, and port-derived MCP diagnostics; it does not prove protocol liveness. |
 
 Read the deep doc in [`docs/bridge-elements.md`](docs/bridge-elements.md).
 
@@ -168,7 +168,7 @@ Read the deep doc in [`docs/bridge-elements.md`](docs/bridge-elements.md).
 | Hermes plugin tools | **WORKING** | [`reference/plugins/sora-hermes.md`](docs/reference/plugins/sora-hermes.md) | Requires `discord-voice` for live audio. |
 | Discord voice bridges | **PARTIAL** | [`guide/voice/gemini-live.md`](docs/guide/voice/gemini-live.md) | Live runtime in Hermes `discord-voice`. |
 | VOIP Asterisk/Dograh | **PARTIAL — BLOCKED** | [`voip/setup.md`](docs/voip/setup.md) | Local startup construction is broken before PBX connection; see Issue #14. |
-| MCP server | **PARTIAL** | [`guide/mcp/servers.md`](docs/guide/mcp/servers.md) | stdio works; WS/HTTP scaffolding. |
+| MCP server | **PARTIAL** | [`guide/mcp/servers.md`](docs/guide/mcp/servers.md) | stdio is implemented; status/discovery are heuristic, network transports are incomplete or unimplemented, and the raw WebSocket path is unauthenticated. See Issue #16. |
 | TUI | **PARTIAL — PROTOTYPE** | [`reference/cli/tui.md`](docs/reference/cli/tui.md) | Requires a local build and currently presents simulated or non-canonical values; see Issue #17. |
 | Cron | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
 | Skills | **PLANNED** | [`reference/cli.md`](docs/reference/cli.md) | Partial. |
@@ -219,6 +219,7 @@ To prevent over-promising:
 - **A hosted phone service.** After the local startup path is repaired, VOIP will still require your own Asterisk PBX and Dograh gateway.
 - **A complete seven-provider setup wizard.** Full setup directly configures Gemini Live and Vapi, and quick setup does not select or enable every accepted provider.
 - **One unified provider-management state.** `sora setup`, `sora providers`, `sora voice providers`, and the dashboard/API do not currently share one canonical schema or command contract; see Issue #15.
+- **A complete or safely exposed network MCP service.** stdio is the only implemented server transport. SSE and streamable HTTP are unimplemented, WebSocket tool calls are incomplete, and the raw listener has no authentication; see Issue #16.
 - **A cloud transcription API.** S0RA can point at external Whisper endpoints, but does not host one.
 - **A finished or state-backed TUI.** `sora tui` launches a locally built Ink/React prototype whose current operational panels use simulated, hard-coded, fixed, random, or display-only data; see Issue #17.
 - **A finished ACP server.** `sora acp` is a research stub.
@@ -250,7 +251,7 @@ hermes plugins enable sora-hermes
 hermes tools list | grep sora_
 ```
 
-Expected results: CLI returns `0`, doctor reports no hard failures, API returns `{"status":"healthy"}`, tests pass.
+Expected results: CLI returns `0`, doctor reports no hard failures, API returns `{"status":"healthy"}`, tests pass. MCP status output remains diagnostic and must not be treated as proof of an authenticated or protocol-complete server session.
 
 ---
 
