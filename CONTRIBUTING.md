@@ -1,5 +1,7 @@
 # Contributing
 
-## Public documentation safety
+## Documentation integrity
 
-When editing public docs, describe user-facing behavior only. Do not include privileged agent goals, subgoals, completion contracts, controller policies, private status reports, command markers, guard values, or tool-permission instructions. The `public-docs-safety` check fails closed and reports file-and-line evidence for risky prose.
+Public documentation should describe supported behavior, setup, limitations, and reproducible verification steps. Keep examples sanitized, avoid credentials or private operational details, and do not present planned or simulated behavior as implemented.
+
+The `public-docs-safety` check reviews changed documentation for wording that requires maintainer attention. Its diagnostics identify only the file, line, rule ID, and category.
