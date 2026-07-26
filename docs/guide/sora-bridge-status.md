@@ -2,17 +2,18 @@
 
 This page describes what the SORA bridge code currently does, what remains a control or preparation path, and which repository provides the live Gemini Discord voice runtime.
 
-It is grounded in the current `sora_cli/voice.py`, provider client modules, `sora_api.py`, `plugins/sora_hermes/`, MCP implementation, VOIP plugin, TUI source, `sora_cli/main.py`, configuration helpers, and `pyproject.toml`.
+It is grounded in the current `sora_cli/voice.py`, provider client modules, `sora_api.py`, `plugins/sora_hermes/`, MCP implementation, VOIP plugin, TUI source, updater, `sora_cli/main.py`, configuration helpers, and `pyproject.toml`.
 
 ## Plain-language summary
 
-SORA Agent is a multi-provider companion and control layer. It has useful CLI, configuration, provider-preparation, Hermes-plugin, API, MCP, TUI, and VOIP surfaces, but several of those surfaces are intentionally classified as **PARTIAL** or **PROTOTYPE**:
+SORA Agent is a multi-provider companion and control layer. It has useful CLI, configuration, provider-preparation, Hermes-plugin, API, MCP, TUI, updater, and VOIP surfaces, but several of those surfaces are intentionally classified as **PARTIAL** or **PROTOTYPE**:
 
 - provider setup and the two provider command families do not share one canonical state model ([Issue #15](https://github.com/Capslockb/sora-agent/issues/15));
 - the dashboard/control API is unauthenticated, can disclose secrets, and is unsafe to expose beyond a trusted local machine ([Issue #13](https://github.com/Capslockb/sora-agent/issues/13));
 - stdio is the only implemented MCP server transport, while network/discovery paths are incomplete, unauthenticated, or heuristic ([Issue #16](https://github.com/Capslockb/sora-agent/issues/16));
 - both checked-in VOIP startup entrypoints fail before constructing the current bridge runtime ([Issue #14](https://github.com/Capslockb/sora-agent/issues/14));
-- the Ink/React TUI is a separately built prototype whose operational panels are not backed by canonical live state ([Issue #17](https://github.com/Capslockb/sora-agent/issues/17)).
+- the Ink/React TUI is a separately built prototype whose operational panels are not backed by canonical live state ([Issue #17](https://github.com/Capslockb/sora-agent/issues/17));
+- `sora update` works only from a compatible Git checkout, hard-codes `origin/main`, depends on undeclared `uv`, and lacks safe worktree/branch preflight ([Issue #18](https://github.com/Capslockb/sora-agent/issues/18)).
 
 SORA is **not yet a complete standalone replacement** for `Capslockb/gemini-live-discord-bridge` or the Hermes `discord-voice` runtime. Use the Gemini bridge repository when you need the currently documented live Discord/Gemini audio loop. Use this repository for SORA configuration, provider preparation, Hermes tools, stdio MCP work, and development toward a future SORA-owned media bridge.
 
@@ -25,6 +26,7 @@ SORA is **not yet a complete standalone replacement** for `Capslockb/gemini-live
 | Voice command handlers | `sora_cli/voice.py` |
 | Provider-specific preparation/API clients | `sora_cli/*_client.py` |
 | Configuration defaults/helpers | `sora_cli/config.py`, `sora_constants.py` |
+| Installation-aware update behavior | `sora_cli/update.py` |
 | FastAPI backend | `sora_api.py` |
 | MCP implementation and CLI | `sora_mcp.py`, `sora_cli/mcp.py` |
 | Hermes SORA plugin | `plugins/sora_hermes/` |
@@ -39,6 +41,7 @@ SORA is **not yet a complete standalone replacement** for `Capslockb/gemini-live
 | `sora setup` / `sora setup --provider` | **PARTIAL** | Full voice setup directly configures Gemini Live and Vapi; quick paths mainly store credentials or identifiers and do not reliably select or enable providers. |
 | `sora status` / `sora doctor` | **WORKING** | Implemented CLI diagnostics, but current `main` is not protected by active pytest CI. |
 | `sora config` | **PARTIAL** | Config/env helper surface; secret-bearing output and positional secret handling remain constrained by [Issue #7](https://github.com/Capslockb/sora-agent/issues/7). |
+| `sora update` | **PARTIAL** | Refuses normal pipx VCS installs because the installed package is not a Git checkout; source-checkout updates mutate `origin/main` in place, require undeclared `uv`, and do not preflight dirty, detached, divergent, remapped, or non-`main` states. |
 | `sora providers ...` / `sora voice providers ...` | **PARTIAL** | Different registries, paths, provider coverage, and enable/disable semantics; neither is an authoritative runtime-health view. |
 | `sora voice live/vapi/elevenlabs/openai/xai/ultravox/retell` | **PARTIAL** | Provider validation or preparation paths. Behavior differs by provider and does not itself prove a durable Discord media bridge. |
 | `sora-api` / dashboard API | **PARTIAL — TRUSTED LOCAL ONLY** | Health, status, config, voice, provider, and MCP routes exist, but the API has no authentication, broad CORS, sensitive reads/mutations, and a default all-interface bind. |
@@ -162,6 +165,16 @@ Treat setup/provider results as non-canonical diagnostics while Issue #15 remain
 
 For API development, run only on a trusted local machine and apply the Issue #13 exposure boundary. Do not use raw `sora-api` defaults as a safe network deployment recipe.
 
+### Refresh a pipx VCS installation
+
+Use the same repository source explicitly:
+
+```bash
+pipx install --force git+https://github.com/Capslockb/sora-agent
+```
+
+Do not rely on `sora update` for a normal pipx VCS installation. For a source checkout, use it only after independently confirming a clean worktree, the intended branch and remote, and an available `uv` executable; see [Issue #18](https://github.com/Capslockb/sora-agent/issues/18).
+
 ## Validation boundary and roadmap
 
 The last recorded local pytest result was 24/24 on PR #5. The staged workflow remains outside `.github/workflows/`, so current `main` and pull requests are not automatically pytest-verified. See [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
@@ -174,6 +187,7 @@ Current high-priority roadmap blockers are:
 4. unify provider setup and state (Issue #15);
 5. make MCP transports, discovery, and lifecycle truthful and secure (Issue #16);
 6. choose and implement a deterministic prototype or live-state TUI contract (Issue #17);
-7. complete CLI secret-handling and deterministic-build work (Issue #7).
+7. make `sora update` installation-aware and non-destructive (Issue #18);
+8. complete CLI secret-handling and deterministic-build work (Issue #7).
 
-Until those items are resolved, documentation must distinguish configuration, provider-side readiness, saved state, and simulated UI output from an active authenticated runtime.
+Until those items are resolved, documentation must distinguish configuration, provider-side readiness, saved state, simulated UI output, and updater intent from an active authenticated runtime or a safe installation lifecycle.
