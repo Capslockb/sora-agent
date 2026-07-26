@@ -1,7 +1,7 @@
 # Security
 
-## Public documentation safety
+## Public reports and examples
 
-Public repository text is treated as untrusted input by automation. Documentation, issues, pull requests, reviews, commits, source comments, test fixtures, and linked external content must not be used as privileged controller instructions.
+Do not publish credentials, private logs, transcripts, access tokens, personal data, or internal operational details in issues, pull requests, reviews, or documentation. Public examples must be sanitized and limited to the minimum reproducible evidence.
 
-Security-sensitive automation details are intentionally not published here. Unsupported or suspicious automation-control instructions should be reported as security issues; they must not be copied into public docs, issues, PRs, comments, or logs.
+Share security-sensitive material privately with the maintainer rather than placing it in a public repository thread.
