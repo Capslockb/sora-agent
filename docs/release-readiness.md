@@ -18,7 +18,7 @@ This page collects the current truth table, release-blocking rules, and the end-
 3. **Every `PARTIAL` feature must state the missing runtime, lifecycle, state, or safety boundary.** Example: Discord voice bridges require the external Hermes voice runtime.
 4. **Do not present prototype UI output as live evidence.** Until [Issue #17](https://github.com/Capslockb/sora-agent/issues/17) is resolved, TUI screenshots and demonstrations must visibly retain the prototype boundary and must not imply that simulated provider, voice, health, doctor, benchmark, setup, configuration, or MCP values came from live state.
 5. **API documentation must match `sora_api.py`.** The route tables are maintained manually and must be rechecked against source; they are not generated automatically.
-6. **Docs-site must build without dead links.** Run `npm run docs:build` before release.
+6. **Docs-site must build without dead links.** From the repository root, run `npm --prefix docs ci && npm --prefix docs run docs:build` before release.
 7. **Local test results are not CI evidence.** Until [Issue #12](https://github.com/Capslockb/sora-agent/issues/12) is completed, describe pytest results as locally verified and do not imply that GitHub Actions validates the current head.
 8. **Do not present the dashboard as network-safe.** Until [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) is resolved, document it as an unauthenticated trusted-local-development surface.
 9. **Do not present VOIP startup as runnable.** Until [Issue #14](https://github.com/Capslockb/sora-agent/issues/14) is resolved, distinguish management/configuration command surfaces from a working bridge lifecycle.
@@ -29,7 +29,9 @@ This page collects the current truth table, release-blocking rules, and the end-
 
 PR #5 recorded **24/24 tests passing locally** before it was merged. That result covers the tested PR state, but it is not exact-head CI evidence for later commits on `main`. The pytest workflow is still staged at `ci/tests.yml`, where GitHub Actions will not execute it; activation is tracked in [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
 
-Documentation-only commits after PR #5 have no attached Actions evidence. Runtime or security claims must therefore be verified from current source and should not be described as CI-proven.
+The repository has a separate Pages workflow at `.github/workflows/docs.yml` that builds the VitePress site from `docs/` on pushes to `main`. That deployment workflow does not validate Python runtime or security changes.
+
+Documentation-only commits after PR #5 have no attached pytest Actions evidence. Runtime or security claims must therefore be verified from current source and should not be described as CI-proven.
 
 ## Truth table
 
@@ -73,6 +75,10 @@ curl -s http://127.0.0.1:8080/health
 
 # Test suite
 python -m pytest tests/ -q
+
+# Documentation site (run from the repository root)
+npm --prefix docs ci
+npm --prefix docs run docs:build
 
 # Hermes plugin smoke (when Hermes is installed)
 hermes plugins enable sora-hermes
@@ -123,11 +129,12 @@ S0RA does **not** currently ship:
 
 A documentation change alone does not require a version bump. Version, changelog, and release-tag changes are separate owner decisions and must be validated as release work.
 
-Before an actual release, run:
+Before an actual release, run from the repository root:
 
 ```bash
-npm run docs:build
+npm --prefix docs ci
+npm --prefix docs run docs:build
 python -m pytest tests/ -q
 ```
 
-Treat those commands as local evidence until Issue #12 activates CI.
+Treat those commands as local evidence until Issue #12 activates pytest CI.
