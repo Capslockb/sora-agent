@@ -33,7 +33,7 @@ The `--tui` flag is not equivalent to the `sora tui` subcommand. The subcommand 
 | `plugins` | Plugin management | **WORKING** |
 | `skills` | Skill management | **PLANNED** |
 | `version` | Show version | **WORKING** |
-| `update` | Update to latest | **WORKING** |
+| `update` | In-place update for a compatible clean Git checkout; not a general pipx upgrade path | **PARTIAL** |
 | `uninstall` | Uninstall S0RA | **WORKING** |
 | `acp` | Run as ACP server | **RESEARCH** |
 | `tui` | Launch the locally built Ink/React prototype; current panels use simulated or hard-coded data | **PARTIAL — PROTOTYPE** |
@@ -121,6 +121,23 @@ sora plugins <SUBCOMMAND>
   remove NAME   Remove plugin
   update        Update all plugins
 ```
+
+### Update command
+
+```bash
+sora update --check-only
+sora update
+```
+
+The current updater is **not** a general package-manager upgrade command. It only attempts an in-place update when the installed source directory itself contains a Git checkout. It hard-codes `origin/main`, performs `git pull`, and then runs `uv pip install -e` against that checkout.
+
+A normal `pipx install git+https://github.com/Capslockb/sora-agent` installation does not remain a Git checkout at the installed module path, so `sora update` exits without upgrading it. For pipx installations, reinstall from the same repository URL instead:
+
+```bash
+pipx install --force git+https://github.com/Capslockb/sora-agent
+```
+
+Do not run the in-place updater from a checkout with uncommitted work, a detached HEAD, a divergent branch, or an unverified remote/upstream. These states are not preflighted before mutation. Track the installation-aware lifecycle repair in [Issue #18](https://github.com/Capslockb/sora-agent/issues/18).
 
 For full per-command docs see:
 - [`sora`](cli/sora.md)
