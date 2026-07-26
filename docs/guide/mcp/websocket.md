@@ -1,59 +1,41 @@
-# WebSocket MCP
+# MCP Transport Status
 
-S0RA includes a native WebSocket MCP server for real-time tool access.
+S0RA's checked-in MCP runtime is only implemented for **stdio**. The CLI exposes additional transport and WebSocket commands, but they are incomplete and must not be treated as production network servers.
 
-## Start Server
+## Implemented path
 
 ```bash
-# HTTP + WebSocket (recommended)
-sora mcp start --transport streamable-http --port 3000
-
-# SSE
-sora mcp start --transport sse --port 3000
-
-# Stdio only (for CLI tools)
 sora mcp start --transport stdio
 ```
 
-## Connection
+This runs the built-in MCP server over the process standard-input/standard-output streams. It remains a foreground process and stops when that process exits.
 
-| Transport | Endpoint |
-|-----------|----------|
-| Streamable HTTP | `http://localhost:3000/mcp` |
-| SSE | `http://localhost:3000/sse` |
-| WebSocket | `ws://localhost:3000/ws` |
+## Parser-visible but unimplemented transports
 
-## Client Examples
+These commands are accepted by the CLI parser, but the server immediately raises `NotImplementedError`:
 
-### Python
-
-```python
-import asyncio
-from mcp import ClientSession, StdioServerParameters
-
-async def main():
-    async with ClientSession(
-        "http://localhost:3000/mcp"
-    ) as session:
-        tools = await session.list_tools()
-        print(tools)
-        
-        result = await session.call_tool("filesystem_read", {"path": "/tmp/test.txt"})
-        print(result)
-
-asyncio.run(main())
+```bash
+sora mcp start --transport sse --port 3000
+sora mcp start --transport streamable-http --port 3000
 ```
 
-### JavaScript
+The previously documented `/sse` and `/mcp` HTTP endpoints therefore do not exist in the current runtime.
 
-```javascript
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+## Experimental custom WebSocket path
 
-const client = new Client(
-  { name: "my-client", version: "1.0.0" },
-  { transport: new StreamableHTTPClientTransport("http://localhost:3000/mcp") }
-);
-
-await client.connect();
-const tools = await client.listTools();
+```bash
+sora mcp ws start --host 127.0.0.1 --port 3001
 ```
+
+The custom WebSocket listener is separate from `sora mcp start`. Its current limitations are material:
+
+- the default bind address is `0.0.0.0`, so always pass `--host 127.0.0.1` during local investigation;
+- it has no authentication or authorization boundary;
+- it implements only a partial raw JSON `tools/call` shape rather than a complete MCP session lifecycle;
+- the checked-in tool-call handler references state that is not available in the handler, so calls cannot complete as written;
+- `sora mcp ws stop`, `status`, and `list` are stubs;
+- there is no supported `ws://localhost:3000/ws` endpoint.
+
+Do not publish this listener through a LAN, tunnel, container port, reverse proxy, or the public internet. Do not use it for credentials, private tool data, or production automation.
+
+The runtime, lifecycle, discovery, and security corrections are tracked in [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
