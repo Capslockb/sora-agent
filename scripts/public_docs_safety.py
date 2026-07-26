@@ -116,22 +116,12 @@ def changed_files() -> list[str]:
     return [str(x) for x in Path(".").rglob("*") if x.is_file()]
 
 
-def changed_added_lines(files: list[str]) -> dict[str, set[int]] | None:
-    if not files:
-        return {}
-    base = default_branch()
-    p = subprocess.run(
-        ["git", "diff", "--unified=0", f"origin/{base}...HEAD", "--", *files],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )
-    if p.returncode != 0 or not p.stdout.strip():
-        return None
+def parse_added_lines(diff_text: str) -> dict[str, set[int]]:
+    """Map each changed file to the line numbers added in a zero-context diff."""
     out: dict[str, set[int]] = {}
     cur = None
     new_line = None
-    for line in p.stdout.splitlines():
+    for line in diff_text.splitlines():
         if line.startswith("+++ b/"):
             cur = line[6:]
             out.setdefault(cur, set())
@@ -146,6 +136,21 @@ def changed_added_lines(files: list[str]) -> dict[str, set[int]] | None:
             elif not line.startswith("-"):
                 new_line += 1
     return out
+
+
+def changed_added_lines(files: list[str]) -> dict[str, set[int]] | None:
+    if not files:
+        return {}
+    base = default_branch()
+    p = subprocess.run(
+        ["git", "diff", "--unified=0", f"origin/{base}...HEAD", "--", *files],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if p.returncode != 0 or not p.stdout.strip():
+        return None
+    return parse_added_lines(p.stdout)
 
 
 def scan_file(path: str, line_numbers: list[int] | range) -> list[tuple[str, int, str, str]]:
