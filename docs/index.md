@@ -25,6 +25,9 @@ features:
   - icon: 🔌
     title: MCP Integration
     details: stdio management paths exist. HTTP, SSE, and WebSocket lifecycle claims remain partial or scaffolded and require exact-runtime validation.
+  - icon: 🖥️
+    title: Terminal UI Prototype
+    details: The Ink/React TUI must be built locally and currently renders simulated, hard-coded, fixed, random, or display-only data. It is not a live management or health surface; see Issue #17.
   - icon: 🎨
     title: Hermes DNA
     details: Companion configuration, plugin, constants, and logging patterns aligned with Hermes rather than a separate isolated assistant runtime.
@@ -68,9 +71,11 @@ sora voice vapi         # Prepare Vapi bridge; external Hermes runtime required
 sora mcp catalog        # Inspect MCP catalog
 sora voice voip-status  # Bridge-dependent status; VOIP startup is blocked
 sora doctor             # Diagnostics; --fix is not implemented
-sora tui                # Planned stub that falls back to the REPL
+sora tui                # Launch built prototype only; displayed values are not live evidence
 ```
 
 The full setup wizard directly configures Gemini Live and Vapi only. `sora setup --provider` mainly stores credentials or identifiers and does not prove selection or enablement; the current ElevenLabs quick path does not collect `ELEVENLABS_API_KEY`. See [Issue #15](https://github.com/Capslockb/sora-agent/issues/15).
+
+The current TUI does not fall back to the chat REPL. It requires a local `ui-tui/dist/cli.js` build and uses simulated, hard-coded, fixed, random, or display-only behavior. Do not present it as a live control, configuration, doctor, benchmark, provider, voice, or MCP surface; see [Issue #17](https://github.com/Capslockb/sora-agent/issues/17).
 
 </div>
