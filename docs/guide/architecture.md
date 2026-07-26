@@ -80,10 +80,13 @@ Status: **PARTIAL — STARTUP BLOCKED**. The component classes and management co
 
 ## MCP Layer
 
-- **stdio MCP**: **WORKING** — S0RA can start and report status.
-- **Auto-discovery**: **PARTIAL** — scans ports 3000-3010 + stdio processes.
-- **WebSocket MCP**: **PLANNED** — native WS server is scaffolding.
-- **CLI Management**: `sora mcp start/status/stop/catalog` — **PARTIAL**.
+- **Built-in stdio server**: **WORKING** — `sora mcp start --transport stdio` reaches the checked-in foreground server implementation.
+- **Status and discovery**: **PARTIAL** — `sora mcp status` combines saved configuration with process-name and listening-port heuristics. It does not perform an MCP handshake or prove protocol health, and unrelated processes can be reported as MCP servers.
+- **SSE and streamable HTTP**: **PLANNED** — the CLI accepts both transport names, but the server raises `NotImplementedError` for them.
+- **Raw WebSocket listener**: **PARTIAL — UNSAFE** — `sora mcp ws start` is separate from the implemented stdio server, defaults to `0.0.0.0:3001`, has no authentication, and its tool-call path is incomplete.
+- **CLI management**: **PARTIAL** — the registered top-level commands are `start`, `status`, `list`, `catalog`, `add`, `remove`, `enable`, and `disable`, plus `ws start/stop/status/list`. The `ws stop/status/list` commands are stubs, and there is no top-level `sora mcp stop` command.
+
+Do not expose the WebSocket listener or treat heuristic status output as runtime validation. See [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
 
 ## FastAPI Dashboard / Sidecar
 
