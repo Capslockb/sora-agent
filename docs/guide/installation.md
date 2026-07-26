@@ -6,7 +6,7 @@
 |-------------|---------|-------|
 | Python | 3.11 - 3.14 | The package metadata permits this range. The staged pytest workflow currently targets only Python 3.12 and 3.13. |
 | Node.js | `^20.19.0`, `^22.12.0`, or `>=24.0.0` | Required only for the dashboard and TUI sources. The checked-in dashboard dependency tree does not support the previously documented Node.js 18 baseline. |
-| Git | Any current version | Required for source installs and git-based updates. |
+| Git | Any current version | Required for source installs and in-place updates from a compatible checkout. |
 | pipx | Current release | Recommended for an isolated CLI installation. |
 
 ## Install Methods
@@ -27,6 +27,14 @@ sora --help
 ```
 
 Restart the shell after `pipx ensurepath` if `sora` is not found.
+
+A normal pipx VCS installation is not a Git checkout at the installed module path. The current `sora update` command therefore cannot upgrade this installation. Reinstall from the same source URL when an update is required:
+
+```bash
+pipx install --force git+https://github.com/Capslockb/sora-agent
+```
+
+Do not substitute the current updater's fallback text `pipx install --force sora-agent`; it drops the documented repository source. Track the installation-aware updater repair in [Issue #18](https://github.com/Capslockb/sora-agent/issues/18).
 
 ### Development Install
 
@@ -71,10 +79,9 @@ sora doctor
 
 # Show component status
 sora status
-
-# Update a git-based installation
-sora update
 ```
+
+For a compatible source checkout only, `sora update --check-only` and `sora update` attempt an in-place `origin/main` update followed by `uv pip install -e`. The updater does not currently validate a dirty worktree, detached HEAD, divergent branch, remapped remote, or missing `uv` before mutation. Do not use it with local changes or an unverified checkout; see [Issue #18](https://github.com/Capslockb/sora-agent/issues/18).
 
 The CLI does not currently implement `sora --install-completion`; do not use that command as an installation step.
 
@@ -84,6 +91,7 @@ The CLI does not currently implement `sora --install-completion`; do not use tha
 |-------|----------|
 | `command not found: sora` | Run `pipx ensurepath`, restart the shell, and verify that the pipx binary directory is on `PATH`. |
 | Python version error | Use a supported interpreter explicitly, for example `pipx install --python python3.12 git+https://github.com/Capslockb/sora-agent`. |
+| `sora update` says the install is not a Git repository | For a pipx VCS install, reinstall with `pipx install --force git+https://github.com/Capslockb/sora-agent`. Do not assume the installed package is a checkout. |
 | Dashboard dependency or build error | Use a supported Node.js version and run `npm --prefix website ci` before `npm --prefix website run build`. |
 | TUI build fails | Treat the TUI as a prototype and follow [Issue #17](https://github.com/Capslockb/sora-agent/issues/17); changing Node.js versions alone does not resolve the inconsistent build entrypoints. |
 | VOIP start fails | Installation is not the blocker; follow [Issue #14](https://github.com/Capslockb/sora-agent/issues/14). |
