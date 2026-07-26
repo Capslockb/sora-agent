@@ -2,9 +2,10 @@
 
 ## Status
 
-**WORKING** for install, setup, status, and provider management.  
-**PARTIAL** for starting live voice bridges (requires Hermes `discord-voice`).  
-**PARTIAL** for the dashboard control API: routes are implemented, but authentication and safe network defaults are still tracked in [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
+**WORKING** for installation and the basic CLI entry points.  
+**PARTIAL** for setup and provider management: the setup wizard, both provider command families, and the dashboard/API do not share one complete provider-state contract; see [Issue #15](https://github.com/Capslockb/sora-agent/issues/15).  
+**PARTIAL** for starting live voice bridges because live Discord audio requires Hermes `discord-voice`.  
+**PARTIAL** for the dashboard control API because authentication and safe network defaults remain open under [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
 ## 1. Install
 
@@ -27,39 +28,42 @@ sora doctor
 sora status
 ```
 
-All four should return clean output. If `sora doctor` reports missing env vars, that is expected until you complete setup.
+All four should return output. Missing credentials and external services can still produce warnings or partial status after installation.
 
-## 3. Run setup wizard
+## 3. Run the setup wizard
 
 ```bash
 sora setup
 ```
 
-The interactive wizard guides you through model provider, Discord bot, voice bridges, VOIP, MCP, memory, providers, tools, and optional wake word.
+The interactive wizard covers the main model, Discord, Gemini Live, Vapi, VOIP settings, MCP, memory, tools, and optional wake word. Its voice section advertises seven backends but directly configures only Gemini Live and Vapi. Declining their enable prompts also does not clear an existing enabled value.
 
-Or quick-setup a specific voice provider:
+Credential-focused quick paths accept these names:
 
 ```bash
-sora setup --provider gemini-live      # Gemini API key
-sora setup --provider vapi             # Vapi API key
-sora setup --provider elevenlabs       # ElevenLabs API key + Agent ID
-sora setup --provider openai-realtime  # OpenAI API key
-sora setup --provider xai-grok         # xAI API key
-sora setup --provider ultravox         # Ultravox API key
-sora setup --provider retell           # Retell API key + Agent ID
+sora setup --provider gemini-live
+sora setup --provider vapi
+sora setup --provider elevenlabs
+sora setup --provider openai-realtime
+sora setup --provider xai-grok
+sora setup --provider ultravox
+sora setup --provider retell
 ```
 
-## 4. Check provider state
+A successful quick path stores credential or identifier values only; it does not prove that the provider was selected or enabled in the runtime configuration. The current ElevenLabs path is additionally unsafe for configuration accuracy because its first prompt writes to `ELEVENLABS_AGENT_ID` and never collects `ELEVENLABS_API_KEY`. Configure those two variables through a protected edit of `~/.sora/.env` until Issue #15 is resolved.
+
+## 4. Inspect provider state
 
 ```bash
+sora providers list
 sora voice providers list
-sora voice providers enable gemini-live
-sora voice providers enable edge-tts
 ```
+
+These are diagnostic views over different configuration shapes. Do not treat either result as authoritative runtime selection, and do not use a successful setup command as proof that an external provider is reachable.
 
 ## 5. Start live voice bridge (Discord)
 
-**PARTIAL** — S0RA prepares the bridge arguments, but the live audio runtime is in the Hermes `discord-voice` plugin.
+**PARTIAL** — S0RA prepares bridge arguments, but the live audio runtime is in the Hermes `discord-voice` plugin.
 
 ```bash
 # Requires GEMINI_API_KEY + DISCORD_BOT_TOKEN
@@ -71,10 +75,12 @@ Make sure Hermes `discord-voice` is installed and enabled.
 ## 6. Check status
 
 ```bash
-sora status          # Overall system status
-sora voice status    # Voice bridges
-sora mcp status      # MCP servers
+sora status          # Configuration and local dependency snapshot
+sora voice status    # S0RA voice state view
+sora mcp status      # MCP server state view
 ```
+
+Status output is diagnostic. It does not perform complete provider reachability checks or reconcile the provider schemas tracked in Issue #15.
 
 ## 7. Launch web dashboard
 
@@ -110,8 +116,10 @@ These are manual verification steps until the staged pytest workflow is activate
 
 ## Pitfalls
 
+- **Setup is not a seven-provider selector.** The full voice wizard configures Gemini Live and Vapi directly; quick paths mainly store credentials.
+- **ElevenLabs quick setup is miswired.** Do not paste an API key into its current first prompt; configure `ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID` separately.
+- **Provider views disagree.** `sora providers`, `sora voice providers`, setup, and the dashboard/API do not share one canonical provider state.
 - **No audio?** Check that Hermes `discord-voice` is installed, not just S0RA.
-- **Provider unavailable?** Add the matching API key via `sora setup --provider <name>`.
 - **TUI is a stub.** Do not demo it as a finished product.
 - **Dashboard command flags.** `dashboard start` accepts `--host`, `--port`, and `--api-port`. `--port` is the UI preview port; `--api-port` is the control API port.
 - **Dashboard bind scope.** `--host` constrains the API server only. The current command does not expose an explicit UI bind-host option, so treat the whole dashboard as local-development-only.
