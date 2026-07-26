@@ -24,6 +24,11 @@ ZERO_SHA = "0" * 40
 EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 MAX_SPAN_LINES = 3
 
+
+class ComparisonError(RuntimeError):
+    """Raised when the scanner cannot determine a trustworthy change range."""
+
+
 # Stable rule IDs are emitted without source text so CI logs do not reproduce
 # potentially sensitive or adversarial documentation content.
 PATTERNS = [
@@ -157,16 +162,19 @@ def changed_files() -> list[str]:
     if p.returncode == 0:
         return p.stdout.splitlines() if p.stdout.strip() else []
 
-    p = subprocess.run(
+    # This fallback supports local staged validation only. A clean cached diff
+    # cannot prove that a failed event comparison had no documentation changes,
+    # so it must not be interpreted as a safe empty range.
+    fallback = subprocess.run(
         ["git", "diff", "--name-only", "--cached"],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
-    if p.returncode == 0:
-        return p.stdout.splitlines() if p.stdout.strip() else []
+    if fallback.returncode == 0 and fallback.stdout.strip():
+        return fallback.stdout.splitlines()
 
-    return [str(x) for x in Path(".").rglob("*") if x.is_file()]
+    raise ComparisonError("unable to resolve documentation change range")
 
 
 def parse_added_lines(diff_text: str) -> dict[str, set[int]]:
@@ -266,7 +274,9 @@ def scan_file(
                         )
                     )
         for match in UNCERTAIN.finditer(text):
-            if BENIGN_UNCERTAIN.search(match.group(0)):
+            context_start = max(0, match.start() - 100)
+            context_end = min(len(text), match.end() + 100)
+            if BENIGN_UNCERTAIN.search(text[context_start:context_end]):
                 continue
             match_lines = matched_lines(lines, start, end, match)
             selected_match_lines = sorted(selected & match_lines)
@@ -294,11 +304,17 @@ def main() -> int:
     ap.add_argument("--include-test-fixtures", action="store_true")
     args = ap.parse_args()
     include_fixtures = args.include_test_fixtures or args.all
-    candidates = (
-        [str(x) for x in Path(".").rglob("*") if x.is_file()]
-        if args.all
-        else changed_files()
-    )
+    try:
+        candidates = (
+            [str(x) for x in Path(".").rglob("*") if x.is_file()]
+            if args.all
+            else changed_files()
+        )
+    except ComparisonError:
+        print("public-docs-safety: FAIL")
+        print("<comparison>:1: PDS901: change-range resolution failure")
+        return 1
+
     files = existing_public_docs(candidates, include_fixtures)
     added = None if args.all else changed_added_lines(files)
     findings = []
