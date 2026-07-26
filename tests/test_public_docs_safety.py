@@ -95,6 +95,21 @@ class PublicDocsSafetyTests(unittest.TestCase):
                 scanner.comparison_args(), [scanner.EMPTY_TREE_SHA, "HEAD"]
             )
 
+    def test_failed_event_comparison_rejects_empty_cached_fallback(self):
+        failed_event_diff = subprocess.CompletedProcess(
+            args=["git", "diff"], returncode=128, stdout="", stderr="missing base"
+        )
+        empty_cached_diff = subprocess.CompletedProcess(
+            args=["git", "diff"], returncode=0, stdout="", stderr=""
+        )
+        with mock.patch.object(
+            scanner.subprocess,
+            "run",
+            side_effect=[failed_event_diff, empty_cached_diff],
+        ):
+            with self.assertRaises(scanner.ComparisonError):
+                scanner.changed_files()
+
     def test_strong_rules_are_not_suppressed_by_quotes_or_product_context(self):
         old_cwd = Path.cwd()
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -137,6 +152,22 @@ class PublicDocsSafetyTests(unittest.TestCase):
             findings,
             [("docs/wrapped.md", 2, "PDS003", "unauthorized action request")],
         )
+
+    def test_uncertain_rule_preserves_nearby_benign_context(self):
+        old_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            try:
+                os.chdir(temp_dir)
+                path = Path("docs/example.md")
+                path.parent.mkdir(parents=True)
+                path.write_text(
+                    "Example: an automation agent must always use tool integrations.",
+                    encoding="utf-8",
+                )
+                findings = scanner.scan_file(str(path), [1])
+            finally:
+                os.chdir(old_cwd)
+        self.assertEqual(findings, [])
 
     def test_diagnostics_contain_rule_metadata_not_source_text(self):
         old_cwd = Path.cwd()
