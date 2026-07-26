@@ -7,7 +7,7 @@ This page collects the current truth table, release-blocking rules, and the end-
 | Label | Meaning |
 |---|---|
 | **WORKING** | Code exists and has a runnable verification path in this repo. |
-| **PARTIAL** | Code exists but requires external credentials, services, another plugin/runtime, or has a material safety or lifecycle boundary. |
+| **PARTIAL** | Code exists but requires external credentials, services, another plugin/runtime, or has a material safety, state, or lifecycle boundary. |
 | **PLANNED** | Entry points or scaffolding exist, but the core feature is not implemented. |
 | **RESEARCH** | Future integration target; no production code yet. |
 
@@ -15,13 +15,14 @@ This page collects the current truth table, release-blocking rules, and the end-
 
 1. **No false claims.** Every feature in README and docs uses one of the four labels above.
 2. **Every `WORKING` feature must have a verification command.** Prefer commands that run without external API keys.
-3. **Every `PARTIAL` feature must state the missing runtime, lifecycle, or safety boundary.** Example: Discord voice bridges require the external Hermes voice runtime.
+3. **Every `PARTIAL` feature must state the missing runtime, lifecycle, state, or safety boundary.** Example: Discord voice bridges require the external Hermes voice runtime.
 4. **No screenshots of unreleased UIs.** The TUI is `PLANNED`; do not show it as shipped.
 5. **API documentation must match `sora_api.py`.** The route tables are maintained manually and must be rechecked against source; they are not generated automatically.
 6. **Docs-site must build without dead links.** Run `npm run docs:build` before release.
 7. **Local test results are not CI evidence.** Until [Issue #12](https://github.com/Capslockb/sora-agent/issues/12) is completed, describe pytest results as locally verified and do not imply that GitHub Actions validates the current head.
 8. **Do not present the dashboard as network-safe.** Until [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) is resolved, document it as an unauthenticated trusted-local-development surface.
 9. **Do not present VOIP startup as runnable.** Until [Issue #14](https://github.com/Capslockb/sora-agent/issues/14) is resolved, distinguish management/configuration command surfaces from a working bridge lifecycle.
+10. **Do not present provider management as one reliable control surface.** Until [Issue #15](https://github.com/Capslockb/sora-agent/issues/15) is resolved, distinguish `sora providers` from `sora voice providers`, recommend `sora setup` for initial configuration, and treat list/enable/disable results as diagnostic rather than authoritative runtime state.
 
 ## Current validation boundary
 
@@ -35,7 +36,7 @@ Documentation-only commits after PR #5 have no attached Actions evidence. Runtim
 |---|---|---|
 | CLI entry (`sora --help`, `sora status`, `sora doctor`) | **WORKING** | `tests/test_cli.py`, manual run |
 | Setup wizard (`sora setup`) | **WORKING** | `sora_cli/setup.py` interactive flow |
-| Provider registry (`sora voice providers list/enable/disable`) | **WORKING** | `sora_cli/voice.py` provider commands |
+| Provider management (`sora providers`, `sora voice providers`) | **PARTIAL** | The two command families use different registries, configuration paths, provider coverage, and disable semantics. The dashboard/API reads a third selection shape. Use `sora setup` for initial configuration and see Issue #15. |
 | ElevenLabs signed URLs / WebSocket targets | **WORKING** | `sora_cli/voice.py` URL signing helpers |
 | FastAPI dashboard (`/health`, `/api/status`) | **PARTIAL** | Routes run, but the API defaults to `0.0.0.0`, has no authentication, broad CORS, and sensitive config/env routes; see Issue #13 |
 | Hermes plugin (`sora-hermes`) | **WORKING** | `plugins/sora_hermes/plugin.yaml`; six registered tools |
@@ -60,7 +61,8 @@ sora --version
 sora status
 sora doctor
 
-# Voice/MCP smoke (no external keys needed)
+# Provider diagnostics and MCP smoke (no external keys needed)
+sora providers list
 sora voice providers list
 sora mcp catalog
 
@@ -75,6 +77,8 @@ hermes plugins enable sora-hermes
 hermes tools list | grep sora_
 ```
 
+The two provider-list commands are diagnostics only while Issue #15 remains open. Differences between them are evidence of the known split, not proof that either view is the canonical runtime selection.
+
 Do not use `/api/config`, `/api/config/env`, or mutation routes as routine release smoke tests while Issue #13 remains open.
 
 Do not add `sora voip start` or `sora-voip` to the release smoke checklist until Issue #14 is fixed and exact-head lifecycle validation passes.
@@ -86,6 +90,7 @@ Do not add `sora voip start` or `sora-voip` to the release smoke checklist until
 | Dashboard API is unauthenticated, defaults to all interfaces, and can return secret values | **High** | Complete [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) with exact-head security tests |
 | VOIP entrypoints cannot construct the checked-in bridge runtime | **High** | Complete [Issue #14](https://github.com/Capslockb/sora-agent/issues/14) through a focused, separately reviewed lifecycle PR |
 | CLI secret handling and nondeterministic local execution remain open | **High** | Complete [Issue #7](https://github.com/Capslockb/sora-agent/issues/7) |
+| Provider commands and API do not share one state model | Medium | Complete [Issue #15](https://github.com/Capslockb/sora-agent/issues/15) with migration-safe equivalence or explicit deprecation tests |
 | Pytest workflow is staged but inactive | Medium | Complete [Issue #12](https://github.com/Capslockb/sora-agent/issues/12), then attach the first exact-head Actions result |
 | TUI is a stub | Medium | Decide whether to implement or keep clearly labeled `PLANNED` |
 | `sora voice live` cannot start live audio without the external Hermes voice runtime | Medium | Keep documented as `PARTIAL`; add verified runtime setup guidance |
@@ -102,6 +107,7 @@ S0RA does **not** currently ship:
 - A currently runnable end-to-end VOIP bridge entrypoint.
 - A hosted VOIP service.
 - A secured network dashboard/control API.
+- One unified, authoritative provider-management state across both CLI command families and the dashboard/API.
 - A production TUI.
 - A production ACP server.
 - Auto-fix diagnostics.
