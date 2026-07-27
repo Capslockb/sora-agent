@@ -46,10 +46,14 @@ COMMAND_HEADS = {
     "disable",
     "docker",
     "docker-compose",
+    "echo",
     "enable",
+    "env",
+    "export",
     "git",
     "go",
     "install",
+    "ls",
     "make",
     "mkdir",
     "mv",
@@ -62,19 +66,25 @@ COMMAND_HEADS = {
     "pnpm",
     "poetry",
     "powershell",
+    "printf",
+    "pwd",
     "pwsh",
     "pytest",
     "python",
     "python3",
     "rm",
     "ruff",
+    "set",
     "sh",
     "sora",
+    "source",
     "sudo",
     "systemctl",
     "tox",
+    "unset",
     "uv",
     "wget",
+    "which",
     "yarn",
 }
 
@@ -125,6 +135,11 @@ HTML_BLOCK_TAGS = {
     "ul",
 }
 
+# Only attributes that are intentionally rendered to users are prose. Routing,
+# class, data, and other machine-readable attributes must not be scanned as if
+# they were visible documentation.
+HTML_VISIBLE_ATTRS = {"alt", "aria-label", "placeholder", "title", "value"}
+
 
 def _command_head(line: str) -> str:
     stripped = line.strip()
@@ -138,16 +153,16 @@ def _command_head(line: str) -> str:
 def is_explicit_command_line(line: str) -> bool:
     """Return true only for lines with concrete command syntax.
 
-    The former generic two-word heuristic classified ordinary prose such as
-    ``ignore everything`` and ``previous policy`` as separate commands. That
-    allowed a wrapped strong-rule phrase to evade scanning.
+    A shell prompt is presentation syntax, not proof that the following words
+    form an independent command. Prompted prose such as ``$ ignore everything``
+    must remain available to adjacent strong-rule scanning.
     """
     stripped = line.strip()
     if not stripped or stripped.startswith("#"):
         return False
-    if scanner.PROMPTED_COMMAND_RE.match(line):
-        return True
-    if not scanner.SIMPLE_COMMAND_RE.match(line):
+
+    prompted = bool(scanner.PROMPTED_COMMAND_RE.match(line))
+    if not prompted and not scanner.SIMPLE_COMMAND_RE.match(line):
         return False
 
     head = _command_head(line)
@@ -238,14 +253,16 @@ class HTMLRecordParser(HTMLParser):
             self.records.append(scanner.ScanRecord(tuple(parts)))
             parts.clear()
 
-    def _emit_tag(self, text: str) -> None:
-        parts = self._parts(self.getpos()[0], text)
-        if parts:
-            self.records.append(scanner.ScanRecord(tuple(parts)))
+    def _emit_visible_attrs(self, attrs: list[tuple[str, str | None]]) -> None:
+        for name, value in attrs:
+            if value and name.lower() in HTML_VISIBLE_ATTRS:
+                parts = self._parts(self.getpos()[0], value)
+                if parts:
+                    self.records.append(scanner.ScanRecord(tuple(parts)))
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
-        self._emit_tag(self.get_starttag_text() or f"<{tag}>")
+        self._emit_visible_attrs(attrs)
         if tag in HTML_BLOCK_TAGS:
             self._emit(self._target())
             self.frames.append(_HTMLFrame(tag))
@@ -253,7 +270,7 @@ class HTMLRecordParser(HTMLParser):
     def handle_startendtag(
         self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
-        self._emit_tag(self.get_starttag_text() or f"<{tag}/>")
+        self._emit_visible_attrs(attrs)
 
     def handle_data(self, data: str) -> None:
         self._target().extend(self._parts(self.getpos()[0], data))
