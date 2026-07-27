@@ -2,8 +2,8 @@
 """Hardened entrypoint for the public documentation safety scanner.
 
 The range-selection, rule, and reporting implementation lives in the sibling
-``public_docs_safety_core`` module. This entrypoint supplies the format-aware
-boundaries used for fenced examples, AsciiDoc source blocks, and HTML content.
+``public_docs_safety_core`` module. This entrypoint supplies format-aware
+boundaries for Markdown code blocks, AsciiDoc, and rendered HTML content.
 """
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ scanner = importlib.util.module_from_spec(_CORE_SPEC)
 sys.modules.setdefault("_public_docs_safety_core", scanner)
 _CORE_SPEC.loader.exec_module(scanner)
 
-# Preserve the existing import surface for tests and callers. The hardened
-# helpers below overwrite the corresponding core names before scanning starts.
+# Preserve the established import surface for tests and callers. Hardened
+# helpers below replace selected core functions before scanning starts.
 for _name in dir(scanner):
     if not _name.startswith("_"):
         globals().setdefault(_name, getattr(scanner, _name))
@@ -129,11 +129,8 @@ HTML_BLOCK_TAGS = {
     "ul",
 }
 HTML_HIDDEN_TAGS = {"script", "style", "template"}
-ASCIIDOC_TABLE_DELIMITER_RE = re.compile(r"^\s*\|={3,}\s*$")
-
-# Only attributes intentionally rendered to users are prose. Routing, class,
-# data, and other machine-readable attributes are not scanned as visible text.
 HTML_VISIBLE_ATTRS = {"alt", "aria-label", "placeholder", "title", "value"}
+ASCIIDOC_TABLE_DELIMITER_RE = re.compile(r"^\s*\|={3,}\s*$")
 
 
 def _command_head(line: str) -> str:
@@ -183,11 +180,11 @@ def _is_command_continuation(previous: str, current: str) -> bool:
 def fenced_content_spans(
     lines: list[str], start: int, end: int
 ) -> list[tuple[int, int]]:
-    """Return format-aware 1-based spans for fenced/source-block content.
+    """Split code-like content without losing wrapped prose instructions.
 
     Explicit commands and their continuations remain independent records.
     Consecutive non-command text stays together so strong rules can detect
-    instructions wrapped across up to the scanner's bounded line window.
+    instructions wrapped across the scanner's bounded line window.
     """
     spans: list[tuple[int, int]] = []
     index = start
@@ -217,6 +214,45 @@ def fenced_content_spans(
     return spans
 
 
+_CORE_LOGICAL_SPANS = scanner.logical_spans
+
+
+def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
+    """Apply command-aware grouping to Markdown indented code blocks.
+
+    The core parser already identifies structural Markdown records but emits
+    each top-level indented-code line separately. Consecutive indented-code
+    records are regrouped with the same rules used for fenced/source content,
+    closing cross-line evasions without joining independent commands.
+    """
+    original = _CORE_LOGICAL_SPANS(lines)
+    spans: list[tuple[int, int]] = []
+    index = 0
+    while index < len(original):
+        start, end = original[index]
+        if start == end and scanner.INDENTED_CODE_RE.match(lines[start - 1]):
+            run_start = start
+            run_end = end
+            cursor = index + 1
+            while cursor < len(original):
+                next_start, next_end = original[cursor]
+                if (
+                    next_start == next_end
+                    and next_start == run_end + 1
+                    and scanner.INDENTED_CODE_RE.match(lines[next_start - 1])
+                ):
+                    run_end = next_end
+                    cursor += 1
+                    continue
+                break
+            spans.extend(fenced_content_spans(lines, run_start - 1, run_end))
+            index = cursor
+            continue
+        spans.append((start, end))
+        index += 1
+    return spans
+
+
 def asciidoc_segment_records(
     lines: list[str], offset: int = 0
 ) -> list[scanner.ScanRecord]:
@@ -229,7 +265,9 @@ def asciidoc_segment_records(
         nonlocal segment_start
         if segment_start < end:
             records.extend(
-                scanner.markdown_records(lines[segment_start:end], offset=offset + segment_start)
+                scanner.markdown_records(
+                    lines[segment_start:end], offset=offset + segment_start
+                )
             )
 
     while index < len(lines):
@@ -337,7 +375,7 @@ class _HTMLFrame:
 
 
 class HTMLRecordParser(HTMLParser):
-    """Build records from rendered HTML structure, excluding hidden containers."""
+    """Build records from rendered HTML structure, excluding hidden content."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -417,11 +455,8 @@ class HTMLRecordParser(HTMLParser):
             self._target().extend(self._parts(self.getpos()[0], data))
 
     def handle_comment(self, data: str) -> None:
-        if self.hidden_stack:
-            return
-        parts = self._parts(self.getpos()[0], data)
-        if parts:
-            self.records.append(scanner.ScanRecord(tuple(parts)))
+        # HTML comments are non-rendered content, like script/style/template.
+        return
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
@@ -471,6 +506,7 @@ def html_records(lines: list[str]) -> list[scanner.ScanRecord]:
 # through module globals. Re-export the hardened helpers from this entrypoint.
 scanner.is_independent_command_line = is_explicit_command_line
 scanner.fenced_content_spans = fenced_content_spans
+scanner.logical_spans = logical_spans
 scanner.asciidoc_records = asciidoc_records
 scanner.html_records = html_records
 is_independent_command_line = is_explicit_command_line
