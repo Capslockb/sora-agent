@@ -2,12 +2,8 @@
 """Hardened entrypoint for the public documentation safety scanner.
 
 The range-selection, rule, and reporting implementation lives in the sibling
-``public_docs_safety_core`` module. This entrypoint replaces the two
-format-boundary helpers that require stricter handling:
-
-* fenced examples distinguish explicit commands from wrapped prose;
-* HTML records retain descendant text within one containing element without
-  joining unrelated sibling elements.
+``public_docs_safety_core`` module. This entrypoint supplies the format-aware
+boundaries used for fenced examples, AsciiDoc source blocks, and HTML content.
 """
 from __future__ import annotations
 
@@ -26,8 +22,8 @@ scanner = importlib.util.module_from_spec(_CORE_SPEC)
 sys.modules.setdefault("_public_docs_safety_core", scanner)
 _CORE_SPEC.loader.exec_module(scanner)
 
-# Preserve the existing import surface for tests and callers. The replacement
-# helpers defined below intentionally overwrite the corresponding names.
+# Preserve the existing import surface for tests and callers. The hardened
+# helpers below overwrite the corresponding core names before scanning starts.
 for _name in dir(scanner):
     if not _name.startswith("_"):
         globals().setdefault(_name, getattr(scanner, _name))
@@ -120,24 +116,21 @@ HTML_BLOCK_TAGS = {
     "ol",
     "p",
     "pre",
-    "script",
     "section",
-    "style",
     "summary",
     "table",
     "tbody",
     "td",
-    "template",
     "tfoot",
     "th",
     "thead",
     "tr",
     "ul",
 }
+HTML_HIDDEN_TAGS = {"script", "style", "template"}
 
-# Only attributes that are intentionally rendered to users are prose. Routing,
-# class, data, and other machine-readable attributes must not be scanned as if
-# they were visible documentation.
+# Only attributes intentionally rendered to users are prose. Routing, class,
+# data, and other machine-readable attributes are not scanned as visible text.
 HTML_VISIBLE_ATTRS = {"alt", "aria-label", "placeholder", "title", "value"}
 
 
@@ -154,8 +147,8 @@ def is_explicit_command_line(line: str) -> bool:
     """Return true only for lines with concrete command syntax.
 
     A shell prompt is presentation syntax, not proof that the following words
-    form an independent command. Prompted prose such as ``$ ignore everything``
-    must remain available to adjacent strong-rule scanning.
+    are an independent command. Prompted prose such as ``$ ignore everything``
+    remains available to adjacent strong-rule scanning.
     """
     stripped = line.strip()
     if not stripped or stripped.startswith("#"):
@@ -180,17 +173,19 @@ def _is_command_continuation(previous: str, current: str) -> bool:
     return bool(
         previous.rstrip().endswith(("\\", "&&", "||", "|"))
         or stripped.startswith(("-", "&&", "||", "|"))
-        or scanner.leading_indent_width(current) > scanner.leading_indent_width(previous)
+        or scanner.leading_indent_width(current)
+        > scanner.leading_indent_width(previous)
     )
 
 
 def fenced_content_spans(
     lines: list[str], start: int, end: int
 ) -> list[tuple[int, int]]:
-    """Return format-aware 1-based spans for one fenced block.
+    """Return format-aware 1-based spans for fenced/source-block content.
 
-    Explicit command records remain separate. Consecutive non-command text is
-    kept together so strong rules can see instructions wrapped by Markdown.
+    Explicit commands and their continuations remain independent records.
+    Consecutive non-command text stays together so strong rules can detect
+    instructions wrapped across up to the scanner's bounded line window.
     """
     spans: list[tuple[int, int]] = []
     index = start
@@ -220,6 +215,60 @@ def fenced_content_spans(
     return spans
 
 
+def asciidoc_records(lines: list[str]) -> list[scanner.ScanRecord]:
+    """Parse AsciiDoc source blocks with the same command/prose boundary as fences."""
+    records: list[scanner.ScanRecord] = []
+    segment_start = 0
+    index = 0
+
+    def flush_segment(end: int) -> None:
+        nonlocal segment_start
+        if segment_start < end:
+            records.extend(
+                scanner.markdown_records(
+                    lines[segment_start:end], offset=segment_start
+                )
+            )
+
+    while index < len(lines):
+        if not scanner.ASCIIDOC_SOURCE_RE.match(lines[index]):
+            index += 1
+            continue
+
+        delimiter = index + 1
+        while delimiter < len(lines) and not lines[delimiter].strip():
+            delimiter += 1
+        if delimiter >= len(lines) or not scanner.ASCIIDOC_BLOCK_DELIMITER_RE.match(
+            lines[delimiter]
+        ):
+            index += 1
+            continue
+
+        flush_segment(index)
+        records.append(scanner.ScanRecord(((index + 1, lines[index]),)))
+        records.append(scanner.ScanRecord(((delimiter + 1, lines[delimiter]),)))
+
+        closing = delimiter + 1
+        while closing < len(lines) and not scanner.ASCIIDOC_BLOCK_DELIMITER_RE.match(
+            lines[closing]
+        ):
+            closing += 1
+
+        source_end = closing if closing < len(lines) else len(lines)
+        source_spans = fenced_content_spans(lines, delimiter + 1, source_end)
+        records.extend(scanner.records_from_spans(lines, source_spans))
+
+        if closing < len(lines):
+            records.append(scanner.ScanRecord(((closing + 1, lines[closing]),)))
+            index = closing + 1
+        else:
+            index = closing
+        segment_start = index
+
+    flush_segment(len(lines))
+    return records
+
+
 class _HTMLFrame:
     __slots__ = ("tag", "parts")
 
@@ -229,13 +278,14 @@ class _HTMLFrame:
 
 
 class HTMLRecordParser(HTMLParser):
-    """Build records from visible HTML structure rather than parser callbacks."""
+    """Build records from rendered HTML structure, excluding hidden containers."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.records: list[scanner.ScanRecord] = []
         self.frames: list[_HTMLFrame] = []
         self.root_parts: list[tuple[int, str]] = []
+        self.hidden_stack: list[str] = []
 
     @staticmethod
     def _parts(start_line: int, text: str) -> list[tuple[int, str]]:
@@ -262,6 +312,15 @@ class HTMLRecordParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
+        if self.hidden_stack:
+            if tag in HTML_HIDDEN_TAGS:
+                self.hidden_stack.append(tag)
+            return
+        if tag in HTML_HIDDEN_TAGS:
+            self._emit(self._target())
+            self.hidden_stack.append(tag)
+            return
+
         self._emit_visible_attrs(attrs)
         if tag in HTML_BLOCK_TAGS:
             self._emit(self._target())
@@ -270,18 +329,28 @@ class HTMLRecordParser(HTMLParser):
     def handle_startendtag(
         self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
+        tag = tag.lower()
+        if self.hidden_stack or tag in HTML_HIDDEN_TAGS:
+            return
         self._emit_visible_attrs(attrs)
 
     def handle_data(self, data: str) -> None:
-        self._target().extend(self._parts(self.getpos()[0], data))
+        if not self.hidden_stack:
+            self._target().extend(self._parts(self.getpos()[0], data))
 
     def handle_comment(self, data: str) -> None:
+        if self.hidden_stack:
+            return
         parts = self._parts(self.getpos()[0], data)
         if parts:
             self.records.append(scanner.ScanRecord(tuple(parts)))
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
+        if self.hidden_stack:
+            if tag == self.hidden_stack[-1]:
+                self.hidden_stack.pop()
+            return
         if tag not in HTML_BLOCK_TAGS or not self.frames:
             return
 
@@ -324,6 +393,7 @@ def html_records(lines: list[str]) -> list[scanner.ScanRecord]:
 # through module globals. Re-export the hardened helpers from this entrypoint.
 scanner.is_independent_command_line = is_explicit_command_line
 scanner.fenced_content_spans = fenced_content_spans
+scanner.asciidoc_records = asciidoc_records
 scanner.html_records = html_records
 is_independent_command_line = is_explicit_command_line
 
