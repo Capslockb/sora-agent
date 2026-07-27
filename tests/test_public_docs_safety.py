@@ -94,6 +94,33 @@ class PublicDocsSafetyTests(unittest.TestCase):
             scanner.parse_added_lines(diff), {"docs/guide.md": {2}}
         )
 
+    def test_deletion_only_hunk_selects_post_change_boundary_context(self):
+        diff = """diff --git a/docs/guide.md b/docs/guide.md
+--- a/docs/guide.md
++++ b/docs/guide.md
+@@ -1,3 +1,2 @@
+ Disable
+-
+ repository
+"""
+        selected = scanner.parse_added_lines(diff)["docs/guide.md"]
+        self.assertEqual(selected, {1, 2, 3})
+
+        old_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            try:
+                os.chdir(temp_dir)
+                path = Path("docs/guide.md")
+                path.parent.mkdir(parents=True)
+                path.write_text("Disable\nrepository", encoding="utf-8")
+                findings = scanner.scan_file(str(path), sorted(selected))
+            finally:
+                os.chdir(old_cwd)
+        self.assertEqual(
+            findings,
+            [("docs/guide.md", 1, "PDS003", "unauthorized action request")],
+        )
+
     def test_push_comparison_uses_event_before_sha(self):
         before = "a" * 40
         with mock.patch.dict(
@@ -240,6 +267,22 @@ class PublicDocsSafetyTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 findings = scanner.scan_file(str(path), range(1, 9))
+            finally:
+                os.chdir(old_cwd)
+        self.assertEqual(findings, [])
+
+    def test_codeowners_entries_are_scanned_independently(self):
+        old_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            try:
+                os.chdir(temp_dir)
+                path = Path(".github/CODEOWNERS")
+                path.parent.mkdir(parents=True)
+                path.write_text(
+                    "/deploy @ops\n/repository @owners",
+                    encoding="utf-8",
+                )
+                findings = scanner.scan_file(str(path), [2])
             finally:
                 os.chdir(old_cwd)
         self.assertEqual(findings, [])
