@@ -12,34 +12,63 @@ import os
 import re
 import subprocess
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
+from typing import NamedTuple
 
 DOC_NAMES = {
-    "README.md",
-    "SECURITY.md",
-    "CONTRIBUTING.md",
-    "AGENTS.md",
-    "CODE_OF_CONDUCT.md",
+    "README",
+    "README.MD",
+    "SECURITY.MD",
+    "CONTRIBUTING.MD",
+    "AGENTS.MD",
+    "CODE_OF_CONDUCT.MD",
 }
-SPECIAL_DOC_PATHS = {".github/CODEOWNERS"}
+SPECIAL_DOC_PATHS = {".github/codeowners"}
+PULL_REQUEST_TEMPLATE_PATHS = {
+    ".github/pull_request_template.md",
+    ".github/pull_request_template",
+}
+PULL_REQUEST_TEMPLATE_DIR = ".github/pull_request_template/"
 DOC_DIR_PARTS = {"docs", "doc", "website", "site", "public"}
 FIXTURE_PARTS = {"tests", "fixtures", "public-docs"}
-DOC_EXTS = {".md", ".mdx", ".rst", ".txt", ".adoc", ".asciidoc"}
-EXCLUDE_PARTS = {"i18n", "CHANGELOG.md", "sessions", "vendor", "node_modules", ".git"}
+DOC_EXTS = {
+    ".md",
+    ".mdx",
+    ".rst",
+    ".txt",
+    ".adoc",
+    ".asciidoc",
+    ".html",
+    ".htm",
+}
+EXCLUDE_PARTS = {
+    "i18n",
+    "changelog.md",
+    "sessions",
+    "vendor",
+    "node_modules",
+    ".git",
+}
 ZERO_SHA = "0" * 40
 EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+MAX_MATCH_LINES = 3
 
 FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 HEADING_RE = re.compile(r"^\s{0,3}#{1,6}(?:\s|$)")
 LIST_ITEM_RE = re.compile(r"^(?P<indent> {0,3})(?:[-+*]|\d+[.)])(?P<spacing>[ \t]+)")
 BLOCKQUOTE_RE = re.compile(r"^\s{0,3}>\s?")
-HORIZONTAL_RULE_RE = re.compile(r"^\s{0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$")
+HORIZONTAL_RULE_RE = re.compile(
+    r"^\s{0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$"
+)
 INDENTED_CODE_RE = re.compile(r"^(?: {4}|\t)\S")
 PROMPTED_COMMAND_RE = re.compile(r"^\s*(?:[$>]\s+|[A-Za-z0-9_.-]+[>$]\s+)")
 SIMPLE_COMMAND_RE = re.compile(
     r"^\s*(?:--?[A-Za-z0-9][\w.-]*|[a-z0-9][\w./:-]*)"
     r"\s+[^.!?]+\s*$"
 )
+ASCIIDOC_SOURCE_RE = re.compile(r"^\s*\[source(?:,[^\]]*)?\]\s*$", re.I)
+ASCIIDOC_BLOCK_DELIMITER_RE = re.compile(r"^\s*-{4,}\s*$")
 
 
 class ComparisonError(RuntimeError):
@@ -93,6 +122,12 @@ BENIGN_UNCERTAIN = re.compile(
 )
 
 
+class ScanRecord(NamedTuple):
+    """A format-aware logical record, preserving source line numbers."""
+
+    parts: tuple[tuple[int, str], ...]
+
+
 def default_branch() -> str:
     explicit = os.environ.get("GITHUB_BASE_REF") or os.environ.get("DEFAULT_BRANCH")
     if explicit:
@@ -109,7 +144,9 @@ def default_branch() -> str:
 
 
 def push_before_sha() -> str | None:
-    explicit = os.environ.get("PUBLIC_DOCS_BASE_SHA") or os.environ.get("GITHUB_EVENT_BEFORE")
+    explicit = os.environ.get("PUBLIC_DOCS_BASE_SHA") or os.environ.get(
+        "GITHUB_EVENT_BEFORE"
+    )
     if explicit:
         return explicit.strip()
     event_path = os.environ.get("GITHUB_EVENT_PATH")
@@ -135,19 +172,32 @@ def comparison_args() -> list[str]:
 def is_public_doc(path: str, include_fixtures: bool = False) -> bool:
     candidate = Path(path)
     normalized = candidate.as_posix().removeprefix("./")
-    parts = set(candidate.parts)
-    if parts & EXCLUDE_PARTS:
+    normalized_lower = normalized.lower()
+    parts_lower = {part.lower() for part in candidate.parts}
+
+    if parts_lower & EXCLUDE_PARTS:
         return False
-    if normalized in SPECIAL_DOC_PATHS:
+    if normalized_lower in SPECIAL_DOC_PATHS:
         return True
-    if include_fixtures and FIXTURE_PARTS <= parts and candidate.suffix.lower() in DOC_EXTS:
+    if normalized_lower in PULL_REQUEST_TEMPLATE_PATHS:
         return True
-    return candidate.name in DOC_NAMES or (
-        candidate.suffix.lower() in DOC_EXTS and bool(parts & DOC_DIR_PARTS)
+    if normalized_lower.startswith(PULL_REQUEST_TEMPLATE_DIR):
+        return candidate.suffix.lower() in DOC_EXTS or not candidate.suffix
+    if (
+        include_fixtures
+        and FIXTURE_PARTS <= parts_lower
+        and candidate.suffix.lower() in DOC_EXTS
+    ):
+        return True
+    return candidate.name.upper() in DOC_NAMES or (
+        candidate.suffix.lower() in DOC_EXTS
+        and bool(parts_lower & DOC_DIR_PARTS)
     )
 
 
-def existing_public_docs(candidates: list[str], include_fixtures: bool = False) -> list[str]:
+def existing_public_docs(
+    candidates: list[str], include_fixtures: bool = False
+) -> list[str]:
     return [
         path
         for path in candidates
@@ -155,24 +205,35 @@ def existing_public_docs(candidates: list[str], include_fixtures: bool = False) 
     ]
 
 
-def changed_files() -> list[str]:
+def changed_files_with_diff_args() -> tuple[list[str], list[str]]:
+    primary_args = comparison_args()
     result = subprocess.run(
-        ["git", "diff", "--name-only", *comparison_args()],
+        ["git", "diff", "--name-only", *primary_args],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
     if result.returncode == 0:
-        return result.stdout.splitlines() if result.stdout.strip() else []
+        return (
+            result.stdout.splitlines() if result.stdout.strip() else [],
+            primary_args,
+        )
+
+    fallback_args = ["--cached"]
     fallback = subprocess.run(
-        ["git", "diff", "--name-only", "--cached"],
+        ["git", "diff", "--name-only", *fallback_args],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
     if fallback.returncode == 0 and fallback.stdout.strip():
-        return fallback.stdout.splitlines()
+        return fallback.stdout.splitlines(), fallback_args
     raise ComparisonError("unable to resolve documentation change range")
+
+
+def changed_files() -> list[str]:
+    files, _ = changed_files_with_diff_args()
+    return files
 
 
 def parse_added_lines(diff_text: str) -> dict[str, set[int]]:
@@ -184,6 +245,8 @@ def parse_added_lines(diff_text: str) -> dict[str, set[int]]:
         if line.startswith("+++ b/"):
             current = line[6:]
             result.setdefault(current, set())
+        elif line.startswith("+++ /dev/null"):
+            current = None
         elif line.startswith("@@") and current:
             match = re.search(r"\+(\d+)(?:,(\d+))?", line)
             if match:
@@ -203,11 +266,14 @@ def parse_added_lines(diff_text: str) -> dict[str, set[int]]:
     return result
 
 
-def changed_added_lines(files: list[str]) -> dict[str, set[int]] | None:
+def changed_added_lines(
+    files: list[str], diff_args: list[str] | None = None
+) -> dict[str, set[int]] | None:
     if not files:
         return {}
+    selected_args = comparison_args() if diff_args is None else diff_args
     result = subprocess.run(
-        ["git", "diff", "--unified=0", *comparison_args(), "--", *files],
+        ["git", "diff", "--unified=0", *selected_args, "--", *files],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -245,13 +311,10 @@ def is_independent_command_line(line: str) -> bool:
     return bool(PROMPTED_COMMAND_RE.match(line) or SIMPLE_COMMAND_RE.match(line))
 
 
-def fenced_content_spans(lines: list[str], start: int, end: int) -> list[tuple[int, int]]:
-    """Return 1-based spans for content inside one fenced block.
-
-    A contiguous block is joined when it contains wrapped prose or instructions.
-    A block made solely of command-like records stays one span per line, avoiding
-    artificial matches across independent CLI examples.
-    """
+def fenced_content_spans(
+    lines: list[str], start: int, end: int
+) -> list[tuple[int, int]]:
+    """Return 1-based spans for content inside one fenced block."""
     spans: list[tuple[int, int]] = []
     index = start
     while index < end:
@@ -264,14 +327,17 @@ def fenced_content_spans(lines: list[str], start: int, end: int) -> list[tuple[i
         block_end = index
         block = lines[block_start:block_end]
         if len(block) > 1 and all(is_independent_command_line(line) for line in block):
-            spans.extend((line_no + 1, line_no + 1) for line_no in range(block_start, block_end))
+            spans.extend(
+                (line_no + 1, line_no + 1)
+                for line_no in range(block_start, block_end)
+            )
         else:
             spans.append((block_start + 1, block_end))
     return spans
 
 
 def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
-    """Split public Markdown-like text into bounded logical records."""
+    """Split Markdown-like text into structurally related logical records."""
     spans: list[tuple[int, int]] = []
     index = 0
     while index < len(lines):
@@ -288,7 +354,9 @@ def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
             spans.append((index + 1, index + 1))
             content_start = index + 1
             cursor = content_start
-            closing_re = re.compile(rf"^\s{{0,3}}{re.escape(marker_char)}{{{marker_len},}}\s*$")
+            closing_re = re.compile(
+                rf"^\s{{0,3}}{re.escape(marker_char)}{{{marker_len},}}\s*$"
+            )
             while cursor < len(lines) and not closing_re.match(lines[cursor]):
                 cursor += 1
             spans.extend(fenced_content_spans(lines, content_start, cursor))
@@ -338,7 +406,11 @@ def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
         if BLOCKQUOTE_RE.match(line):
             start = index
             index += 1
-            while index < len(lines) and lines[index].strip() and BLOCKQUOTE_RE.match(lines[index]):
+            while (
+                index < len(lines)
+                and lines[index].strip()
+                and BLOCKQUOTE_RE.match(lines[index])
+            ):
                 index += 1
             spans.append((start + 1, index))
             continue
@@ -362,25 +434,165 @@ def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
     return spans
 
 
-def document_spans(path: str, lines: list[str]) -> list[tuple[int, int]]:
-    """Return format-aware scan records for one public document."""
-    normalized = Path(path).as_posix().removeprefix("./")
-    if normalized in SPECIAL_DOC_PATHS:
+def records_from_spans(
+    lines: list[str], spans: list[tuple[int, int]], offset: int = 0
+) -> list[ScanRecord]:
+    return [
+        ScanRecord(
+            tuple(
+                (line_number + offset, lines[line_number - 1])
+                for line_number in range(start, end + 1)
+            )
+        )
+        for start, end in spans
+    ]
+
+
+def markdown_records(lines: list[str], offset: int = 0) -> list[ScanRecord]:
+    return records_from_spans(lines, logical_spans(lines), offset)
+
+
+def asciidoc_records(lines: list[str]) -> list[ScanRecord]:
+    """Keep AsciiDoc source-block commands separate while scanning prose normally."""
+    records: list[ScanRecord] = []
+    segment_start = 0
+    index = 0
+
+    def flush_segment(end: int) -> None:
+        nonlocal segment_start
+        if segment_start < end:
+            records.extend(
+                markdown_records(lines[segment_start:end], offset=segment_start)
+            )
+
+    while index < len(lines):
+        if not ASCIIDOC_SOURCE_RE.match(lines[index]):
+            index += 1
+            continue
+
+        delimiter = index + 1
+        while delimiter < len(lines) and not lines[delimiter].strip():
+            delimiter += 1
+        if delimiter >= len(lines) or not ASCIIDOC_BLOCK_DELIMITER_RE.match(
+            lines[delimiter]
+        ):
+            index += 1
+            continue
+
+        flush_segment(index)
+        records.append(ScanRecord(((index + 1, lines[index]),)))
+        for blank in range(index + 1, delimiter):
+            if lines[blank].strip():
+                records.append(ScanRecord(((blank + 1, lines[blank]),)))
+        records.append(ScanRecord(((delimiter + 1, lines[delimiter]),)))
+
+        closing = delimiter + 1
+        while closing < len(lines) and not ASCIIDOC_BLOCK_DELIMITER_RE.match(
+            lines[closing]
+        ):
+            if lines[closing].strip():
+                records.append(ScanRecord(((closing + 1, lines[closing]),)))
+            closing += 1
+
+        if closing < len(lines):
+            records.append(ScanRecord(((closing + 1, lines[closing]),)))
+            index = closing + 1
+        else:
+            index = closing
+        segment_start = index
+
+    flush_segment(len(lines))
+    return records
+
+
+class _HTMLRecordParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.records: list[ScanRecord] = []
+
+    def _append(self, start_line: int, text: str) -> None:
+        if not text.strip():
+            return
+        parts = tuple(
+            (start_line + offset, line)
+            for offset, line in enumerate(text.splitlines() or [text])
+            if line.strip()
+        )
+        if parts:
+            self.records.append(ScanRecord(parts))
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._append(self.getpos()[0], self.get_starttag_text() or f"<{tag}>")
+
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        self._append(self.getpos()[0], self.get_starttag_text() or f"<{tag}/>")
+
+    def handle_data(self, data: str) -> None:
+        self._append(self.getpos()[0], data)
+
+    def handle_comment(self, data: str) -> None:
+        self._append(self.getpos()[0], data)
+
+
+def html_records(lines: list[str]) -> list[ScanRecord]:
+    parser = _HTMLRecordParser()
+    text = "\n".join(lines)
+    try:
+        parser.feed(text)
+        parser.close()
+    except Exception:
         return [
-            (line_number, line_number)
+            ScanRecord(((line_number, line),))
             for line_number, line in enumerate(lines, start=1)
             if line.strip()
         ]
-    return logical_spans(lines)
+    return parser.records
 
 
-def matched_lines(lines: list[str], start: int, end: int, match: re.Match[str]) -> set[int]:
+def document_records(path: str, lines: list[str]) -> list[ScanRecord]:
+    normalized = Path(path).as_posix().removeprefix("./").lower()
+    suffix = Path(path).suffix.lower()
+    if normalized in SPECIAL_DOC_PATHS:
+        return [
+            ScanRecord(((line_number, line),))
+            for line_number, line in enumerate(lines, start=1)
+            if line.strip()
+        ]
+    if suffix in {".adoc", ".asciidoc"}:
+        return asciidoc_records(lines)
+    if suffix in {".html", ".htm"}:
+        return html_records(lines)
+    return markdown_records(lines)
+
+
+def document_spans(path: str, lines: list[str]) -> list[tuple[int, int]]:
+    """Compatibility view of format-aware records as source-line ranges."""
+    return [
+        (record.parts[0][0], record.parts[-1][0])
+        for record in document_records(path, lines)
+        if record.parts
+    ]
+
+
+def bounded_record_windows(record: ScanRecord) -> list[ScanRecord]:
+    parts = record.parts
+    if len(parts) <= MAX_MATCH_LINES:
+        return [record]
+    return [
+        ScanRecord(parts[start : start + MAX_MATCH_LINES])
+        for start in range(len(parts))
+        if parts[start : start + MAX_MATCH_LINES]
+    ]
+
+
+def matched_record_lines(record: ScanRecord, match: re.Match[str]) -> set[int]:
     cursor = 0
     match_start = match.start()
     match_end = max(match.end() - 1, match_start)
     result: set[int] = set()
-    for line_number in range(start, end + 1):
-        text = lines[line_number - 1]
+    for line_number, text in record.parts:
         line_start = cursor
         line_end = cursor + len(text) - 1
         if text and line_start <= match_end and line_end >= match_start:
@@ -389,7 +601,9 @@ def matched_lines(lines: list[str], start: int, end: int, match: re.Match[str]) 
     return result
 
 
-def scan_file(path: str, line_numbers: list[int] | range) -> list[tuple[str, int, str, str]]:
+def scan_file(
+    path: str, line_numbers: list[int] | range
+) -> list[tuple[str, int, str, str]]:
     try:
         lines = Path(path).read_text(encoding="utf-8", errors="ignore").splitlines()
     except Exception:
@@ -397,26 +611,35 @@ def scan_file(path: str, line_numbers: list[int] | range) -> list[tuple[str, int
 
     selected = {number for number in line_numbers if 1 <= number <= len(lines)}
     internal: set[tuple[int, str, str]] = set()
-    for start, end in document_spans(path, lines):
-        if not any(start <= number <= end for number in selected):
-            continue
-        text = " ".join(lines[start - 1 : end])
-        for rule_id, category, pattern in PATTERNS:
-            for match in pattern.finditer(text):
-                affected = matched_lines(lines, start, end, match)
+
+    for record in document_records(path, lines):
+        for window in bounded_record_windows(record):
+            window_lines = {line_number for line_number, _ in window.parts}
+            if not selected & window_lines:
+                continue
+            text = " ".join(part for _, part in window.parts)
+            for rule_id, category, pattern in PATTERNS:
+                for match in pattern.finditer(text):
+                    affected = matched_record_lines(window, match)
+                    changed = sorted(selected & affected)
+                    if changed:
+                        internal.add((changed[0], rule_id, category))
+            for match in UNCERTAIN.finditer(text):
+                context_start = max(0, match.start() - 100)
+                context_end = min(len(text), match.end() + 100)
+                if BENIGN_UNCERTAIN.search(text[context_start:context_end]):
+                    continue
+                affected = matched_record_lines(window, match)
                 changed = sorted(selected & affected)
                 if changed:
-                    internal.add((changed[0], rule_id, category))
-        for match in UNCERTAIN.finditer(text):
-            context_start = max(0, match.start() - 100)
-            context_end = min(len(text), match.end() + 100)
-            if BENIGN_UNCERTAIN.search(text[context_start:context_end]):
-                continue
-            affected = matched_lines(lines, start, end, match)
-            changed = sorted(selected & affected)
-            if changed:
-                internal.add((changed[0], "PDS100", "uncertain automation-directed prose"))
-    return [(path, line, rule_id, category) for line, rule_id, category in sorted(internal)]
+                    internal.add(
+                        (changed[0], "PDS100", "uncertain automation-directed prose")
+                    )
+
+    return [
+        (path, line, rule_id, category)
+        for line, rule_id, category in sorted(internal)
+    ]
 
 
 def all_candidate_files() -> list[str]:
@@ -431,12 +654,16 @@ def main() -> int:
     include_fixtures = args.include_test_fixtures or args.all
 
     try:
-        candidates = all_candidate_files() if args.all else changed_files()
+        if args.all:
+            candidates = all_candidate_files()
+            diff_args = None
+        else:
+            candidates, diff_args = changed_files_with_diff_args()
         files = existing_public_docs(candidates, include_fixtures)
         if args.all:
             added = None
         else:
-            added = changed_added_lines(files)
+            added = changed_added_lines(files, diff_args)
             if added is None:
                 raise ComparisonError("unable to resolve added documentation lines")
     except ComparisonError:
