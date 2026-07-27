@@ -34,7 +34,7 @@ on:
       - .github/pull_request_template/**
       - .github/workflows/public-docs-safety.yml
       - scripts/public_docs_safety.py
-      - scripts/public_docs_safety_hardened.py
+      - scripts/public_docs_safety_core.py
       - 'tests/test_public_docs*.py'
       - tests/fixtures/public-docs/**
 
@@ -55,6 +55,6 @@ jobs:
         with:
           python-version: '3.12'
       - name: public-docs-safety
-        run: python3 scripts/public_docs_safety_hardened.py
+        run: python3 scripts/public_docs_safety.py
       - name: scanner regression tests
         run: python3 -m unittest discover -s tests -p 'test_public_docs*.py'
