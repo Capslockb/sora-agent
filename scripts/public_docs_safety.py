@@ -414,9 +414,12 @@ def main() -> int:
     try:
         candidates = all_candidate_files() if args.all else changed_files()
         files = existing_public_docs(candidates, include_fixtures)
-        added = None if args.all else changed_added_lines(files)
-        if added is None:
-            raise ComparisonError("unable to resolve added documentation lines")
+        if args.all:
+            added = None
+        else:
+            added = changed_added_lines(files)
+            if added is None:
+                raise ComparisonError("unable to resolve added documentation lines")
     except ComparisonError:
         print("public-docs-safety: FAIL")
         print("<comparison>:1: PDS901: documentation range resolution failure")
