@@ -8,6 +8,7 @@ boundaries used for fenced examples, AsciiDoc source blocks, and HTML content.
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
@@ -128,6 +129,7 @@ HTML_BLOCK_TAGS = {
     "ul",
 }
 HTML_HIDDEN_TAGS = {"script", "style", "template"}
+ASCIIDOC_TABLE_DELIMITER_RE = re.compile(r"^\s*\|={3,}\s*$")
 
 # Only attributes intentionally rendered to users are prose. Routing, class,
 # data, and other machine-readable attributes are not scanned as visible text.
@@ -215,8 +217,65 @@ def fenced_content_spans(
     return spans
 
 
+def asciidoc_segment_records(
+    lines: list[str], offset: int = 0
+) -> list[scanner.ScanRecord]:
+    """Parse AsciiDoc prose while keeping native table cells independent."""
+    records: list[scanner.ScanRecord] = []
+    segment_start = 0
+    index = 0
+
+    def flush_plain(end: int) -> None:
+        nonlocal segment_start
+        if segment_start < end:
+            records.extend(
+                scanner.markdown_records(lines[segment_start:end], offset=offset + segment_start)
+            )
+
+    while index < len(lines):
+        if not ASCIIDOC_TABLE_DELIMITER_RE.match(lines[index]):
+            index += 1
+            continue
+
+        flush_plain(index)
+        records.append(scanner.ScanRecord(((offset + index + 1, lines[index]),)))
+        index += 1
+        cell_parts: list[tuple[int, str]] = []
+
+        def flush_cell() -> None:
+            if cell_parts:
+                records.append(scanner.ScanRecord(tuple(cell_parts)))
+                cell_parts.clear()
+
+        while index < len(lines) and not ASCIIDOC_TABLE_DELIMITER_RE.match(
+            lines[index]
+        ):
+            line = lines[index]
+            line_number = offset + index + 1
+            if "|" in line:
+                chunks = line.split("|")
+                for chunk in chunks[1:]:
+                    flush_cell()
+                    if chunk.strip():
+                        cell_parts.append((line_number, chunk))
+            elif line.strip():
+                cell_parts.append((line_number, line))
+            else:
+                flush_cell()
+            index += 1
+
+        flush_cell()
+        if index < len(lines):
+            records.append(scanner.ScanRecord(((offset + index + 1, lines[index]),)))
+            index += 1
+        segment_start = index
+
+    flush_plain(len(lines))
+    return records
+
+
 def asciidoc_records(lines: list[str]) -> list[scanner.ScanRecord]:
-    """Parse AsciiDoc source blocks with the same command/prose boundary as fences."""
+    """Parse AsciiDoc source blocks and native table boundaries."""
     records: list[scanner.ScanRecord] = []
     segment_start = 0
     index = 0
@@ -225,7 +284,7 @@ def asciidoc_records(lines: list[str]) -> list[scanner.ScanRecord]:
         nonlocal segment_start
         if segment_start < end:
             records.extend(
-                scanner.markdown_records(
+                asciidoc_segment_records(
                     lines[segment_start:end], offset=segment_start
                 )
             )
@@ -303,12 +362,31 @@ class HTMLRecordParser(HTMLParser):
             self.records.append(scanner.ScanRecord(tuple(parts)))
             parts.clear()
 
-    def _emit_visible_attrs(self, attrs: list[tuple[str, str | None]]) -> None:
+    def _emit_visible_attrs(
+        self,
+        attrs: list[tuple[str, str | None]],
+        raw_tag: str | None,
+    ) -> None:
+        start_line = self.getpos()[0]
+        cursor = 0
         for name, value in attrs:
-            if value and name.lower() in HTML_VISIBLE_ATTRS:
-                parts = self._parts(self.getpos()[0], value)
-                if parts:
-                    self.records.append(scanner.ScanRecord(tuple(parts)))
+            if not value or name.lower() not in HTML_VISIBLE_ATTRS:
+                continue
+
+            attr_line = start_line
+            if raw_tag:
+                attr_re = re.compile(
+                    rf"(?is)(?<![\w:-]){re.escape(name)}\s*=\s*"
+                    rf"(?:\"[^\"]*\"|'[^']*'|[^\s>]+)"
+                )
+                match = attr_re.search(raw_tag, cursor) or attr_re.search(raw_tag)
+                if match:
+                    attr_line += raw_tag[: match.start()].count("\n")
+                    cursor = match.end()
+
+            parts = self._parts(attr_line, value)
+            if parts:
+                self.records.append(scanner.ScanRecord(tuple(parts)))
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
@@ -321,7 +399,7 @@ class HTMLRecordParser(HTMLParser):
             self.hidden_stack.append(tag)
             return
 
-        self._emit_visible_attrs(attrs)
+        self._emit_visible_attrs(attrs, self.get_starttag_text())
         if tag in HTML_BLOCK_TAGS:
             self._emit(self._target())
             self.frames.append(_HTMLFrame(tag))
@@ -332,7 +410,7 @@ class HTMLRecordParser(HTMLParser):
         tag = tag.lower()
         if self.hidden_stack or tag in HTML_HIDDEN_TAGS:
             return
-        self._emit_visible_attrs(attrs)
+        self._emit_visible_attrs(attrs, self.get_starttag_text())
 
     def handle_data(self, data: str) -> None:
         if not self.hidden_stack:
