@@ -176,6 +176,7 @@ def changed_files() -> list[str]:
 
 
 def parse_added_lines(diff_text: str) -> dict[str, set[int]]:
+    """Select added lines and bounded post-image context around deletions."""
     result: dict[str, set[int]] = {}
     current: str | None = None
     new_line: int | None = None
@@ -191,6 +192,12 @@ def parse_added_lines(diff_text: str) -> dict[str, set[int]]:
             if line.startswith("+") and not line.startswith("+++"):
                 result[current].add(new_line)
                 new_line += 1
+            elif line.startswith("-") and not line.startswith("---"):
+                result[current].update(
+                    number
+                    for number in (new_line - 1, new_line, new_line + 1)
+                    if number >= 1
+                )
             elif not line.startswith("-"):
                 new_line += 1
     return result
@@ -355,6 +362,18 @@ def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
     return spans
 
 
+def document_spans(path: str, lines: list[str]) -> list[tuple[int, int]]:
+    """Return format-aware scan records for one public document."""
+    normalized = Path(path).as_posix().removeprefix("./")
+    if normalized in SPECIAL_DOC_PATHS:
+        return [
+            (line_number, line_number)
+            for line_number, line in enumerate(lines, start=1)
+            if line.strip()
+        ]
+    return logical_spans(lines)
+
+
 def matched_lines(lines: list[str], start: int, end: int, match: re.Match[str]) -> set[int]:
     cursor = 0
     match_start = match.start()
@@ -378,7 +397,7 @@ def scan_file(path: str, line_numbers: list[int] | range) -> list[tuple[str, int
 
     selected = {number for number in line_numbers if 1 <= number <= len(lines)}
     internal: set[tuple[int, str, str]] = set()
-    for start, end in logical_spans(lines):
+    for start, end in document_spans(path, lines):
         if not any(start <= number <= end for number in selected):
             continue
         text = " ".join(lines[start - 1 : end])
