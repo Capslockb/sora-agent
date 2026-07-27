@@ -25,6 +25,10 @@ _IMPL_SPEC.loader.exec_module(implementation)
 
 scanner = implementation.scanner
 
+# Markdown indented code permits additional indentation after the initial four
+# spaces. Keep those deeper continuations in the same command-aware run.
+scanner.INDENTED_CODE_RE = re.compile(r"^(?: {4,}|\t+)\S")
+
 
 def comparison_args() -> list[str]:
     """Use an accepted branch baseline for branch-creation pushes.
@@ -121,6 +125,68 @@ def asciidoc_segment_records(
     return records
 
 
+def asciidoc_records(lines: list[str]) -> list[scanner.ScanRecord]:
+    """Parse labeled and unlabeled AsciiDoc listing blocks plus table records."""
+    records: list[scanner.ScanRecord] = []
+    segment_start = 0
+    index = 0
+
+    def flush_segment(end: int) -> None:
+        nonlocal segment_start
+        if segment_start < end:
+            records.extend(
+                asciidoc_segment_records(
+                    lines[segment_start:end], offset=segment_start
+                )
+            )
+
+    while index < len(lines):
+        marker_index: int | None = None
+        delimiter: int | None = None
+
+        if scanner.ASCIIDOC_SOURCE_RE.match(lines[index]):
+            marker_index = index
+            candidate = index + 1
+            while candidate < len(lines) and not lines[candidate].strip():
+                candidate += 1
+            if candidate < len(lines) and scanner.ASCIIDOC_BLOCK_DELIMITER_RE.match(
+                lines[candidate]
+            ):
+                delimiter = candidate
+        elif scanner.ASCIIDOC_BLOCK_DELIMITER_RE.match(lines[index]):
+            delimiter = index
+
+        if delimiter is None:
+            index += 1
+            continue
+
+        closing = delimiter + 1
+        while closing < len(lines) and not scanner.ASCIIDOC_BLOCK_DELIMITER_RE.match(
+            lines[closing]
+        ):
+            closing += 1
+        if closing >= len(lines):
+            index += 1
+            continue
+
+        flush_segment(marker_index if marker_index is not None else delimiter)
+        if marker_index is not None:
+            records.append(scanner.ScanRecord(((marker_index + 1, lines[marker_index]),)))
+        records.append(scanner.ScanRecord(((delimiter + 1, lines[delimiter]),)))
+
+        content_spans = implementation.fenced_content_spans(
+            lines, delimiter + 1, closing
+        )
+        records.extend(scanner.records_from_spans(lines, content_spans))
+        records.append(scanner.ScanRecord(((closing + 1, lines[closing]),)))
+
+        index = closing + 1
+        segment_start = index
+
+    flush_segment(len(lines))
+    return records
+
+
 RST_SIMPLE_BORDER_RE = re.compile(
     r"^\s*(?:[=~-]{2,}[ \t]+)+[=~-]{2,}\s*$"
 )
@@ -151,11 +217,11 @@ def _grid_table_cells(row: str) -> list[str]:
     stripped = row.strip()
     if not stripped.startswith("|"):
         return [row]
-    return [cell for cell in stripped.strip("|").split("|") if cell.strip()]
+    return stripped.strip("|").split("|")
 
 
 def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
-    """Apply reStructuredText-aware table boundaries before cross-line scans."""
+    """Apply reStructuredText-aware table and multiline-cell boundaries."""
     records: list[scanner.ScanRecord] = []
     segment_start = 0
     index = 0
@@ -178,19 +244,41 @@ def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
         _append_record(records, index + 1, line)
         index += 1
 
-        while index < len(lines) and lines[index].strip():
-            current = lines[index]
-            if RST_SIMPLE_BORDER_RE.match(current) or RST_GRID_BORDER_RE.match(current):
-                _append_record(records, index + 1, current)
-            else:
-                cells = (
-                    _simple_table_cells(border, current)
-                    if simple
-                    else _grid_table_cells(current)
-                )
-                for cell in cells:
-                    _append_record(records, index + 1, cell)
-            index += 1
+        if grid:
+            columns: list[list[tuple[int, str]]] = []
+
+            def flush_grid_cells() -> None:
+                for parts in columns:
+                    if parts:
+                        records.append(scanner.ScanRecord(tuple(parts)))
+                columns.clear()
+
+            while index < len(lines) and lines[index].strip():
+                current = lines[index]
+                if RST_GRID_BORDER_RE.match(current):
+                    flush_grid_cells()
+                    _append_record(records, index + 1, current)
+                elif current.strip().startswith("|"):
+                    cells = _grid_table_cells(current)
+                    while len(columns) < len(cells):
+                        columns.append([])
+                    for position, cell in enumerate(cells):
+                        if cell.strip():
+                            columns[position].append((index + 1, cell))
+                else:
+                    flush_grid_cells()
+                    _append_record(records, index + 1, current)
+                index += 1
+            flush_grid_cells()
+        else:
+            while index < len(lines) and lines[index].strip():
+                current = lines[index]
+                if RST_SIMPLE_BORDER_RE.match(current):
+                    _append_record(records, index + 1, current)
+                else:
+                    for cell in _simple_table_cells(border, current):
+                        _append_record(records, index + 1, cell)
+                index += 1
 
         segment_start = index
 
@@ -211,7 +299,8 @@ def document_records(path: str, lines: list[str]) -> list[scanner.ScanRecord]:
 scanner.comparison_args = comparison_args
 implementation.comparison_args = comparison_args
 implementation.asciidoc_segment_records = asciidoc_segment_records
-scanner.asciidoc_records = implementation.asciidoc_records
+implementation.asciidoc_records = asciidoc_records
+scanner.asciidoc_records = asciidoc_records
 scanner.document_records = document_records
 implementation.document_records = document_records
 
@@ -225,6 +314,7 @@ globals().update(
         "comparison_args": comparison_args,
         "split_unescaped_asciidoc_pipes": split_unescaped_asciidoc_pipes,
         "asciidoc_segment_records": asciidoc_segment_records,
+        "asciidoc_records": asciidoc_records,
         "rst_records": rst_records,
         "document_records": document_records,
         "scan_file": scanner.scan_file,
