@@ -183,9 +183,7 @@ def scan_file(path: str, line_numbers: list[int] | range) -> list[tuple[str, int
                 continue
             if category == "secret-or-policy exfiltration" and quoted_example:
                 continue
-            if category == "unauthorized action request" and (
-                human_guidance or BENIGN_PRODUCT.search(line)
-            ):
+            if category == "unauthorized action request" and human_guidance:
                 continue
             findings.append((path, i, rule_id, category))
         if (
