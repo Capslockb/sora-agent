@@ -4,39 +4,6 @@ on:
   pull_request: {}
   push:
     branches: [main, master, release/**]
-    paths:
-      - README
-      - '**/README'
-      - README.md
-      - '**/README.md'
-      - SECURITY.md
-      - '**/SECURITY.md'
-      - CONTRIBUTING.md
-      - '**/CONTRIBUTING.md'
-      - CODE_OF_CONDUCT.md
-      - '**/CODE_OF_CONDUCT.md'
-      - AGENTS.md
-      - '**/AGENTS.md'
-      - docs/**
-      - '**/docs/**'
-      - doc/**
-      - '**/doc/**'
-      - site/**
-      - '**/site/**'
-      - website/**
-      - '**/website/**'
-      - public/**
-      - '**/public/**'
-      - .github/CODEOWNERS
-      - .github/PULL_REQUEST_TEMPLATE.md
-      - .github/pull_request_template.md
-      - .github/PULL_REQUEST_TEMPLATE/**
-      - .github/pull_request_template/**
-      - .github/workflows/public-docs-safety.yml
-      - scripts/public_docs_safety.py
-      - scripts/public_docs_safety_core.py
-      - 'tests/test_public_docs*.py'
-      - tests/fixtures/public-docs/**
 
 permissions:
   contents: read
