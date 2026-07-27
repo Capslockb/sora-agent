@@ -8,9 +8,7 @@ SCRIPTS = REPO_ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-import public_docs_safety_hardened as hardened  # noqa: E402
-
-scanner = hardened.scanner
+import public_docs_safety as scanner  # noqa: E402
 
 
 class PublicDocsRecordBoundaryTests(unittest.TestCase):
