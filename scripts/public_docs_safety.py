@@ -25,14 +25,14 @@ DOC_NAMES = {
 SPECIAL_DOC_PATHS = {".github/CODEOWNERS"}
 DOC_DIR_PARTS = {"docs", "doc", "website", "site", "public"}
 FIXTURE_PARTS = {"tests", "fixtures", "public-docs"}
-DOC_EXTS = {".md", ".mdx", ".rst", ".txt", ".adoc", ".asciidoc", ".html", ".htm"}
+DOC_EXTS = {".md", ".mdx", ".rst", ".txt", ".adoc", ".asciidoc"}
 EXCLUDE_PARTS = {"i18n", "CHANGELOG.md", "sessions", "vendor", "node_modules", ".git"}
 ZERO_SHA = "0" * 40
 EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 HEADING_RE = re.compile(r"^\s{0,3}#{1,6}(?:\s|$)")
-LIST_ITEM_RE = re.compile(r"^\s{0,3}(?:[-+*]|\d+[.)])\s+")
+LIST_ITEM_RE = re.compile(r"^(?P<indent> {0,3})(?:[-+*]|\d+[.)])(?P<spacing>[ \t]+)")
 BLOCKQUOTE_RE = re.compile(r"^\s{0,3}>\s?")
 HORIZONTAL_RULE_RE = re.compile(r"^\s{0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$")
 INDENTED_CODE_RE = re.compile(r"^(?: {4}|\t)\S")
@@ -236,6 +236,24 @@ def is_table_row(line: str) -> bool:
     return stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 2
 
 
+def leading_indent_width(line: str) -> int:
+    """Return indentation width using four-column tab stops."""
+    width = 0
+    for char in line:
+        if char == " ":
+            width += 1
+        elif char == "\t":
+            width += 4 - (width % 4)
+        else:
+            break
+    return width
+
+
+def is_list_continuation(line: str, content_indent: int) -> bool:
+    """Whether a nonblank line is indented into the active list item's content."""
+    return bool(line.strip()) and leading_indent_width(line) >= content_indent
+
+
 def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
     """Split Markdown into records without joining unrelated structural entries.
 
@@ -279,8 +297,10 @@ def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
             i += 1
             continue
 
-        if LIST_ITEM_RE.match(line):
+        list_match = LIST_ITEM_RE.match(line)
+        if list_match:
             start = i
+            content_indent = leading_indent_width(list_match.group(0))
             i += 1
             while i < len(lines):
                 candidate = lines[i]
@@ -293,7 +313,10 @@ def logical_spans(lines: list[str]) -> list[tuple[int, int]]:
                     or is_table_row(candidate)
                     or LIST_ITEM_RE.match(candidate)
                     or BLOCKQUOTE_RE.match(candidate)
-                    or INDENTED_CODE_RE.match(candidate)
+                    or (
+                        INDENTED_CODE_RE.match(candidate)
+                        and not is_list_continuation(candidate, content_indent)
+                    )
                 ):
                     break
                 i += 1
