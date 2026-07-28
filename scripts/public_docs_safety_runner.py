@@ -268,11 +268,15 @@ def _simple_table_cells(border: str, row: str) -> list[str]:
     return cells
 
 
-def _grid_table_cells(row: str) -> list[str]:
-    stripped = row.strip()
-    if not stripped.startswith("|"):
+def _grid_table_cells(border: str, row: str) -> list[str]:
+    """Slice grid-table cells at border-defined columns, not content pipes."""
+    boundaries = [index for index, character in enumerate(border) if character == "+"]
+    if len(boundaries) < 2 or not row.lstrip().startswith("|"):
         return [row]
-    return stripped.strip("|").split("|")
+    return [
+        row[start + 1 : end] if start < len(row) else ""
+        for start, end in zip(boundaries, boundaries[1:])
+    ]
 
 
 def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
@@ -313,8 +317,9 @@ def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
                 if RST_GRID_BORDER_RE.match(current):
                     flush_grid_cells()
                     _append_record(records, index + 1, current)
+                    border = current
                 elif current.strip().startswith("|"):
-                    cells = _grid_table_cells(current)
+                    cells = _grid_table_cells(border, current)
                     while len(columns) < len(cells):
                         columns.append([])
                     for position, cell in enumerate(cells):
