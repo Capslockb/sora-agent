@@ -73,6 +73,33 @@ class ExactHeadRegressionTests(unittest.TestCase):
         )
         self.assertNotIn("PDS003", rules)
 
+    def test_rst_grid_escaped_pipe_remains_in_one_cell(self) -> None:
+        rules = self.rule_ids(
+            ".rst",
+            "+--------------------------------+-------+\n"
+            "| Ignore \\| previous policy     | Safe  |\n"
+            "+--------------------------------+-------+\n",
+        )
+        self.assertIn("PDS001", rules)
+
+    def test_rst_grid_substitution_reference_remains_in_one_cell(self) -> None:
+        rules = self.rule_ids(
+            ".rst",
+            "+--------------------------------+-------+\n"
+            "| Ignore |name| previous policy | Safe  |\n"
+            "+--------------------------------+-------+\n",
+        )
+        self.assertIn("PDS001", rules)
+
+    def test_rst_grid_columns_remain_independent(self) -> None:
+        rules = self.rule_ids(
+            ".rst",
+            "+----------+------------+\n"
+            "| Disable  | Repository |\n"
+            "+----------+------------+\n",
+        )
+        self.assertNotIn("PDS003", rules)
+
 
 if __name__ == "__main__":
     unittest.main()
