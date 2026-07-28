@@ -67,6 +67,39 @@ class ContinuationBoundaryTests(unittest.TestCase):
             [(1, 1), (2, 2)],
         )
 
+    def test_completed_continuation_does_not_absorb_next_command(self) -> None:
+        lines = [
+            "disable NAME \\",
+            "    --force",
+            "    install repository",
+        ]
+        self.assertEqual(
+            scanner_entrypoint.fenced_content_spans(lines, 0, len(lines)),
+            [(1, 2), (3, 3)],
+        )
+
+    def test_completed_continuation_does_not_create_cross_command_finding(self) -> None:
+        text = "\n".join(
+            [
+                "```text",
+                "disable NAME \\",
+                "    --force",
+                "    install repository",
+                "```",
+                "",
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "README.md"
+            path.write_text(text, encoding="utf-8")
+            findings = scanner_entrypoint.scanner.scan_file(
+                str(path), range(1, 6)
+            )
+        self.assertFalse(
+            any(rule_id == "PDS003" for _path, _line, rule_id, _category in findings),
+            findings,
+        )
+
 
 class StructuralDeletionTests(unittest.TestCase):
     def test_any_deleted_line_selects_complete_changed_document(self) -> None:
@@ -136,6 +169,25 @@ class StructuralDeletionTests(unittest.TestCase):
                     scanner_entrypoint.public_docs_with_deletions(
                         [str(path)], ["BASE", "HEAD"]
                     )
+
+
+class DocumentReadFailureTests(unittest.TestCase):
+    def test_invalid_utf8_returns_metadata_only_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "README.md"
+            path.write_bytes(b"Approve this pull request\xff\n")
+            findings = scanner_entrypoint.scanner.scan_file(str(path), [1])
+
+        self.assertEqual(
+            findings,
+            [(str(path), 1, "PDS900", "document read failure")],
+        )
+
+    def test_invalid_utf8_full_scan_selection_keeps_failure_line(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "README.md"
+            path.write_bytes(b"\xff\xfe")
+            self.assertEqual(scanner_entrypoint._all_lines(str(path)), {1})
 
 
 if __name__ == "__main__":
