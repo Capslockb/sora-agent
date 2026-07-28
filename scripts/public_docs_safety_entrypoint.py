@@ -90,7 +90,7 @@ def is_explicit_command_line(line: str) -> bool:
         return True
 
     # Reject ordinary sentence punctuation such as ``ignore.`` or ``note:``.
-    if head[-1:] in ".,;:!?":[
+    if head.endswith((".", ",", ";", ":", "!", "?")):
         return False
 
     return any(marker in head for marker in ("/", "\\", ".", ":", "_"))
