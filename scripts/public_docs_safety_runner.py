@@ -30,6 +30,41 @@ scanner = implementation.scanner
 scanner.INDENTED_CODE_RE = re.compile(r"^(?: {4,}|\t+)\S")
 
 
+_original_is_public_doc = scanner.is_public_doc
+ISSUE_TEMPLATE_ROOT = ".github/issue_template.md"
+ISSUE_TEMPLATE_DIR = ".github/issue_template/"
+
+
+def is_public_doc(path: str, include_fixtures: bool = False) -> bool:
+    """Include contributor-facing issue templates without scanning issue forms."""
+    candidate = Path(path)
+    normalized = candidate.as_posix().removeprefix("./").lower()
+    if normalized == ISSUE_TEMPLATE_ROOT:
+        return True
+    if normalized.startswith(ISSUE_TEMPLATE_DIR):
+        return candidate.suffix.lower() in scanner.DOC_EXTS
+    return _original_is_public_doc(path, include_fixtures)
+
+
+def handle_public_html_comment(
+    parser: implementation.HTMLRecordParser, data: str
+) -> None:
+    """Scan committed public comments, excluding hidden program/data containers."""
+    if parser.hidden_stack:
+        return
+    parts = parser._parts(parser.getpos()[0], data)
+    if parts:
+        parser.records.append(scanner.ScanRecord(tuple(parts)))
+
+
+# The structural HTML parser is the only source for .html/.htm records. Keep
+# comments as independent bounded records so they cannot bypass classification
+# or join adjacent rendered elements.
+implementation.HTMLRecordParser.handle_comment = handle_public_html_comment
+scanner.is_public_doc = is_public_doc
+implementation.is_public_doc = is_public_doc
+
+
 def comparison_args() -> list[str]:
     """Use an accepted branch baseline for branch-creation pushes.
 
@@ -312,6 +347,8 @@ for _name in dir(implementation):
 globals().update(
     {
         "comparison_args": comparison_args,
+        "is_public_doc": is_public_doc,
+        "handle_public_html_comment": handle_public_html_comment,
         "split_unescaped_asciidoc_pipes": split_unescaped_asciidoc_pipes,
         "asciidoc_segment_records": asciidoc_segment_records,
         "asciidoc_records": asciidoc_records,
