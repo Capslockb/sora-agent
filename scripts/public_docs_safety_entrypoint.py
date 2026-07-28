@@ -56,12 +56,13 @@ scanner.is_public_doc = is_public_doc
 runner.is_public_doc = is_public_doc
 runner.implementation.is_public_doc = is_public_doc
 
-# Recognize realistic transcript prompts before command classification. The
-# grammar accepts bare prompts, named prompts, user@host prompts, and optional
-# no-whitespace working-directory segments such as ``user@host:~/repo$``.
+# Recognize realistic transcript prompts before command classification. Bare
+# prompts include the conventional root ``#`` form. Named prompts may end in
+# ``>``, but user@host prompts intentionally require a shell-specific ``$``,
+# ``#``, or ``%`` terminator so email-style quoting is not misclassified.
 PROMPTED_COMMAND_RE = re.compile(
-    r"^\s*(?:[$>]\s+|(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9_.-]+"
-    r"(?::[^\s#$>%]+)?[#$>%]\s+)"
+    r"^\s*(?:[$>#%]\s+|[A-Za-z0-9_.-]+(?::[^\s#$>%]+)?[#$>%]\s+|"
+    r"[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+(?::[^\s#$>%]+)?[#$%]\s+)"
 )
 scanner.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
 runner.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
@@ -87,10 +88,10 @@ runner._command_head = _command_head
 # independent records.
 def is_explicit_command_line(line: str) -> bool:
     stripped = line.strip()
-    if not stripped or stripped.startswith("#"):
+    prompted = bool(scanner.PROMPTED_COMMAND_RE.match(line))
+    if not stripped or (stripped.startswith("#") and not prompted):
         return False
 
-    prompted = bool(scanner.PROMPTED_COMMAND_RE.match(line))
     if not prompted and not scanner.SIMPLE_COMMAND_RE.match(line):
         return False
 
