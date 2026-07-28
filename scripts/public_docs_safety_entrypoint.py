@@ -12,6 +12,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 _RUNNER_PATH = Path(__file__).with_name("public_docs_safety_runner.py")
@@ -67,6 +68,7 @@ PROMPTED_COMMAND_RE = re.compile(
 scanner.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
 runner.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
 runner.implementation.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
+
 
 # A recognized shell prompt is presentation syntax, not the command head. Strip
 # the complete prompt before classifying the following token so named prompts
@@ -127,8 +129,60 @@ def _simple_table_cells_with_empty(border: str, row: str) -> list[str]:
     return cells
 
 
+# A grid-table separator may contain blank segments for cells that continue
+# across rows. Preserve those partial borders as structural records instead of
+# treating them as ordinary prose.
+RST_GRID_BORDER_RE = re.compile(
+    r"^\s*\+(?:(?:[-=]+|[ \t]+)\+)+\s*$"
+)
+runner.RST_GRID_BORDER_RE = RST_GRID_BORDER_RE
+
+
+def _grid_boundaries(border: str) -> list[int]:
+    return [index for index, character in enumerate(border) if character == "+"]
+
+
+def _grid_table_cell_spans(
+    boundaries: list[int], row: str
+) -> list[tuple[tuple[int, int], str]]:
+    """Return cells using only separators actually present in the content row.
+
+    Full grid borders describe every possible column boundary. A column-spanning
+    cell omits one or more internal ``|`` characters, so only boundary positions
+    that contain a real row separator may terminate that rendered cell.
+    """
+    separators = [
+        position
+        for position in boundaries
+        if position < len(row) and row[position] == "|"
+    ]
+    if len(separators) < 2:
+        return [((0, len(row)), row)]
+    return [
+        ((start, end), row[start + 1 : end])
+        for start, end in zip(separators, separators[1:])
+    ]
+
+
+def _grid_border_ends_cell(border: str, span: tuple[int, int]) -> bool:
+    """Return whether a border draws a separator beneath this active cell."""
+    start, end = span
+    segment = border[start + 1 : end] if start < len(border) else ""
+    return any(character in "-=" for character in segment)
+
+
+# Keep the runner helper aligned for callers that resolve it through module
+# globals after importing this canonical entrypoint.
+def _grid_table_cells(border: str, row: str) -> list[str]:
+    boundaries = _grid_boundaries(border)
+    return [cell for _span, cell in _grid_table_cell_spans(boundaries, row)]
+
+
+runner._grid_table_cells = _grid_table_cells
+
+
 def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
-    """Apply RST table boundaries while preserving multiline table cells."""
+    """Apply RST table boundaries while preserving row and column spans."""
     records: list[scanner.ScanRecord] = []
     segment_start = 0
     index = 0
@@ -152,27 +206,45 @@ def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
         index += 1
 
         if grid:
-            columns: list[list[tuple[int, str]]] = []
+            boundaries = _grid_boundaries(border)
+            active_cells: dict[tuple[int, int], list[tuple[int, str]]] = {}
 
-            def flush_grid_cells() -> None:
-                for parts in columns:
+            def flush_grid_cells(
+                predicate: Callable[[tuple[int, int]], bool] | None = None,
+            ) -> None:
+                for span in list(active_cells):
+                    should_flush = True if predicate is None else predicate(span)
+                    if not should_flush:
+                        continue
+                    parts = active_cells.pop(span)
                     if parts:
                         records.append(scanner.ScanRecord(tuple(parts)))
-                columns.clear()
 
             while index < len(lines) and lines[index].strip():
                 current = lines[index]
                 if runner.RST_GRID_BORDER_RE.match(current):
-                    flush_grid_cells()
+                    flush_grid_cells(
+                        lambda span, current=current: _grid_border_ends_cell(
+                            current, span
+                        )
+                    )
                     runner._append_record(records, index + 1, current)
-                    border = current
+                    current_boundaries = _grid_boundaries(current)
+                    if (
+                        len(current_boundaries) >= 2
+                        and (
+                            not boundaries
+                            or current_boundaries[0] != boundaries[0]
+                            or current_boundaries[-1] != boundaries[-1]
+                        )
+                    ):
+                        boundaries = current_boundaries
                 elif current.strip().startswith("|"):
-                    cells = runner._grid_table_cells(border, current)
-                    while len(columns) < len(cells):
-                        columns.append([])
-                    for position, cell in enumerate(cells):
+                    for span, cell in _grid_table_cell_spans(boundaries, current):
                         if cell.strip():
-                            columns[position].append((index + 1, cell))
+                            active_cells.setdefault(span, []).append(
+                                (index + 1, cell)
+                            )
                 else:
                     flush_grid_cells()
                     runner._append_record(records, index + 1, current)
@@ -243,16 +315,18 @@ def public_doc_removed_or_renamed(diff_args: list[str]) -> bool:
     raw_output = result.stdout
     if isinstance(raw_output, str):
         raw_output = raw_output.encode("utf-8", errors="surrogateescape")
-    fields = raw_output.split(b"\0")
-    if fields and fields[-1] == b"":
-        fields.pop()
+    if raw_output and not raw_output.endswith(b"\0"):
+        raise scanner.ComparisonError(
+            "unable to parse public-document deletion status"
+        )
+    fields = raw_output.split(b"\0")[:-1] if raw_output else []
 
     index = 0
     while index < len(fields):
         status = fields[index].decode("ascii", errors="replace")
         index += 1
         path_count = 2 if status.startswith(("R", "C")) else 1
-        if len(fields) - index < path_count:
+        if not status or len(fields) - index < path_count:
             raise scanner.ComparisonError(
                 "unable to parse public-document deletion status"
             )
