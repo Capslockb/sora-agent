@@ -128,7 +128,7 @@ def _simple_table_cells_with_empty(border: str, row: str) -> list[str]:
 
 
 def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
-    """Apply RST table boundaries while preserving multiline simple-table cells."""
+    """Apply RST table boundaries while preserving multiline table cells."""
     records: list[scanner.ScanRecord] = []
     segment_start = 0
     index = 0
@@ -165,8 +165,9 @@ def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
                 if runner.RST_GRID_BORDER_RE.match(current):
                     flush_grid_cells()
                     runner._append_record(records, index + 1, current)
+                    border = current
                 elif current.strip().startswith("|"):
-                    cells = runner._grid_table_cells(current)
+                    cells = runner._grid_table_cells(border, current)
                     while len(columns) < len(cells):
                         columns.append([])
                     for position, cell in enumerate(cells):
@@ -221,11 +222,16 @@ _original_changed_added_lines = scanner.changed_added_lines
 _full_scan_due_to_public_removal = False
 
 
+def _decode_git_path(raw_path: bytes) -> str:
+    """Decode Git's raw pathname bytes without losing unusual path characters."""
+    return raw_path.decode("utf-8", errors="surrogateescape")
+
+
 def public_doc_removed_or_renamed(diff_args: list[str]) -> bool:
     """Return whether the selected comparison removes a public-document path."""
     result = scanner.subprocess.run(
-        ["git", "diff", "--name-status", "--find-renames", *diff_args],
-        text=True,
+        ["git", "diff", "--name-status", "-z", "--find-renames", *diff_args],
+        text=False,
         stdout=scanner.subprocess.PIPE,
         stderr=scanner.subprocess.DEVNULL,
     )
@@ -234,15 +240,27 @@ def public_doc_removed_or_renamed(diff_args: list[str]) -> bool:
             "unable to resolve public-document deletion status"
         )
 
-    for line in result.stdout.splitlines():
-        fields = line.split("\t")
-        if len(fields) < 2:
-            continue
-        status = fields[0]
-        old_path = fields[1]
+    raw_output = result.stdout
+    if isinstance(raw_output, str):
+        raw_output = raw_output.encode("utf-8", errors="surrogateescape")
+    fields = raw_output.split(b"\0")
+    if fields and fields[-1] == b"":
+        fields.pop()
+
+    index = 0
+    while index < len(fields):
+        status = fields[index].decode("ascii", errors="replace")
+        index += 1
+        path_count = 2 if status.startswith(("R", "C")) else 1
+        if len(fields) - index < path_count:
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion status"
+            )
+        old_path = _decode_git_path(fields[index])
+        index += path_count
         if status.startswith("D") and runner.is_public_doc(old_path):
             return True
-        if status.startswith("R") and len(fields) >= 3 and runner.is_public_doc(old_path):
+        if status.startswith("R") and runner.is_public_doc(old_path):
             return True
     return False
 
