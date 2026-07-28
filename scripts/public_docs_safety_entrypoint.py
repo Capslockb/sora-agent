@@ -3,8 +3,8 @@
 
 The established runner owns comparison selection, classification, format parsing,
 and diagnostics. This entrypoint applies the final workflow boundaries for HTML
-option records, recognized community-health files, and deletion or rename scans
-that can expose unchanged fallback documentation.
+option records, enforceable community-health filenames, and deletion or rename
+scans that can expose unchanged fallback documentation.
 """
 from __future__ import annotations
 
@@ -29,9 +29,36 @@ scanner = runner.scanner
 # option frame.
 runner.implementation.HTML_BLOCK_TAGS.add("option")
 
-# GitHub recognizes these community-health files at repository root, under
-# .github/, and under docs/. The classifier compares names case-insensitively.
-scanner.DOC_NAMES.update({"SUPPORT.MD", "GOVERNANCE.MD"})
+# CODEOWNERS paths are case-sensitive and do not support character classes.
+# Restrict root and .github community-health filenames to the exact uppercase and
+# lowercase forms protected by this branch. Mixed-case files under docs/ remain
+# covered through the directory-wide public-document and ownership rules.
+_original_is_public_doc = scanner.is_public_doc
+COMMUNITY_HEALTH_NAMES = {
+    "SUPPORT.md",
+    "support.md",
+    "GOVERNANCE.md",
+    "governance.md",
+}
+COMMUNITY_HEALTH_NAMES_UPPER = {name.upper() for name in COMMUNITY_HEALTH_NAMES}
+COMMUNITY_HEALTH_PARENTS = {".", ".github"}
+
+
+def is_public_doc(path: str, include_fixtures: bool = False) -> bool:
+    """Recognize only community-health forms with enforceable ownership parity."""
+    candidate = Path(path)
+    parent = candidate.parent.as_posix()
+    if (
+        parent in COMMUNITY_HEALTH_PARENTS
+        and candidate.name.upper() in COMMUNITY_HEALTH_NAMES_UPPER
+    ):
+        return candidate.name in COMMUNITY_HEALTH_NAMES
+    return _original_is_public_doc(path, include_fixtures)
+
+
+scanner.is_public_doc = is_public_doc
+runner.is_public_doc = is_public_doc
+runner.implementation.is_public_doc = is_public_doc
 
 _original_changed_files_with_diff_args = scanner.changed_files_with_diff_args
 _original_changed_added_lines = scanner.changed_added_lines
