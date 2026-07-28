@@ -22,6 +22,6 @@ jobs:
         with:
           python-version: '3.12'
       - name: public-docs-safety
-        run: python3 scripts/public_docs_safety_entrypoint_v2.py
+        run: python3 scripts/public_docs_safety_entrypoint_v3.py
       - name: scanner regression tests
         run: python3 -m unittest discover -s tests -p 'test_public_docs*.py'
