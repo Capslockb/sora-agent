@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Deletion-aware workflow entrypoint for public-documentation safety checks.
+
+The established runner owns classification, format parsing, and diagnostics. This
+entrypoint adds one range-selection boundary: deleting or renaming a public
+document triggers a scan of every remaining public document so an unchanged
+fallback cannot become newly exposed without validation.
+"""
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+_RUNNER_PATH = Path(__file__).with_name("public_docs_safety_runner.py")
+_RUNNER_SPEC = importlib.util.spec_from_file_location(
+    "_public_docs_safety_runner", _RUNNER_PATH
+)
+if _RUNNER_SPEC is None or _RUNNER_SPEC.loader is None:
+    raise RuntimeError("unable to load public docs safety runner")
+runner = importlib.util.module_from_spec(_RUNNER_SPEC)
+sys.modules.setdefault("_public_docs_safety_runner", runner)
+_RUNNER_SPEC.loader.exec_module(runner)
+
+scanner = runner.scanner
+_original_changed_files_with_diff_args = scanner.changed_files_with_diff_args
+_original_changed_added_lines = scanner.changed_added_lines
+_full_scan_due_to_public_removal = False
+
+
+def public_doc_removed_or_renamed(diff_args: list[str]) -> bool:
+    """Return whether the selected comparison removes a public-document path."""
+    result = scanner.subprocess.run(
+        ["git", "diff", "--name-status", "--find-renames", *diff_args],
+        text=True,
+        stdout=scanner.subprocess.PIPE,
+        stderr=scanner.subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        raise scanner.ComparisonError(
+            "unable to resolve public-document deletion status"
+        )
+
+    for line in result.stdout.splitlines():
+        fields = line.split("\t")
+        if len(fields) < 2:
+            continue
+        status = fields[0]
+        old_path = fields[1]
+        if status.startswith("D") and runner.is_public_doc(old_path):
+            return True
+        if status.startswith("R") and len(fields) >= 3 and runner.is_public_doc(old_path):
+            return True
+    return False
+
+
+def changed_files_with_diff_args() -> tuple[list[str], list[str]]:
+    """Expand deletion/rename comparisons to all remaining repository files."""
+    global _full_scan_due_to_public_removal
+    files, diff_args = _original_changed_files_with_diff_args()
+    _full_scan_due_to_public_removal = public_doc_removed_or_renamed(diff_args)
+    if _full_scan_due_to_public_removal:
+        return scanner.all_candidate_files(), diff_args
+    return files, diff_args
+
+
+def changed_added_lines(
+    files: list[str], diff_args: list[str] | None = None
+) -> dict[str, set[int]] | None:
+    """Select every line when a removal may expose unchanged fallback content."""
+    if not _full_scan_due_to_public_removal:
+        return _original_changed_added_lines(files, diff_args)
+
+    selected: dict[str, set[int]] = {}
+    for path in files:
+        try:
+            line_count = len(
+                Path(path)
+                .read_text(encoding="utf-8", errors="ignore")
+                .splitlines()
+            )
+        except OSError:
+            selected[path] = {1}
+        else:
+            selected[path] = set(range(1, line_count + 1))
+    return selected
+
+
+scanner.changed_files_with_diff_args = changed_files_with_diff_args
+scanner.changed_added_lines = changed_added_lines
+
+
+def main() -> int:
+    global _full_scan_due_to_public_removal
+    _full_scan_due_to_public_removal = False
+    return scanner.main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
