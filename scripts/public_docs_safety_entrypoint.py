@@ -5,7 +5,7 @@ The established runner owns comparison selection, classification, format parsing
 and diagnostics. This entrypoint applies the final workflow boundaries for HTML
 option records, case-insensitive community-health filenames, deletion or rename
 scans that can expose unchanged fallback documentation, command-aware code-block
-records, and multiline reStructuredText table cells.
+records, named shell prompts, and multiline reStructuredText table cells.
 """
 from __future__ import annotations
 
@@ -56,6 +56,20 @@ scanner.is_public_doc = is_public_doc
 runner.is_public_doc = is_public_doc
 runner.implementation.is_public_doc = is_public_doc
 
+# A recognized shell prompt is presentation syntax, not the command head. Strip
+# the complete prompt before classifying the following token so named prompts
+# such as ``root$`` behave like bare ``$`` prompts.
+def _command_head(line: str) -> str:
+    prompt = scanner.PROMPTED_COMMAND_RE.match(line)
+    stripped = line[prompt.end() :].lstrip() if prompt else line.strip()
+    if not stripped:
+        return ""
+    return stripped.split(maxsplit=1)[0].lower()
+
+
+runner.implementation._command_head = _command_head
+runner._command_head = _command_head
+
 # A punctuation mark at the end of a lowercase prose word is not executable
 # syntax. Keep such lines in the surrounding wrapped record while retaining
 # recognized commands, flags, paths, and genuinely command-like tokens as
@@ -69,14 +83,14 @@ def is_explicit_command_line(line: str) -> bool:
     if not prompted and not scanner.SIMPLE_COMMAND_RE.match(line):
         return False
 
-    head = runner.implementation._command_head(line)
+    head = _command_head(line)
     if not head:
         return False
     if head in runner.implementation.COMMAND_HEADS or head.startswith("-"):
         return True
 
     # Reject ordinary sentence punctuation such as ``ignore.`` or ``note:``.
-    if head[-1:] in ".,;:!?":
+    if head[-1:] in ".,;:!?":[
         return False
 
     return any(marker in head for marker in ("/", "\\", ".", ":", "_"))
