@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""Final exact-head boundaries for the public documentation safety workflow.
+
+This wrapper keeps the established canonical entrypoint intact while correcting
+structural-deletion selection and command-continuation grouping. It remains a
+scanner/workflow change only; S0RA application runtime behavior is unaffected.
+"""
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+_ENTRYPOINT_PATH = Path(__file__).with_name("public_docs_safety_entrypoint.py")
+_ENTRYPOINT_SPEC = importlib.util.spec_from_file_location(
+    "_public_docs_safety_entrypoint", _ENTRYPOINT_PATH
+)
+if _ENTRYPOINT_SPEC is None or _ENTRYPOINT_SPEC.loader is None:
+    raise RuntimeError("unable to load public docs safety entrypoint")
+entrypoint = importlib.util.module_from_spec(_ENTRYPOINT_SPEC)
+sys.modules.setdefault("_public_docs_safety_entrypoint", entrypoint)
+_ENTRYPOINT_SPEC.loader.exec_module(entrypoint)
+
+scanner = entrypoint.scanner
+runner = entrypoint.runner
+
+
+def _continues_command(
+    lines: list[str],
+    command_index: int,
+    previous_index: int,
+    current_index: int,
+    continuation_indent: int | None,
+) -> tuple[bool, int | None]:
+    """Keep sibling continuation lines relative to the command's base indent."""
+    previous = lines[previous_index]
+    current = lines[current_index]
+    current_stripped = current.lstrip()
+    base_indent = scanner.leading_indent_width(lines[command_index])
+    current_indent = scanner.leading_indent_width(current)
+
+    explicit_continuation = bool(
+        previous.rstrip().endswith(("\\", "&&", "||", "|"))
+        or current_stripped.startswith(("-", "&&", "||", "|"))
+    )
+    indented_continuation = current_indent > base_indent
+    sibling_continuation = bool(
+        continuation_indent is not None and current_indent >= continuation_indent
+    )
+
+    if not (explicit_continuation or indented_continuation or sibling_continuation):
+        return False, continuation_indent
+
+    if continuation_indent is None and current_indent > base_indent:
+        continuation_indent = current_indent
+    return True, continuation_indent
+
+
+def fenced_content_spans(
+    lines: list[str], start: int, end: int
+) -> list[tuple[int, int]]:
+    """Split code-like content without dropping equal-indented continuations."""
+    spans: list[tuple[int, int]] = []
+    index = start
+    while index < end:
+        if not lines[index].strip():
+            index += 1
+            continue
+
+        block_start = index
+        if entrypoint.is_explicit_command_line(lines[index]):
+            command_index = index
+            continuation_indent: int | None = None
+            index += 1
+            while index < end and lines[index].strip():
+                continues, continuation_indent = _continues_command(
+                    lines,
+                    command_index,
+                    index - 1,
+                    index,
+                    continuation_indent,
+                )
+                if not continues:
+                    break
+                index += 1
+            spans.append((block_start + 1, index))
+            continue
+
+        index += 1
+        while (
+            index < end
+            and lines[index].strip()
+            and not entrypoint.is_explicit_command_line(lines[index])
+        ):
+            index += 1
+        spans.append((block_start + 1, index))
+    return spans
+
+
+# Both Markdown indented-code parsing and AsciiDoc listing parsing resolve this
+# helper through the implementation module at call time.
+runner.implementation.fenced_content_spans = fenced_content_spans
+runner.fenced_content_spans = fenced_content_spans
+entrypoint.fenced_content_spans = fenced_content_spans
+
+_original_changed_files_with_diff_args = scanner.changed_files_with_diff_args
+_original_changed_added_lines = scanner.changed_added_lines
+_full_scan_paths: set[str] = set()
+
+
+def public_docs_with_deletions(files: list[str], diff_args: list[str]) -> set[str]:
+    """Return changed public documents whose post-image needs a complete scan.
+
+    Any deleted line can remove a structural delimiter and alter parser records
+    arbitrarily far below the hunk. Numstat is used only to detect deletion
+    counts; path parsing is deliberately avoided so unusual filenames remain
+    handled by the existing raw-path comparison logic.
+    """
+    documents = [
+        path
+        for path in files
+        if Path(path).is_file() and runner.is_public_doc(path)
+    ]
+    if not documents:
+        return set()
+
+    result = scanner.subprocess.run(
+        ["git", "diff", "--numstat", *diff_args, "--", *documents],
+        text=True,
+        stdout=scanner.subprocess.PIPE,
+        stderr=scanner.subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        raise scanner.ComparisonError(
+            "unable to resolve public-document deletion ranges"
+        )
+
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        fields = line.split("\t", 2)
+        if len(fields) != 3:
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion ranges"
+            )
+        deleted = fields[1]
+        if deleted == "-" or (deleted.isdigit() and int(deleted) > 0):
+            return set(documents)
+        if not deleted.isdigit():
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion ranges"
+            )
+    return set()
+
+
+def changed_files_with_diff_args() -> tuple[list[str], list[str]]:
+    """Record changed documents requiring full post-image selection."""
+    global _full_scan_paths
+    files, diff_args = _original_changed_files_with_diff_args()
+    if entrypoint._full_scan_due_to_public_removal:
+        _full_scan_paths = set()
+    else:
+        _full_scan_paths = public_docs_with_deletions(files, diff_args)
+    return files, diff_args
+
+
+def _all_lines(path: str) -> set[int]:
+    try:
+        line_count = len(
+            Path(path).read_text(encoding="utf-8", errors="ignore").splitlines()
+        )
+    except OSError:
+        return {1}
+    return set(range(1, line_count + 1))
+
+
+def changed_added_lines(
+    files: list[str], diff_args: list[str] | None = None
+) -> dict[str, set[int]] | None:
+    """Expand every document containing deletions to its full post-image."""
+    selected = _original_changed_added_lines(files, diff_args)
+    if selected is None:
+        return None
+    for path in _full_scan_paths:
+        selected[path] = _all_lines(path)
+    return selected
+
+
+scanner.changed_files_with_diff_args = changed_files_with_diff_args
+scanner.changed_added_lines = changed_added_lines
+entrypoint.changed_files_with_diff_args = changed_files_with_diff_args
+entrypoint.changed_added_lines = changed_added_lines
+
+
+def main() -> int:
+    global _full_scan_paths
+    _full_scan_paths = set()
+    return entrypoint.main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
