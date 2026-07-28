@@ -56,6 +56,17 @@ scanner.is_public_doc = is_public_doc
 runner.is_public_doc = is_public_doc
 runner.implementation.is_public_doc = is_public_doc
 
+# Recognize realistic transcript prompts before command classification. The
+# grammar accepts bare prompts, named prompts, user@host prompts, and optional
+# no-whitespace working-directory segments such as ``user@host:~/repo$``.
+PROMPTED_COMMAND_RE = re.compile(
+    r"^\s*(?:[$>]\s+|(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9_.-]+"
+    r"(?::[^\s#$>%]+)?[#$>%]\s+)"
+)
+scanner.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
+runner.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
+runner.implementation.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
+
 # A recognized shell prompt is presentation syntax, not the command head. Strip
 # the complete prompt before classifying the following token so named prompts
 # such as ``root$`` behave like bare ``$`` prompts.
