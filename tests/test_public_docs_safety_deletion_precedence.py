@@ -26,18 +26,31 @@ class PublicDocsSafetyDeletionPrecedenceTests(unittest.TestCase):
         status = subprocess.CompletedProcess(
             args=["git", "diff"],
             returncode=0,
-            stdout="D\tREADME.md\n",
-            stderr="",
+            stdout=b"D\0README.md\0",
+            stderr=b"",
         )
-        with mock.patch.object(scanner.scanner.subprocess, "run", return_value=status):
+        with mock.patch.object(
+            scanner.scanner.subprocess, "run", return_value=status
+        ) as run:
             self.assertTrue(scanner.public_doc_removed_or_renamed(["base", "HEAD"]))
+        self.assertIn("-z", run.call_args.args[0])
 
     def test_renamed_public_document_is_detected(self) -> None:
         status = subprocess.CompletedProcess(
             args=["git", "diff"],
             returncode=0,
-            stdout="R100\tREADME.md\tdocs/archive.md\n",
-            stderr="",
+            stdout=b"R100\0README.md\0docs/archive.md\0",
+            stderr=b"",
+        )
+        with mock.patch.object(scanner.scanner.subprocess, "run", return_value=status):
+            self.assertTrue(scanner.public_doc_removed_or_renamed(["base", "HEAD"]))
+
+    def test_non_ascii_deleted_public_document_is_detected(self) -> None:
+        status = subprocess.CompletedProcess(
+            args=["git", "diff"],
+            returncode=0,
+            stdout="D\0docs/überblick.md\0".encode("utf-8"),
+            stderr=b"",
         )
         with mock.patch.object(scanner.scanner.subprocess, "run", return_value=status):
             self.assertTrue(scanner.public_doc_removed_or_renamed(["base", "HEAD"]))
@@ -76,9 +89,17 @@ class PublicDocsSafetyDeletionPrecedenceTests(unittest.TestCase):
 
     def test_name_status_failure_fails_closed(self) -> None:
         failed = subprocess.CompletedProcess(
-            args=["git", "diff"], returncode=128, stdout="", stderr="missing base"
+            args=["git", "diff"], returncode=128, stdout=b"", stderr=b"missing base"
         )
         with mock.patch.object(scanner.scanner.subprocess, "run", return_value=failed):
+            with self.assertRaises(scanner.scanner.ComparisonError):
+                scanner.public_doc_removed_or_renamed(["base", "HEAD"])
+
+    def test_malformed_name_status_fails_closed(self) -> None:
+        malformed = subprocess.CompletedProcess(
+            args=["git", "diff"], returncode=0, stdout=b"R100\0README.md\0", stderr=b""
+        )
+        with mock.patch.object(scanner.scanner.subprocess, "run", return_value=malformed):
             with self.assertRaises(scanner.scanner.ComparisonError):
                 scanner.public_doc_removed_or_renamed(["base", "HEAD"])
 
