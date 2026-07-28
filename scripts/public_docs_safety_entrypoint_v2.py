@@ -97,8 +97,9 @@ def fenced_content_spans(
     return spans
 
 
-# Both Markdown indented-code parsing and AsciiDoc listing parsing resolve this
-# helper through the implementation module at call time.
+# Markdown, indented-code, and AsciiDoc listing paths resolve this helper through
+# either the core scanner or the implementation module at call time.
+scanner.fenced_content_spans = fenced_content_spans
 runner.implementation.fenced_content_spans = fenced_content_spans
 runner.fenced_content_spans = fenced_content_spans
 entrypoint.fenced_content_spans = fenced_content_spans
