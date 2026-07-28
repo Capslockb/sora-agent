@@ -6,6 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENTRYPOINT = REPO_ROOT / "scripts" / "public_docs_safety_entrypoint.py"
+CODEOWNERS = REPO_ROOT / ".github" / "CODEOWNERS"
 
 spec = importlib.util.spec_from_file_location(
     "public_docs_safety_option_community_entrypoint", ENTRYPOINT
@@ -42,20 +43,48 @@ class OptionAndCommunityHealthTests(unittest.TestCase):
         )
         self.assertIn("PDS003", rules)
 
-    def test_support_and_governance_locations_are_classified(self) -> None:
+    def test_enforceable_support_and_governance_locations_are_classified(self) -> None:
         paths = (
             "SUPPORT.md",
             "support.md",
             "GOVERNANCE.md",
             "governance.md",
             ".github/SUPPORT.md",
+            ".github/support.md",
+            ".github/GOVERNANCE.md",
             ".github/governance.md",
-            "docs/support.md",
-            "docs/GOVERNANCE.md",
+            "docs/Support.md",
+            "docs/Governance.md",
         )
         for path in paths:
             with self.subTest(path=path):
                 self.assertTrue(scanner.is_public_doc(path))
+
+    def test_unowned_mixed_case_root_and_github_variants_are_excluded(self) -> None:
+        paths = (
+            "Support.md",
+            "Governance.md",
+            ".github/Support.md",
+            ".github/Governance.md",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertFalse(scanner.is_public_doc(path))
+
+    def test_codeowners_covers_every_enforceable_variant(self) -> None:
+        rules = set(CODEOWNERS.read_text(encoding="utf-8").splitlines())
+        expected = {
+            "/SUPPORT.md @Capslockb",
+            "/support.md @Capslockb",
+            "/GOVERNANCE.md @Capslockb",
+            "/governance.md @Capslockb",
+            "/.github/SUPPORT.md @Capslockb",
+            "/.github/support.md @Capslockb",
+            "/.github/GOVERNANCE.md @Capslockb",
+            "/.github/governance.md @Capslockb",
+            "/docs/ @Capslockb",
+        }
+        self.assertTrue(expected <= rules)
 
 
 if __name__ == "__main__":
