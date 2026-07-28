@@ -275,15 +275,12 @@ def _selected_lines_from_patch(output: bytes | str) -> set[int]:
     return selected
 
 
-def changed_added_lines(
+def _bounded_changed_added_lines(
     files: list[str], diff_args: list[str] | None = None
 ) -> dict[str, set[int]] | None:
-    """Map each exact decoded pathname to its selected post-image lines."""
+    """Select bounded post-image lines using each exact decoded pathname."""
     if not files:
         return {}
-    if entrypoint._full_scan_due_to_public_removal:
-        return {path: _all_lines(path) for path in files}
-
     selected_args = scanner.comparison_args() if diff_args is None else diff_args
     selected: dict[str, set[int]] = {}
     for path in files:
@@ -296,7 +293,26 @@ def changed_added_lines(
         if result.returncode != 0:
             return None
         selected[path] = _selected_lines_from_patch(result.stdout)
+    return selected
 
+
+# Preserve the established test/extension hook while replacing its implementation
+# with exact-path mapping rather than quoted patch-header parsing.
+_original_changed_added_lines = _bounded_changed_added_lines
+
+
+def changed_added_lines(
+    files: list[str], diff_args: list[str] | None = None
+) -> dict[str, set[int]] | None:
+    """Map each exact decoded pathname to its selected post-image lines."""
+    if not files:
+        return {}
+    if entrypoint._full_scan_due_to_public_removal:
+        return {path: _all_lines(path) for path in files}
+
+    selected = _original_changed_added_lines(files, diff_args)
+    if selected is None:
+        return None
     for path in _full_scan_paths:
         selected[path] = _all_lines(path)
     return selected
