@@ -2,8 +2,9 @@
 """Final exact-head boundaries for the public documentation safety workflow.
 
 This wrapper keeps the established canonical entrypoint intact while correcting
-structural-deletion selection and command-continuation grouping. It remains a
-scanner/workflow change only; S0RA application runtime behavior is unaffected.
+structural-deletion selection, command-continuation grouping, and document-read
+failure handling. It remains a scanner/workflow change only; S0RA application
+runtime behavior is unaffected.
 """
 from __future__ import annotations
 
@@ -39,14 +40,29 @@ def _continues_command(
     base_indent = scanner.leading_indent_width(lines[command_index])
     current_indent = scanner.leading_indent_width(current)
 
+    previous_continues = previous.rstrip().endswith(("\\", "&&", "||", "|"))
+    current_is_continuation_token = current_stripped.startswith(
+        ("-", "&&", "||", "|")
+    )
     explicit_continuation = bool(
-        previous.rstrip().endswith(("\\", "&&", "||", "|"))
-        or current_stripped.startswith(("-", "&&", "||", "|"))
+        previous_continues or current_is_continuation_token
     )
     indented_continuation = current_indent > base_indent
     sibling_continuation = bool(
         continuation_indent is not None and current_indent >= continuation_indent
     )
+
+    # Once a continuation block is established, indentation alone must not absorb
+    # a later independent command. Argument/operator continuations remain grouped,
+    # and wrapped prose siblings remain grouped because they are not recognized as
+    # explicit commands.
+    if (
+        sibling_continuation
+        and entrypoint.is_explicit_command_line(current)
+        and not previous_continues
+        and not current_is_continuation_token
+    ):
+        return False, continuation_indent
 
     if not (explicit_continuation or indented_continuation or sibling_continuation):
         return False, continuation_indent
@@ -106,6 +122,7 @@ entrypoint.fenced_content_spans = fenced_content_spans
 
 _original_changed_files_with_diff_args = scanner.changed_files_with_diff_args
 _original_changed_added_lines = scanner.changed_added_lines
+_original_scan_file = scanner.scan_file
 _full_scan_paths: set[str] = set()
 
 
@@ -167,10 +184,10 @@ def changed_files_with_diff_args() -> tuple[list[str], list[str]]:
 
 def _all_lines(path: str) -> set[int]:
     try:
-        line_count = len(
-            Path(path).read_text(encoding="utf-8", errors="ignore").splitlines()
-        )
-    except OSError:
+        line_count = len(Path(path).read_text(encoding="utf-8").splitlines())
+    except (OSError, UnicodeError):
+        # Preserve one selected line so the strict scan path emits controlled,
+        # metadata-only PDS900 evidence rather than silently passing.
         return {1}
     return set(range(1, line_count + 1))
 
@@ -187,10 +204,25 @@ def changed_added_lines(
     return selected
 
 
+def scan_file(
+    path: str, line_numbers: list[int] | range
+) -> list[tuple[str, int, str, str]]:
+    """Fail closed before the inherited parser can ignore invalid UTF-8 bytes."""
+    try:
+        Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return [(path, 1, "PDS900", "document read failure")]
+    return _original_scan_file(path, line_numbers)
+
+
 scanner.changed_files_with_diff_args = changed_files_with_diff_args
 scanner.changed_added_lines = changed_added_lines
+scanner.scan_file = scan_file
 entrypoint.changed_files_with_diff_args = changed_files_with_diff_args
 entrypoint.changed_added_lines = changed_added_lines
+entrypoint.scan_file = scan_file
+runner.implementation.scan_file = scan_file
+runner.scan_file = scan_file
 
 
 def main() -> int:
