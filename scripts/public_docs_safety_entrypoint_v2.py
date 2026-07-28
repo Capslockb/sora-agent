@@ -297,8 +297,8 @@ def changed_files_with_diff_args() -> tuple[list[str], list[str]]:
     """Resolve exact paths and record documents requiring full post-image scans."""
     global _full_scan_paths
     files, diff_args = raw_changed_files_with_diff_args()
-    entrypoint._full_scan_due_to_public_removal = public_doc_removed_or_renamed(
-        diff_args
+    entrypoint._full_scan_due_to_public_removal = (
+        entrypoint.public_doc_removed_or_renamed(diff_args)
     )
     if entrypoint._full_scan_due_to_public_removal:
         files = scanner.all_candidate_files()
