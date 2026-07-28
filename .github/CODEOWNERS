@@ -3,6 +3,10 @@ SECURITY.md @Capslockb
 CONTRIBUTING.md @Capslockb
 /docs/ @Capslockb
 /website/ @Capslockb
+.github/ISSUE_TEMPLATE.md @Capslockb
+.github/issue_template.md @Capslockb
+.github/ISSUE_TEMPLATE/ @Capslockb
+.github/issue_template/ @Capslockb
 .github/CODEOWNERS @Capslockb
 .github/workflows/public-docs-safety.yml @Capslockb
 scripts/public_docs_safety.py @Capslockb
