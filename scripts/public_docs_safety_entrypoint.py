@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Deletion-aware workflow entrypoint for public-documentation safety checks.
+"""Canonical workflow entrypoint for public-documentation safety checks.
 
-The established runner owns classification, format parsing, and diagnostics. This
-entrypoint adds one range-selection boundary: deleting or renaming a public
-document triggers a scan of every remaining public document so an unchanged
-fallback cannot become newly exposed without validation.
+The established runner owns comparison selection, classification, format parsing,
+and diagnostics. This entrypoint applies the final workflow boundaries for HTML
+option records, recognized community-health files, and deletion or rename scans
+that can expose unchanged fallback documentation.
 """
 from __future__ import annotations
 
@@ -23,6 +23,16 @@ sys.modules.setdefault("_public_docs_safety_runner", runner)
 _RUNNER_SPEC.loader.exec_module(runner)
 
 scanner = runner.scanner
+
+# GitHub exposes each option as an independent user-visible choice. Keep sibling
+# options in separate records while preserving nested inline content inside one
+# option frame.
+runner.implementation.HTML_BLOCK_TAGS.add("option")
+
+# GitHub recognizes these community-health files at repository root, under
+# .github/, and under docs/. The classifier compares names case-insensitively.
+scanner.DOC_NAMES.update({"SUPPORT.MD", "GOVERNANCE.MD"})
+
 _original_changed_files_with_diff_args = scanner.changed_files_with_diff_args
 _original_changed_added_lines = scanner.changed_added_lines
 _full_scan_due_to_public_removal = False
