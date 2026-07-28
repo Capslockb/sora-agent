@@ -27,3 +27,4 @@ scripts/public_docs_safety.py @Capslockb
 scripts/public_docs_safety_runner.py @Capslockb
 scripts/public_docs_safety_entrypoint.py @Capslockb
 scripts/public_docs_safety_core.py @Capslockb
+tests/test_public_docs*.py @Capslockb
