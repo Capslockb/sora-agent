@@ -33,16 +33,36 @@ scanner.INDENTED_CODE_RE = re.compile(r"^(?: {4,}|\t+)\S")
 _original_is_public_doc = scanner.is_public_doc
 ISSUE_TEMPLATE_ROOT = ".github/issue_template.md"
 ISSUE_TEMPLATE_DIR = ".github/issue_template/"
+PULL_REQUEST_TEMPLATE_BASES = {
+    "pull_request_template",
+    "docs/pull_request_template",
+    ".github/pull_request_template",
+}
+
+
+def _is_supported_pull_request_template(candidate: Path, normalized: str) -> bool:
+    """Recognize GitHub pull-request templates in every supported location."""
+    suffix = candidate.suffix.lower()
+    for base in PULL_REQUEST_TEMPLATE_BASES:
+        if normalized == base:
+            return True
+        if normalized == f"{base}{suffix}" and suffix in scanner.DOC_EXTS:
+            return True
+        if normalized.startswith(f"{base}/"):
+            return suffix in scanner.DOC_EXTS or not suffix
+    return False
 
 
 def is_public_doc(path: str, include_fixtures: bool = False) -> bool:
-    """Include contributor-facing issue templates without scanning issue forms."""
+    """Include contributor-facing templates without scanning issue-form YAML."""
     candidate = Path(path)
     normalized = candidate.as_posix().removeprefix("./").lower()
     if normalized == ISSUE_TEMPLATE_ROOT:
         return True
     if normalized.startswith(ISSUE_TEMPLATE_DIR):
         return candidate.suffix.lower() in scanner.DOC_EXTS
+    if _is_supported_pull_request_template(candidate, normalized):
+        return True
     return _original_is_public_doc(path, include_fixtures)
 
 
