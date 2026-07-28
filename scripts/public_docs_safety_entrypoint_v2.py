@@ -147,6 +147,72 @@ def _parse_nul_paths(output: bytes | str) -> list[str]:
     return [_decode_git_path(field) for field in fields]
 
 
+_NAME_STATUS_RE = re.compile(r"^(?:[ADMTUXB]|[RC](?:\d{1,3})?)$")
+
+
+def public_doc_removed_or_renamed(diff_args: list[str]) -> bool:
+    """Return whether a validated status record removes a public-document path."""
+    result = scanner.subprocess.run(
+        ["git", "diff", "--name-status", "-z", "--find-renames", *diff_args],
+        text=False,
+        stdout=scanner.subprocess.PIPE,
+        stderr=scanner.subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        raise scanner.ComparisonError(
+            "unable to resolve public-document deletion status"
+        )
+
+    raw_output = _raw_bytes(result.stdout)
+    if raw_output and not raw_output.endswith(b"\0"):
+        raise scanner.ComparisonError(
+            "unable to parse public-document deletion status"
+        )
+    fields = raw_output.split(b"\0")[:-1] if raw_output else []
+
+    index = 0
+    while index < len(fields):
+        try:
+            status = fields[index].decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion status"
+            ) from exc
+        index += 1
+
+        if not _NAME_STATUS_RE.fullmatch(status):
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion status"
+            )
+        if status[0] in {"R", "C"} and status[1:] and int(status[1:]) > 100:
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion status"
+            )
+
+        path_count = 2 if status[0] in {"R", "C"} else 1
+        if len(fields) - index < path_count:
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion status"
+            )
+        raw_paths = fields[index : index + path_count]
+        if any(not raw_path for raw_path in raw_paths):
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion status"
+            )
+        old_path = _decode_git_path(raw_paths[0])
+        index += path_count
+
+        if status == "D" and runner.is_public_doc(old_path):
+            return True
+        if status.startswith("R") and runner.is_public_doc(old_path):
+            return True
+    return False
+
+
+# Replace the less strict inherited parser before change-range selection runs.
+entrypoint.public_doc_removed_or_renamed = public_doc_removed_or_renamed
+
+
 def _changed_names(diff_args: list[str]) -> list[str] | None:
     """Return raw decoded changed paths, or None when the comparison failed."""
     result = scanner.subprocess.run(
@@ -191,7 +257,15 @@ def public_docs_with_deletions(files: list[str], diff_args: list[str]) -> set[st
         return set()
 
     result = scanner.subprocess.run(
-        ["git", "diff", "--numstat", *diff_args, "--", *documents],
+        [
+            "git",
+            "--literal-pathspecs",
+            "diff",
+            "--numstat",
+            *diff_args,
+            "--",
+            *documents,
+        ],
         text=True,
         stdout=scanner.subprocess.PIPE,
         stderr=scanner.subprocess.DEVNULL,
@@ -223,8 +297,8 @@ def changed_files_with_diff_args() -> tuple[list[str], list[str]]:
     """Resolve exact paths and record documents requiring full post-image scans."""
     global _full_scan_paths
     files, diff_args = raw_changed_files_with_diff_args()
-    entrypoint._full_scan_due_to_public_removal = (
-        entrypoint.public_doc_removed_or_renamed(diff_args)
+    entrypoint._full_scan_due_to_public_removal = public_doc_removed_or_renamed(
+        diff_args
     )
     if entrypoint._full_scan_due_to_public_removal:
         files = scanner.all_candidate_files()
@@ -285,7 +359,15 @@ def _bounded_changed_added_lines(
     selected: dict[str, set[int]] = {}
     for path in files:
         result = scanner.subprocess.run(
-            ["git", "diff", "--unified=0", *selected_args, "--", path],
+            [
+                "git",
+                "--literal-pathspecs",
+                "diff",
+                "--unified=0",
+                *selected_args,
+                "--",
+                path,
+            ],
             text=False,
             stdout=scanner.subprocess.PIPE,
             stderr=scanner.subprocess.DEVNULL,
