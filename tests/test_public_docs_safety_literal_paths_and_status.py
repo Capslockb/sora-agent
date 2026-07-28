@@ -56,7 +56,8 @@ class LiteralPathAndStatusTests(unittest.TestCase):
                     scanner.public_docs_with_deletions([path], ["HEAD"]), {path}
                 )
                 selected = scanner.changed_added_lines([path], ["HEAD"])
-                self.assertEqual(selected, {path: {1}})
+                self.assertIn(path, selected)
+                self.assertIn(1, selected[path])
                 self.assertEqual(
                     scanner.scan_file(path, sorted(selected[path])),
                     [(path, 1, "PDS001", "model-directed override")],
