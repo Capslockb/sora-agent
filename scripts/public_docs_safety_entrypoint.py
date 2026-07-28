@@ -3,8 +3,8 @@
 
 The established runner owns comparison selection, classification, format parsing,
 and diagnostics. This entrypoint applies the final workflow boundaries for HTML
-option records, enforceable community-health filenames, and deletion or rename
-scans that can expose unchanged fallback documentation.
+option records, case-insensitive community-health filenames, and deletion or
+rename scans that can expose unchanged fallback documentation.
 """
 from __future__ import annotations
 
@@ -29,30 +29,24 @@ scanner = runner.scanner
 # option frame.
 runner.implementation.HTML_BLOCK_TAGS.add("option")
 
-# CODEOWNERS paths are case-sensitive and do not support character classes.
-# Restrict root and .github community-health filenames to the exact uppercase and
-# lowercase forms protected by this branch. Mixed-case files under docs/ remain
-# covered through the directory-wide public-document and ownership rules.
+# GitHub recognizes SUPPORT.md and GOVERNANCE.md as public community-health files
+# in the repository root, .github/, and docs/. Classification remains
+# case-insensitive. Broad root and .github CODEOWNERS rules provide ownership
+# parity for mixed-case filenames that CODEOWNERS cannot express individually.
 _original_is_public_doc = scanner.is_public_doc
-COMMUNITY_HEALTH_NAMES = {
-    "SUPPORT.md",
-    "support.md",
-    "GOVERNANCE.md",
-    "governance.md",
-}
-COMMUNITY_HEALTH_NAMES_UPPER = {name.upper() for name in COMMUNITY_HEALTH_NAMES}
+COMMUNITY_HEALTH_NAMES_UPPER = {"SUPPORT.MD", "GOVERNANCE.MD"}
 COMMUNITY_HEALTH_PARENTS = {".", ".github"}
 
 
 def is_public_doc(path: str, include_fixtures: bool = False) -> bool:
-    """Recognize only community-health forms with enforceable ownership parity."""
+    """Recognize public community-health files without case-based gaps."""
     candidate = Path(path)
     parent = candidate.parent.as_posix()
     if (
         parent in COMMUNITY_HEALTH_PARENTS
         and candidate.name.upper() in COMMUNITY_HEALTH_NAMES_UPPER
     ):
-        return candidate.name in COMMUNITY_HEALTH_NAMES
+        return True
     return _original_is_public_doc(path, include_fixtures)
 
 
