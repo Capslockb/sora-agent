@@ -96,6 +96,30 @@ class LatestReviewBlockerTests(unittest.TestCase):
         self.assertFalse(scanner.is_public_doc(".github/ISSUE_TEMPLATE/bug.yml"))
         self.assertFalse(scanner.is_public_doc(".github/issue_template/config.yaml"))
 
+    def test_pull_request_template_locations_are_case_insensitive(self) -> None:
+        paths = (
+            "PULL_REQUEST_TEMPLATE.md",
+            "pull_request_template.TXT",
+            "docs/PULL_REQUEST_TEMPLATE.adoc",
+            "docs/pull_request_template.HTM",
+            "docs/PULL_REQUEST_TEMPLATE/release.asciidoc",
+            ".github/pull_request_template.rst",
+            ".github/PULL_REQUEST_TEMPLATE/help.MDX",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertTrue(scanner.is_public_doc(path))
+
+    def test_pull_request_template_unsupported_extensions_remain_excluded(self) -> None:
+        paths = (
+            "PULL_REQUEST_TEMPLATE.yml",
+            "docs/PULL_REQUEST_TEMPLATE.yaml",
+            ".github/PULL_REQUEST_TEMPLATE/config.json",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertFalse(scanner.is_public_doc(path))
+
 
 if __name__ == "__main__":
     unittest.main()
