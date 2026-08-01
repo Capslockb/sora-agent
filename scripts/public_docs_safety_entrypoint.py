@@ -1,0 +1,386 @@
+#!/usr/bin/env python3
+"""Canonical workflow entrypoint for public-documentation safety checks.
+
+The established runner owns comparison selection, classification, format parsing,
+and diagnostics. This entrypoint applies the final workflow boundaries for HTML
+option records, case-insensitive community-health filenames, deletion or rename
+scans that can expose unchanged fallback documentation, command-aware code-block
+records, named shell prompts, and multiline reStructuredText table cells.
+"""
+from __future__ import annotations
+
+import importlib.util
+import re
+import sys
+from collections.abc import Callable
+from pathlib import Path
+
+_RUNNER_PATH = Path(__file__).with_name("public_docs_safety_runner.py")
+_RUNNER_SPEC = importlib.util.spec_from_file_location(
+    "_public_docs_safety_runner", _RUNNER_PATH
+)
+if _RUNNER_SPEC is None or _RUNNER_SPEC.loader is None:
+    raise RuntimeError("unable to load public docs safety runner")
+runner = importlib.util.module_from_spec(_RUNNER_SPEC)
+sys.modules.setdefault("_public_docs_safety_runner", runner)
+_RUNNER_SPEC.loader.exec_module(runner)
+
+scanner = runner.scanner
+
+# GitHub exposes each option as an independent user-visible choice. Keep sibling
+# options in separate records while preserving nested inline content inside one
+# option frame.
+runner.implementation.HTML_BLOCK_TAGS.add("option")
+
+# GitHub recognizes SUPPORT.md and GOVERNANCE.md as public community-health files
+# in the repository root, .github/, and docs/. Classification remains
+# case-insensitive. Broad root and .github CODEOWNERS rules provide ownership
+# parity for mixed-case filenames that CODEOWNERS cannot express individually.
+_original_is_public_doc = scanner.is_public_doc
+COMMUNITY_HEALTH_NAMES_UPPER = {"SUPPORT.MD", "GOVERNANCE.MD"}
+COMMUNITY_HEALTH_PARENTS = {".", ".github"}
+
+
+def is_public_doc(path: str, include_fixtures: bool = False) -> bool:
+    """Recognize public community-health files without case-based gaps."""
+    candidate = Path(path)
+    parent = candidate.parent.as_posix()
+    if (
+        parent in COMMUNITY_HEALTH_PARENTS
+        and candidate.name.upper() in COMMUNITY_HEALTH_NAMES_UPPER
+    ):
+        return True
+    return _original_is_public_doc(path, include_fixtures)
+
+
+scanner.is_public_doc = is_public_doc
+runner.is_public_doc = is_public_doc
+runner.implementation.is_public_doc = is_public_doc
+
+# Recognize realistic transcript prompts before command classification. Bare
+# prompts include the conventional root ``#`` form. Named prompts may end in
+# ``>``, but user@host prompts intentionally require a shell-specific ``$``,
+# ``#``, or ``%`` terminator so email-style quoting is not misclassified.
+PROMPTED_COMMAND_RE = re.compile(
+    r"^\s*(?:[$>#%]\s+|[A-Za-z0-9_.-]+(?::[^\s#$>%]+)?[#$>%]\s+|"
+    r"[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+(?::[^\s#$>%]+)?[#$%]\s+)"
+)
+scanner.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
+runner.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
+runner.implementation.PROMPTED_COMMAND_RE = PROMPTED_COMMAND_RE
+
+
+# A recognized shell prompt is presentation syntax, not the command head. Strip
+# the complete prompt before classifying the following token so named prompts
+# such as ``root$`` behave like bare ``$`` prompts.
+def _command_head(line: str) -> str:
+    prompt = scanner.PROMPTED_COMMAND_RE.match(line)
+    stripped = line[prompt.end() :].lstrip() if prompt else line.strip()
+    if not stripped:
+        return ""
+    return stripped.split(maxsplit=1)[0].lower()
+
+
+runner.implementation._command_head = _command_head
+runner._command_head = _command_head
+
+# A punctuation mark at the end of a lowercase prose word is not executable
+# syntax. Keep such lines in the surrounding wrapped record while retaining
+# recognized commands, flags, paths, and genuinely command-like tokens as
+# independent records.
+def is_explicit_command_line(line: str) -> bool:
+    stripped = line.strip()
+    prompted = bool(scanner.PROMPTED_COMMAND_RE.match(line))
+    if not stripped or (stripped.startswith("#") and not prompted):
+        return False
+
+    if not prompted and not scanner.SIMPLE_COMMAND_RE.match(line):
+        return False
+
+    head = _command_head(line)
+    if not head:
+        return False
+    if head in runner.implementation.COMMAND_HEADS or head.startswith("-"):
+        return True
+
+    # Reject ordinary sentence punctuation such as ``ignore.`` or ``note:``.
+    if head.endswith((".", ",", ";", ":", "!", "?")):
+        return False
+
+    return any(marker in head for marker in ("/", "\\", ".", ":", "_"))
+
+
+runner.implementation.is_explicit_command_line = is_explicit_command_line
+runner.implementation.is_independent_command_line = is_explicit_command_line
+runner.is_explicit_command_line = is_explicit_command_line
+runner.is_independent_command_line = is_explicit_command_line
+scanner.is_independent_command_line = is_explicit_command_line
+
+
+def _simple_table_cells_with_empty(border: str, row: str) -> list[str]:
+    """Return every simple-table column, preserving empty continuation cells."""
+    spans = [match.span() for match in re.finditer(r"[=~-]{2,}", border)]
+    if len(spans) < 2:
+        return [row]
+    cells: list[str] = []
+    for position, (start, _end) in enumerate(spans):
+        next_start = spans[position + 1][0] if position + 1 < len(spans) else None
+        cells.append(row[start:next_start] if next_start is not None else row[start:])
+    return cells
+
+
+# A grid-table separator may contain blank segments for cells that continue
+# across rows. Preserve those partial borders as structural records instead of
+# treating them as ordinary prose.
+RST_GRID_BORDER_RE = re.compile(
+    r"^\s*\+(?:(?:[-=]+|[ \t]+)\+)+\s*$"
+)
+runner.RST_GRID_BORDER_RE = RST_GRID_BORDER_RE
+
+
+def _grid_boundaries(border: str) -> list[int]:
+    return [index for index, character in enumerate(border) if character == "+"]
+
+
+def _grid_table_cell_spans(
+    boundaries: list[int], row: str
+) -> list[tuple[tuple[int, int], str]]:
+    """Return cells using only separators actually present in the content row.
+
+    Full grid borders describe every possible column boundary. A column-spanning
+    cell omits one or more internal ``|`` characters, so only boundary positions
+    that contain a real row separator may terminate that rendered cell.
+    """
+    separators = [
+        position
+        for position in boundaries
+        if position < len(row) and row[position] == "|"
+    ]
+    if len(separators) < 2:
+        return [((0, len(row)), row)]
+    return [
+        ((start, end), row[start + 1 : end])
+        for start, end in zip(separators, separators[1:])
+    ]
+
+
+def _grid_border_ends_cell(border: str, span: tuple[int, int]) -> bool:
+    """Return whether a border draws a separator beneath this active cell."""
+    start, end = span
+    segment = border[start + 1 : end] if start < len(border) else ""
+    return any(character in "-=" for character in segment)
+
+
+# Keep the runner helper aligned for callers that resolve it through module
+# globals after importing this canonical entrypoint.
+def _grid_table_cells(border: str, row: str) -> list[str]:
+    boundaries = _grid_boundaries(border)
+    return [cell for _span, cell in _grid_table_cell_spans(boundaries, row)]
+
+
+runner._grid_table_cells = _grid_table_cells
+
+
+def rst_records(lines: list[str]) -> list[scanner.ScanRecord]:
+    """Apply RST table boundaries while preserving row and column spans."""
+    records: list[scanner.ScanRecord] = []
+    segment_start = 0
+    index = 0
+
+    def flush_plain(end: int) -> None:
+        nonlocal segment_start
+        if segment_start < end:
+            records.extend(scanner.markdown_records(lines[segment_start:end], segment_start))
+
+    while index < len(lines):
+        line = lines[index]
+        simple = runner.RST_SIMPLE_BORDER_RE.match(line)
+        grid = runner.RST_GRID_BORDER_RE.match(line)
+        if not simple and not grid:
+            index += 1
+            continue
+
+        flush_plain(index)
+        border = line
+        runner._append_record(records, index + 1, line)
+        index += 1
+
+        if grid:
+            boundaries = _grid_boundaries(border)
+            active_cells: dict[tuple[int, int], list[tuple[int, str]]] = {}
+
+            def flush_grid_cells(
+                predicate: Callable[[tuple[int, int]], bool] | None = None,
+            ) -> None:
+                for span in list(active_cells):
+                    should_flush = True if predicate is None else predicate(span)
+                    if not should_flush:
+                        continue
+                    parts = active_cells.pop(span)
+                    if parts:
+                        records.append(scanner.ScanRecord(tuple(parts)))
+
+            while index < len(lines) and lines[index].strip():
+                current = lines[index]
+                if runner.RST_GRID_BORDER_RE.match(current):
+                    flush_grid_cells(
+                        lambda span, current=current: _grid_border_ends_cell(
+                            current, span
+                        )
+                    )
+                    runner._append_record(records, index + 1, current)
+                    current_boundaries = _grid_boundaries(current)
+                    if (
+                        len(current_boundaries) >= 2
+                        and (
+                            not boundaries
+                            or current_boundaries[0] != boundaries[0]
+                            or current_boundaries[-1] != boundaries[-1]
+                        )
+                    ):
+                        boundaries = current_boundaries
+                elif current.strip().startswith("|"):
+                    for span, cell in _grid_table_cell_spans(boundaries, current):
+                        if cell.strip():
+                            active_cells.setdefault(span, []).append(
+                                (index + 1, cell)
+                            )
+                else:
+                    flush_grid_cells()
+                    runner._append_record(records, index + 1, current)
+                index += 1
+            flush_grid_cells()
+        else:
+            row_cells: list[list[tuple[int, str]]] = []
+
+            def flush_simple_cells() -> None:
+                for parts in row_cells:
+                    if parts:
+                        records.append(scanner.ScanRecord(tuple(parts)))
+                row_cells.clear()
+
+            while index < len(lines) and lines[index].strip():
+                current = lines[index]
+                if runner.RST_SIMPLE_BORDER_RE.match(current):
+                    flush_simple_cells()
+                    runner._append_record(records, index + 1, current)
+                    index += 1
+                    continue
+
+                cells = _simple_table_cells_with_empty(border, current)
+                starts_new_row = not row_cells or bool(cells and cells[0].strip())
+                if starts_new_row:
+                    flush_simple_cells()
+                while len(row_cells) < len(cells):
+                    row_cells.append([])
+                for position, cell in enumerate(cells):
+                    if cell.strip():
+                        row_cells[position].append((index + 1, cell))
+                index += 1
+            flush_simple_cells()
+
+        segment_start = index
+
+    flush_plain(len(lines))
+    return records
+
+
+# scanner.document_records is the runner function and resolves ``rst_records``
+# through the runner module globals at call time.
+runner.rst_records = rst_records
+
+_original_changed_files_with_diff_args = scanner.changed_files_with_diff_args
+_original_changed_added_lines = scanner.changed_added_lines
+_full_scan_due_to_public_removal = False
+
+
+def _decode_git_path(raw_path: bytes) -> str:
+    """Decode Git's raw pathname bytes without losing unusual path characters."""
+    return raw_path.decode("utf-8", errors="surrogateescape")
+
+
+def public_doc_removed_or_renamed(diff_args: list[str]) -> bool:
+    """Return whether the selected comparison removes a public-document path."""
+    result = scanner.subprocess.run(
+        ["git", "diff", "--name-status", "-z", "--find-renames", *diff_args],
+        text=False,
+        stdout=scanner.subprocess.PIPE,
+        stderr=scanner.subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        raise scanner.ComparisonError(
+            "unable to resolve public-document deletion status"
+        )
+
+    raw_output = result.stdout
+    if isinstance(raw_output, str):
+        raw_output = raw_output.encode("utf-8", errors="surrogateescape")
+    if raw_output and not raw_output.endswith(b"\0"):
+        raise scanner.ComparisonError(
+            "unable to parse public-document deletion status"
+        )
+    fields = raw_output.split(b"\0")[:-1] if raw_output else []
+
+    index = 0
+    while index < len(fields):
+        status = fields[index].decode("ascii", errors="replace")
+        index += 1
+        path_count = 2 if status.startswith(("R", "C")) else 1
+        if not status or len(fields) - index < path_count:
+            raise scanner.ComparisonError(
+                "unable to parse public-document deletion status"
+            )
+        old_path = _decode_git_path(fields[index])
+        index += path_count
+        if status.startswith("D") and runner.is_public_doc(old_path):
+            return True
+        if status.startswith("R") and runner.is_public_doc(old_path):
+            return True
+    return False
+
+
+def changed_files_with_diff_args() -> tuple[list[str], list[str]]:
+    """Expand deletion/rename comparisons to all remaining repository files."""
+    global _full_scan_due_to_public_removal
+    files, diff_args = _original_changed_files_with_diff_args()
+    _full_scan_due_to_public_removal = public_doc_removed_or_renamed(diff_args)
+    if _full_scan_due_to_public_removal:
+        return scanner.all_candidate_files(), diff_args
+    return files, diff_args
+
+
+def changed_added_lines(
+    files: list[str], diff_args: list[str] | None = None
+) -> dict[str, set[int]] | None:
+    """Select every line when a removal may expose unchanged fallback content."""
+    if not _full_scan_due_to_public_removal:
+        return _original_changed_added_lines(files, diff_args)
+
+    selected: dict[str, set[int]] = {}
+    for path in files:
+        try:
+            line_count = len(
+                Path(path)
+                .read_text(encoding="utf-8", errors="ignore")
+                .splitlines()
+            )
+        except OSError:
+            selected[path] = {1}
+        else:
+            selected[path] = set(range(1, line_count + 1))
+    return selected
+
+
+scanner.changed_files_with_diff_args = changed_files_with_diff_args
+scanner.changed_added_lines = changed_added_lines
+scan_file = scanner.scan_file
+
+
+def main() -> int:
+    global _full_scan_due_to_public_removal
+    _full_scan_due_to_public_removal = False
+    return scanner.main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
