@@ -1,11 +1,7 @@
 acp_adapter
-agent
-cron
-gateway
 plugins
 sora_bootstrap
 sora_cli
 sora_constants
 sora_logging
-tools
-tui_gateway
+website
