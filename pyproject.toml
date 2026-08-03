@@ -37,7 +37,7 @@ dependencies = [
     "uvicorn[standard]>=0.24.0,<1",
     "ptyprocess>=0.7.0,<1; sys_platform != 'win32'",
     "pywinpty>=2.0.0,<3; sys_platform == 'win32'",
-    "Pillow==12.2.0",
+    "Pillow==12.3.0",
     "numpy==2.4.3",
     "websockets==13.1",
     "discord.py[voice]==2.7.1",
@@ -72,15 +72,15 @@ faster-whisper = [
 ]
 # Messaging platforms
 telegram = ["python-telegram-bot[webhooks]==22.6"]
-discord = ["discord.py[voice]==2.7.1", "aiohttp==3.13.4", "brotlicffi==1.2.0.1"]
-slack = ["slack-bolt==1.27.0", "slack-sdk==3.40.1", "aiohttp==3.13.4"]
+discord = ["discord.py[voice]==2.7.1", "aiohttp==3.14.1", "brotlicffi==1.2.0.1"]
+slack = ["slack-bolt==1.27.0", "slack-sdk==3.40.1", "aiohttp==3.14.1"]
 matrix = ["mautrix[encryption]==0.21.0", "aiosqlite==0.22.1", "asyncpg==0.31.0", "aiohttp-socks==0.11.0"]
 # Memory
 honcho = ["honcho-ai==2.0.1"]
 # MCP
-mcp = ["mcp==1.26.0", "starlette==1.0.1"]
+mcp = ["mcp==1.28.1", "starlette==1.3.1"]
 # Web dashboard
-web = ["fastapi==0.133.1", "uvicorn[standard]==0.41.0", "starlette==1.0.1"]
+web = ["fastapi==0.133.1", "uvicorn[standard]==0.41.0", "starlette==1.3.1"]
 # CLI enhancements
 cli = ["simple-term-menu==1.6.6"]
 # Voice audio
@@ -92,11 +92,11 @@ voice = [
 # Dev
 dev = [
     "debugpy==1.8.20",
-    "pytest==9.0.2",
+    "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
     "pytest-timeout==2.4.0",
-    "mcp==1.26.0",
-    "starlette==1.0.1",
+    "mcp==1.28.1",
+    "starlette==1.3.1",
     "ty==0.0.21",
     "ruff==0.15.10",
     "setuptools>=77.0,<83",
