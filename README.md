@@ -201,8 +201,8 @@ The S0RA dashboard exposes control endpoints on the configured API port (default
 |---|---|---|---|
 | GET | `/health` | API process liveness | **WORKING** |
 | GET | `/api/status` | Configuration-derived voice/MCP/VOIP/system labels | **PARTIAL** |
-| GET | `/api/visualizer/state` | Fixed synthetic visualizer snapshot | **PARTIAL** |
-| GET | `/api/dashboard/stats` | CPU/memory metrics plus a boot-time value currently labeled `uptime` | **PARTIAL** |
+| GET | `/api/visualizer/state` | Configuration-derived snapshot with fixed synthetic audio levels | **PARTIAL** |
+| GET | `/api/dashboard/stats` | CPU/memory metrics plus a boot-time value currently labeled `uptime` | **WORKING** |
 | POST | `/api/voice/start` | Save intended voice state; does not launch a durable media process | **PARTIAL** |
 | POST | `/api/mcp/start` | Save intended MCP state; does not launch a supervised service | **PARTIAL** |
 
