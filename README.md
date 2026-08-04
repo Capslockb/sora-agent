@@ -195,18 +195,18 @@ See [`docs/env-vars.md`](docs/env-vars.md) for the exhaustive grouped reference.
 
 ## Sidecar HTTP control API
 
-The S0RA dashboard exposes control endpoints on the configured API port (default `8080`). The current API has sensitive unauthenticated read and mutation routes. Use `--host 127.0.0.1` to constrain the API listener until Issue #13 is resolved; this flag does not constrain the separately launched UI preview:
+The S0RA dashboard exposes control endpoints on the configured API port (default `8080`). The current API has sensitive unauthenticated read and mutation routes. Only `/health` is a straightforward liveness route; the other entries below are configuration-derived, synthetic, placeholder-backed, or mislabeled and must not be treated as live runtime evidence. Use `--host 127.0.0.1` to constrain the API listener until Issue #13 is resolved; this flag does not constrain the separately launched UI preview:
 
 | Method | Path | Description | Status |
 |---|---|---|---|
-| GET | `/health` | API liveness | **WORKING** |
-| GET | `/api/status` | Voice/MCP/VOIP/system status | **WORKING** |
-| GET | `/api/visualizer/state` | UI-friendly visualizer snapshot | **WORKING** |
-| GET | `/api/dashboard/stats` | CPU/memory metrics | **WORKING** |
-| POST | `/api/voice/start` | Prepare voice bridge start | **PARTIAL** |
-| POST | `/api/mcp/start` | Start MCP server | **PARTIAL** |
+| GET | `/health` | API process liveness | **WORKING** |
+| GET | `/api/status` | Configuration-derived voice/MCP/VOIP/system labels | **PARTIAL** |
+| GET | `/api/visualizer/state` | Fixed synthetic visualizer snapshot | **PARTIAL** |
+| GET | `/api/dashboard/stats` | CPU/memory metrics plus a boot-time value currently labeled `uptime` | **PARTIAL** |
+| POST | `/api/voice/start` | Save intended voice state; does not launch a durable media process | **PARTIAL** |
+| POST | `/api/mcp/start` | Save intended MCP state; does not launch a supervised service | **PARTIAL** |
 
-Full route list in [`docs/bridge-elements.md`](docs/bridge-elements.md).
+See [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) for the authentication, redaction, bind, and runtime-truth blockers. Full route list in [`docs/bridge-elements.md`](docs/bridge-elements.md).
 
 ---
 
