@@ -24,6 +24,7 @@ This page collects the current truth table, release-blocking rules, and the end-
 9. **Do not present VOIP startup as runnable.** Until [Issue #14](https://github.com/Capslockb/sora-agent/issues/14) is resolved, distinguish management/configuration command surfaces from a working bridge lifecycle.
 10. **Do not present setup or provider management as one reliable control surface.** Until [Issue #15](https://github.com/Capslockb/sora-agent/issues/15) is resolved, distinguish `sora setup`, `sora setup --provider`, `sora providers`, `sora voice providers`, and the dashboard/API. Quick setup mainly stores credential or identifier values; it does not prove selection, enablement, reachability, or agreement with another surface.
 11. **Do not present MCP network transports or discovery as operational.** Until [Issue #16](https://github.com/Capslockb/sora-agent/issues/16) is resolved, state that `sora mcp start` implements stdio only, the custom WebSocket path is incomplete and unauthenticated, and setup/status detection is heuristic rather than protocol-verified.
+12. **Do not present `sora update` as a general installation upgrader.** Until [Issue #18](https://github.com/Capslockb/sora-agent/issues/18) is resolved, mark it `PARTIAL`, limit its documented use to independently verified compatible Git checkouts, warn that it lacks safe worktree/branch/remote preflight, and direct pipx VCS users to reinstall from the same repository URL.
 
 ## Current validation boundary
 
@@ -40,6 +41,7 @@ Documentation-only commits after PR #5 have no attached pytest Actions evidence.
 | CLI entry (`sora --help`, `sora status`, `sora doctor`) | **WORKING** | `tests/test_cli.py`, manual run |
 | Setup wizard (`sora setup`, `sora setup --provider`) | **PARTIAL** | The full voice section directly configures only Gemini Live and Vapi, declining enable prompts does not clear existing enabled state, quick paths do not select or enable providers, and the ElevenLabs quick path does not collect `ELEVENLABS_API_KEY`; see Issue #15. |
 | Provider management (`sora providers`, `sora voice providers`) | **PARTIAL** | The two command families use different registries, configuration paths, provider coverage, and disable semantics. Setup and the dashboard/API add more state shapes; see Issue #15. |
+| `sora update` | **PARTIAL** | Normal pipx VCS installs are not Git checkouts, while source-checkout updates hard-code `origin/main`, require undeclared `uv`, and do not preflight dirty, detached, divergent, remapped, or non-`main` states; see Issue #18. |
 | ElevenLabs signed URLs / WebSocket targets | **WORKING** | `sora_cli/voice.py` URL signing helpers |
 | FastAPI dashboard (`/health`, `/api/status`) | **PARTIAL** | Routes run, but the API defaults to `0.0.0.0`, has no authentication, broad CORS, and sensitive config/env routes; see Issue #13 |
 | Hermes plugin (`sora-hermes`) | **WORKING** | `plugins/sora_hermes/plugin.yaml`; six registered tools |
@@ -85,13 +87,15 @@ hermes plugins enable sora-hermes
 hermes tools list | grep sora_
 ```
 
-The setup and provider commands are diagnostics while Issue #15 remains open. Differences between their stored or reported state are evidence of the known split, not proof that one view is canonical. Never paste or print secret values as part of release evidence.
+The setup and provider commands are diagnostics while Issue #15 remains open. Differences between their stored or reported state are evidence of the known split, not proof that one view is canonical. Keep sensitive values out of release evidence.
 
 `sora mcp catalog` is static metadata and `sora mcp status` uses listener/process heuristics. Neither proves an MCP transport or tool server is healthy. Do not add SSE, streamable HTTP, or the custom WebSocket listener to release smoke checks until Issue #16 is resolved and exact-head lifecycle/security validation passes.
 
 Do not use `/api/config`, `/api/config/env`, or mutation routes as routine release smoke tests while Issue #13 remains open.
 
-Do not add `sora voip start` or `sora-voip` to the release smoke checklist until Issue #14 is fixed and exact-head lifecycle validation passes.
+Do not add `sora voip start` or `sora-voip` to the release smoke checklist until Issue #14 is fixed and exact-head lifecycle tests pass.
+
+Do not add `sora update` to release smoke checks or general upgrade instructions until Issue #18 is fixed and exact-head installation/lifecycle tests cover pipx VCS installs and safe Git-checkout updates.
 
 ## Release-blocking gaps
 
@@ -104,6 +108,7 @@ Do not add `sora voip start` or `sora-voip` to the release smoke checklist until
 | MCP network transports and discovery are incomplete, unauthenticated, or heuristic | **High** | Complete [Issue #16](https://github.com/Capslockb/sora-agent/issues/16) through a focused transport/discovery PR with exact-head tests |
 | Pytest workflow is staged but inactive | Medium | Complete [Issue #12](https://github.com/Capslockb/sora-agent/issues/12), then attach the first exact-head Actions result |
 | TUI build/runtime contract is inconsistent and operational panels are simulated | Medium | Complete [Issue #17](https://github.com/Capslockb/sora-agent/issues/17) through one focused build/runtime PR with deterministic tests |
+| `sora update` is unavailable for normal pipx VCS installs and can mutate a source checkout without safe preflight | Medium | Complete [Issue #18](https://github.com/Capslockb/sora-agent/issues/18) through a focused installation/lifecycle PR with deterministic exact-head tests |
 | `sora voice live` cannot start live audio without the external Hermes voice runtime | Medium | Keep documented as `PARTIAL`; add verified runtime setup guidance |
 | `sora doctor --fix` not implemented | Low | Keep documented as `PLANNED` |
 | `sora acp` is a stub | Low | Keep documented as `RESEARCH` |
@@ -121,6 +126,7 @@ S0RA does **not** currently ship:
 - Protocol-verified MCP auto-discovery or supervised lifecycle management for saved MCP commands.
 - A complete seven-provider setup wizard or a quick path that selects and enables every accepted provider.
 - One unified, authoritative provider-management state across setup, both CLI command families, and the dashboard/API.
+- A safe installation-aware general updater for pipx and arbitrary source checkouts.
 - A production TUI.
 - A production ACP server.
 - Auto-fix diagnostics.
