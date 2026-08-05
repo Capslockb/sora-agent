@@ -87,7 +87,7 @@ hermes plugins enable sora-hermes
 hermes tools list | grep sora_
 ```
 
-The setup and provider commands are diagnostics while Issue #15 remains open. Differences between their stored or reported state are evidence of the known split, not proof that one view is canonical. Never paste or print secret values as part of release evidence.
+The setup and provider commands are diagnostics while Issue #15 remains open. Differences between their stored or reported state are evidence of the known split, not proof that one view is canonical. Keep sensitive values out of release evidence.
 
 `sora mcp catalog` is static metadata and `sora mcp status` uses listener/process heuristics. Neither proves an MCP transport or tool server is healthy. Do not add SSE, streamable HTTP, or the custom WebSocket listener to release smoke checks until Issue #16 is resolved and exact-head lifecycle/security validation passes.
 
