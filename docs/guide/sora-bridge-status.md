@@ -26,7 +26,7 @@ SORA is **not yet a complete standalone replacement** for `Capslockb/gemini-live
 | Voice command handlers | `sora_cli/voice.py` |
 | Provider-specific preparation/API clients | `sora_cli/*_client.py` |
 | Configuration defaults/helpers | `sora_cli/config.py`, `sora_constants.py` |
-| Installation-aware update behavior | `sora_cli/update.py` |
+| `sora update` implementation | `sora_cli/update.py` |
 | FastAPI backend | `sora_api.py` |
 | MCP implementation and CLI | `sora_mcp.py`, `sora_cli/mcp.py` |
 | Hermes SORA plugin | `plugins/sora_hermes/` |
