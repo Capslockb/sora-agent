@@ -188,6 +188,7 @@ Current high-priority roadmap blockers are:
 5. make MCP transports, discovery, and lifecycle truthful and secure (Issue #16);
 6. choose and implement a deterministic prototype or live-state TUI contract (Issue #17);
 7. make `sora update` installation-aware and non-destructive (Issue #18);
-8. complete CLI secret-handling and deterministic-build work (Issue #7).
+8. complete CLI secret-handling and deterministic-build work (Issue #7);
+9. enforce `public-docs-safety` and code-owner review on `main` (Issue #20).
 
-Until those items are resolved, documentation must distinguish configuration, provider-side readiness, saved state, simulated UI output, and updater intent from an active authenticated runtime or a safe installation lifecycle.
+Until those items are resolved, documentation must distinguish configuration, provider-side readiness, saved state, simulated UI output, and updater intent from an active authenticated runtime or a safe installation lifecycle. Repository settings must also not be described as enforcing required checks or code-owner review until Issue #20 is resolved.
