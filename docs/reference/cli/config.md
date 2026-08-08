@@ -10,12 +10,14 @@ sora config <SUBCOMMAND>
 
 | Command | Description |
 |---------|-------------|
-| `show` | Show current config (secrets masked) |
+| `show` | Display the raw user config; output is not redacted and may contain sensitive values |
 | `set KEY VAL` | Set config value |
 | `get KEY` | Get config value |
 | `profiles` | List profiles |
 | `profile` | Profile management |
 | `reset` | Reset to defaults |
+
+`show` prints the raw user configuration, `get` prints the selected value, and `set` echoes the supplied value. These paths do not provide secret redaction; do not use them to enter or display credentials.
 
 ## Examples
 
