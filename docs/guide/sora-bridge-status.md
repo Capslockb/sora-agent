@@ -177,7 +177,7 @@ Do not rely on `sora update` for a normal pipx VCS installation. For a source ch
 
 ## Validation boundary and roadmap
 
-The last recorded local pytest result was 24/24 on PR #5. The staged workflow remains outside `.github/workflows/`, so current `main` and pull requests are not automatically pytest-verified. See [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
+The last recorded local pytest result was 24/24 on PR #5. On current `main`, the staged workflow remains outside `.github/workflows/`, so `main` and PR heads that do not themselves activate the workflow are not automatically pytest-verified. Draft PR #25 is the current exception: its exact head activates `.github/workflows/tests.yml` and passes the PR-level `Tests` workflow, but that does not activate pytest CI on `main` or other branches. See [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
 
 Current high-priority roadmap blockers are:
 
