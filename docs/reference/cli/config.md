@@ -10,7 +10,7 @@ sora config <SUBCOMMAND>
 
 | Command | Description |
 |---------|-------------|
-| `show` | Display current config with sensitive values masked |
+| `show` | Display the raw user config; output is not redacted and may contain sensitive values |
 | `set KEY VAL` | Set config value |
 | `get KEY` | Get config value |
 | `profiles` | List profiles |
