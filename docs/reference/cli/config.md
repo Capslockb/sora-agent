@@ -17,6 +17,8 @@ sora config <SUBCOMMAND>
 | `profile` | Profile management |
 | `reset` | Reset to defaults |
 
+`show` prints the raw user configuration, `get` prints the selected value, and `set` echoes the supplied value. These paths do not provide secret redaction; do not use them to enter or display credentials.
+
 ## Examples
 
 ```bash
