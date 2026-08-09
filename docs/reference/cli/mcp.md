@@ -11,6 +11,7 @@ sora mcp <SUBCOMMAND>
 | Command | Current behavior |
 |---|---|
 | `start` | Run the built-in server. Only `--transport stdio` is implemented. |
+| `stop` | Registered by the main parser, but the MCP dispatcher has no `stop` handler; it returns `Unknown subcommand: stop` and does not stop a server. |
 | `status` | Print saved server records and heuristic process/listener detection. It does not verify MCP protocol health. |
 | `list` | Print the built-in package catalog. It does not list saved configuration. |
 | `catalog` | Alias of `list`. |
@@ -20,7 +21,7 @@ sora mcp <SUBCOMMAND>
 | `ws start` | Start the incomplete custom WebSocket listener. Local investigation only. |
 | `ws stop` / `ws status` / `ws list` | Parser-visible stubs that return not implemented. |
 
-Top-level `sora mcp stop` and `sora mcp discover` are **not registered commands**.
+Top-level `sora mcp discover` is **not registered**. Top-level `sora mcp stop` is parser-visible but non-functional until the dispatcher implements a matching lifecycle handler.
 
 ## Built-in server
 
