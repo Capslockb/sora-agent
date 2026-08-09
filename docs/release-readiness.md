@@ -41,7 +41,7 @@ Documentation-only commits after PR #5 have no attached pytest Actions evidence.
 
 | Area | Status | Evidence / caveat |
 |---|---|---|
-| CLI entry (`sora --help`, `sora status`, `sora doctor`) | **WORKING** | `tests/test_cli.py`, manual run |
+| CLI entry (`sora --help`, `sora status`, `sora doctor`) | **WORKING** | `sora_cli/main.py`, `sora_cli/doctor.py`; release smoke commands |
 | Setup wizard (`sora setup`, `sora setup --provider`) | **PARTIAL** | The full voice section directly configures only Gemini Live and Vapi, declining enable prompts does not clear existing enabled state, quick paths do not select or enable providers, and the ElevenLabs quick path does not collect `ELEVENLABS_API_KEY`; see Issue #15. |
 | Provider management (`sora providers`, `sora voice providers`) | **PARTIAL** | The two command families use different registries, configuration paths, provider coverage, and disable semantics. Setup and the dashboard/API add more state shapes; see Issue #15. |
 | `sora update` | **PARTIAL** | Normal pipx VCS installs are not Git checkouts, while source-checkout updates hard-code `origin/main`, require undeclared `uv`, and do not preflight dirty, detached, divergent, remapped, or non-`main` states; see Issue #18. |
