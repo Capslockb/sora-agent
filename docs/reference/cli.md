@@ -74,6 +74,7 @@ The top-level `sora providers`, nested `sora voice providers`, setup wizard, and
 ```bash
 sora mcp <SUBCOMMAND>
   start             Start the built-in server (PARTIAL: stdio only)
+  stop              Parser-visible, but no dispatcher handler; returns Unknown subcommand and stops nothing
   status            Show saved records plus heuristic listener/process detection (PARTIAL)
   list              Print the built-in package catalog
   catalog           Alias of list
@@ -85,7 +86,7 @@ sora mcp <SUBCOMMAND>
                     Parser-visible stubs that return not implemented
 ```
 
-Top-level `sora mcp stop` and `sora mcp discover` are not registered commands. `sora mcp start --transport sse` and `--transport streamable-http` are accepted by the parser but raise `NotImplementedError`; no `/sse` or `/mcp` HTTP endpoint is created. `status` does not perform an MCP handshake, and `list` shows the static package catalog rather than saved server configuration. Do not expose the custom WebSocket listener or treat listener/process matches as verified MCP health. See [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
+Top-level `sora mcp stop` is registered by the main parser but is non-functional because `sora_cli/mcp.py` has no matching dispatcher handler; it currently returns `Unknown subcommand: stop`. Top-level `sora mcp discover` is not registered. `sora mcp start --transport sse` and `--transport streamable-http` are accepted by the parser but raise `NotImplementedError`; no `/sse` or `/mcp` HTTP endpoint is created. `status` does not perform an MCP handshake, and `list` shows the static package catalog rather than saved server configuration. Do not expose the custom WebSocket listener or treat listener/process matches as verified MCP health. See [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
 
 ### TUI subcommand
 
