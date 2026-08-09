@@ -19,20 +19,23 @@ This page collects the current truth table, release-blocking rules, and the end-
 4. **Do not present prototype UI output as live evidence.** Until [Issue #17](https://github.com/Capslockb/sora-agent/issues/17) is resolved, TUI screenshots and demonstrations must visibly retain the prototype boundary and must not imply that simulated provider, voice, health, doctor, benchmark, setup, configuration, or MCP values came from live state.
 5. **API documentation must match `sora_api.py`.** The route tables are maintained manually and must be rechecked against source; they are not generated automatically.
 6. **Docs-site must build without dead links.** From the repository root, run `npm --prefix docs ci && npm --prefix docs run docs:build` before release.
-7. **Local test results are not CI evidence.** Until [Issue #12](https://github.com/Capslockb/sora-agent/issues/12) is completed, describe pytest results as locally verified and do not imply that GitHub Actions validates the current head.
+7. **Do not confuse local pytest with Actions evidence.** Until [Issue #12](https://github.com/Capslockb/sora-agent/issues/12) is completed on `main`, locally run pytest remains local evidence. An exact PR head may be described as Actions-validated only when a `Tests` run is attached to that head; draft PR #25 is the current exception, and its passing PR-level run does not activate pytest CI on `main` or other branches.
 8. **Do not present the dashboard as network-safe.** Until [Issue #13](https://github.com/Capslockb/sora-agent/issues/13) is resolved, document it as an unauthenticated trusted-local-development surface.
 9. **Do not present VOIP startup as runnable.** Until [Issue #14](https://github.com/Capslockb/sora-agent/issues/14) is resolved, distinguish management/configuration command surfaces from a working bridge lifecycle.
 10. **Do not present setup or provider management as one reliable control surface.** Until [Issue #15](https://github.com/Capslockb/sora-agent/issues/15) is resolved, distinguish `sora setup`, `sora setup --provider`, `sora providers`, `sora voice providers`, and the dashboard/API. Quick setup mainly stores credential or identifier values; it does not prove selection, enablement, reachability, or agreement with another surface.
 11. **Do not present MCP network transports or discovery as operational.** Until [Issue #16](https://github.com/Capslockb/sora-agent/issues/16) is resolved, state that `sora mcp start` implements stdio only, the custom WebSocket path is incomplete and unauthenticated, and setup/status detection is heuristic rather than protocol-verified.
 12. **Do not present `sora update` as a general installation upgrader.** Until [Issue #18](https://github.com/Capslockb/sora-agent/issues/18) is resolved, mark it `PARTIAL`, limit its documented use to independently verified compatible Git checkouts, warn that it lacks safe worktree/branch/remote preflight, and direct pipx VCS users to reinstall from the same repository URL.
+13. **Do not claim required-check or code-owner enforcement that repository settings do not provide.** Until [Issue #20](https://github.com/Capslockb/sora-agent/issues/20) is resolved, do not describe `public-docs-safety` or CODEOWNERS review as required or enforced on `main`.
 
 ## Current validation boundary
 
-PR #5 recorded **24/24 tests passing locally** before it was merged. That result covers the tested PR state, but it is not exact-head CI evidence for later commits on `main`. The pytest workflow is still staged at `ci/tests.yml`, where GitHub Actions will not execute it; activation is tracked in [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
+PR #5 recorded **24/24 tests passing locally** before it was merged. That result covers the tested PR state, but it is not exact-head CI evidence for later commits on `main`. On current `main`, the pytest workflow is still staged at `ci/tests.yml`, where GitHub Actions will not execute it; activation is tracked in [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
+
+Draft PR #25 is the current exception to that branch-wide boundary: its exact head activates `.github/workflows/tests.yml` and has a successful PR-level `Tests` run on Python 3.12 and 3.13. That evidence applies only to PR #25's exact head; it does not activate pytest CI on `main` or prove later unrelated heads.
 
 The repository has a separate Pages workflow at `.github/workflows/docs.yml` that builds the VitePress site from `docs/` on pushes to `main`. That deployment workflow does not validate Python runtime or security changes.
 
-Documentation-only commits after PR #5 have no attached pytest Actions evidence. Runtime or security claims must therefore be verified from current source and should not be described as CI-proven.
+Documentation-only commits after PR #5 have no attached pytest Actions evidence. PR #25 is not documentation-only; its exact-head `Tests` run proves only that CI-activation branch. Runtime or security claims on `main` or other PR heads must therefore be verified from current source and should not be described as CI-proven without their own exact-head evidence.
 
 ## Truth table
 
@@ -106,7 +109,8 @@ Do not add `sora update` to release smoke checks or general upgrade instructions
 | CLI secret handling and nondeterministic local execution remain open | **High** | Complete [Issue #7](https://github.com/Capslockb/sora-agent/issues/7) |
 | Setup quick paths and provider controls do not share truthful selection or credential semantics | **High** | Complete [Issue #15](https://github.com/Capslockb/sora-agent/issues/15), including the ElevenLabs variable mapping and reversible enable/disable behavior |
 | MCP network transports and discovery are incomplete, unauthenticated, or heuristic | **High** | Complete [Issue #16](https://github.com/Capslockb/sora-agent/issues/16) through a focused transport/discovery PR with exact-head tests |
-| Pytest workflow is staged but inactive | Medium | Complete [Issue #12](https://github.com/Capslockb/sora-agent/issues/12), then attach the first exact-head Actions result |
+| Pytest workflow is staged but inactive on `main` | Medium | Complete [Issue #12](https://github.com/Capslockb/sora-agent/issues/12), then attach the first exact-head post-merge Actions result |
+| `public-docs-safety` and code-owner review are not enforced on `main` | Medium | Complete [Issue #20](https://github.com/Capslockb/sora-agent/issues/20) by enabling and verifying the intended branch/ruleset requirements |
 | TUI build/runtime contract is inconsistent and operational panels are simulated | Medium | Complete [Issue #17](https://github.com/Capslockb/sora-agent/issues/17) through one focused build/runtime PR with deterministic tests |
 | `sora update` is unavailable for normal pipx VCS installs and can mutate a source checkout without safe preflight | Medium | Complete [Issue #18](https://github.com/Capslockb/sora-agent/issues/18) through a focused installation/lifecycle PR with deterministic exact-head tests |
 | `sora voice live` cannot start live audio without the external Hermes voice runtime | Medium | Keep documented as `PARTIAL`; add verified runtime setup guidance |
@@ -143,4 +147,4 @@ npm --prefix docs run docs:build
 python -m pytest tests/ -q
 ```
 
-Treat those commands as local evidence until Issue #12 activates pytest CI.
+Treat those commands as local evidence on any head without an attached `Tests` workflow. Until Issue #12 is merged and revalidated, `main` still lacks repository-wide pytest CI.
