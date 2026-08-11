@@ -84,7 +84,7 @@ Status: **PARTIAL — STARTUP BLOCKED**. The component classes and management co
 - **Status and discovery**: **PARTIAL** — `sora mcp status` combines saved configuration with process-name and listening-port heuristics. It does not perform an MCP handshake or prove protocol health, and unrelated processes can be reported as MCP servers.
 - **SSE and streamable HTTP**: **PLANNED** — the CLI accepts both transport names, but the server raises `NotImplementedError` for them.
 - **Raw WebSocket listener**: **PARTIAL — UNSAFE** — `sora mcp ws start` is separate from the implemented stdio server, defaults to `0.0.0.0:3001`, has no authentication, and its tool-call path is incomplete.
-- **CLI management**: **PARTIAL** — the registered top-level commands are `start`, `status`, `list`, `catalog`, `add`, `remove`, `enable`, and `disable`, plus `ws start/stop/status/list`. The `ws stop/status/list` commands are stubs, and there is no top-level `sora mcp stop` command.
+- **CLI management**: **PARTIAL** — the main parser registers top-level `start`, `stop`, `status`, `list`, `catalog`, `add`, `remove`, `enable`, and `disable`, plus `ws start/stop/status/list`. The MCP dispatcher has no handler for top-level `stop`, so `sora mcp stop` currently returns `Unknown subcommand: stop` instead of stopping a server. The `ws stop/status/list` commands are separate parser-visible stubs, and top-level `sora mcp discover` is not registered.
 
 Do not expose the WebSocket listener or treat heuristic status output as runtime validation. See [Issue #16](https://github.com/Capslockb/sora-agent/issues/16).
 
