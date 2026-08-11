@@ -54,7 +54,7 @@ The VOIP plugin is part of the root project and is **not** a standalone package 
 
 The TUI remains a prototype with inconsistent checked-in build entrypoints. Do not treat `npm run build` or `sora tui --build` as reproducible release validation until [Issue #17](https://github.com/Capslockb/sora-agent/issues/17) is resolved.
 
-The dashboard frontend can be built locally, but its control API is currently a trusted-local-development surface. Keep it loopback-only and do not expose it to a LAN or the internet; see [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
+The dashboard frontend can be built locally, but the dashboard is currently a trusted-local-development surface. `sora dashboard start --host 127.0.0.1` constrains only the API listener; it does not prove that the separately launched UI preview is loopback-bound. Run it only on a trusted local machine and do not publish either listener to a LAN or the internet; see [Issue #13](https://github.com/Capslockb/sora-agent/issues/13).
 
 ### Docker (Core CLI Only)
 

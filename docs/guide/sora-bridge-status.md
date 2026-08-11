@@ -26,7 +26,7 @@ SORA is **not yet a complete standalone replacement** for `Capslockb/gemini-live
 | Voice command handlers | `sora_cli/voice.py` |
 | Provider-specific preparation/API clients | `sora_cli/*_client.py` |
 | Configuration defaults/helpers | `sora_cli/config.py`, `sora_constants.py` |
-| Installation-aware update behavior | `sora_cli/update.py` |
+| `sora update` implementation | `sora_cli/update.py` |
 | FastAPI backend | `sora_api.py` |
 | MCP implementation and CLI | `sora_mcp.py`, `sora_cli/mcp.py` |
 | Hermes SORA plugin | `plugins/sora_hermes/` |
@@ -177,7 +177,7 @@ Do not rely on `sora update` for a normal pipx VCS installation. For a source ch
 
 ## Validation boundary and roadmap
 
-The last recorded local pytest result was 24/24 on PR #5. The staged workflow remains outside `.github/workflows/`, so current `main` and pull requests are not automatically pytest-verified. See [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
+The last recorded local pytest result was 24/24 on PR #5. On current `main`, the staged workflow remains outside `.github/workflows/`, so `main` and PR heads that do not themselves activate the workflow are not automatically pytest-verified. Draft PR #25 is the current exception: its exact head activates `.github/workflows/tests.yml` and passes the PR-level `Tests` workflow, but that does not activate pytest CI on `main` or other branches. See [Issue #12](https://github.com/Capslockb/sora-agent/issues/12).
 
 Current high-priority roadmap blockers are:
 
@@ -188,6 +188,7 @@ Current high-priority roadmap blockers are:
 5. make MCP transports, discovery, and lifecycle truthful and secure (Issue #16);
 6. choose and implement a deterministic prototype or live-state TUI contract (Issue #17);
 7. make `sora update` installation-aware and non-destructive (Issue #18);
-8. complete CLI secret-handling and deterministic-build work (Issue #7).
+8. complete CLI secret-handling and deterministic-build work (Issue #7);
+9. enforce `public-docs-safety` and code-owner review on `main` (Issue #20).
 
-Until those items are resolved, documentation must distinguish configuration, provider-side readiness, saved state, simulated UI output, and updater intent from an active authenticated runtime or a safe installation lifecycle.
+Until those items are resolved, documentation must distinguish configuration, provider-side readiness, saved state, simulated UI output, and updater intent from an active authenticated runtime or a safe installation lifecycle. Repository settings must also not be described as enforcing required checks or code-owner review until Issue #20 is resolved.
